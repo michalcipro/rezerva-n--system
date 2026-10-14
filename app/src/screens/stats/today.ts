@@ -70,9 +70,7 @@ export function dayLists(s: ClinicState, date: LocalDate, now: LocalDateTime, th
 /** První potvrzený individuální termín zítra (pro prázdný stav). */
 export function firstOnDate(s: ClinicState, date: LocalDate, therapistId: Id | null): Booking | null {
   return (
-    bookingsOnDate(s, date).find(
-      (b) => !b.sessionId && b.status === 'confirmed' && (!therapistId || b.therapistId === therapistId),
-    ) ?? null
+    bookingsOnDate(s, date).find((b) => !b.sessionId && b.status === 'confirmed' && (!therapistId || b.therapistId === therapistId)) ?? null
   );
 }
 

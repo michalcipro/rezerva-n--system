@@ -148,7 +148,7 @@ export function BlockEditor({ value, onChange }: BlockEditorProps): JSX.Element 
     focusCaret(el, res.caret);
   };
 
-  const onItemKeyDown = (event: KeyboardEvent<HTMLInputElement>, index: number, itemIndex: number): void => {
+  const onItemKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>, index: number, itemIndex: number): void => {
     const b = blocks[index];
     if (b.type !== 'list') return;
     if (event.key === 'Enter') {
@@ -252,7 +252,7 @@ export function BlockEditor({ value, onChange }: BlockEditorProps): JSX.Element 
                         <span className="com-email__num" aria-hidden="true">
                           {itemIndex + 1}
                         </span>
-                        <input
+                        <AutoTextarea
                           ref={register(`${key}|item|${itemIndex}`)}
                           className="com-blk__item"
                           value={item}
@@ -261,7 +261,10 @@ export function BlockEditor({ value, onChange }: BlockEditorProps): JSX.Element 
                           aria-label={`Položka ${itemIndex + 1} (seznam, blok ${n})`}
                           onFocus={() => (lastField.current = `${key}|item|${itemIndex}`)}
                           onChange={(event) =>
-                            setBlock(index, { ...b, items: b.items.map((it, i) => (i === itemIndex ? event.target.value : it)) })
+                            setBlock(index, {
+                              ...b,
+                              items: b.items.map((it, i) => (i === itemIndex ? event.target.value.replace(/\n/g, ' ') : it)),
+                            })
                           }
                           onKeyDown={(event) => onItemKeyDown(event, index, itemIndex)}
                         />

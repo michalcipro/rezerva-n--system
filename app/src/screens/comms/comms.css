@@ -199,8 +199,7 @@
   flex-direction: column;
   gap: 3px;
   width: 100%;
-  padding: var(--space-2) var(--space-4) var(--space-2) calc(var(--space-4) - 2px);
-  border-left: 2px solid transparent;
+  padding: var(--space-2) var(--space-4);
   text-align: left;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
@@ -214,7 +213,6 @@
 }
 
 .com-clist__item[aria-current='true'] {
-  border-left-color: var(--accent);
   background: var(--accent-subtle);
 }
 
@@ -787,9 +785,8 @@
 }
 
 .com-grow > textarea::placeholder,
-.com-blk__item::placeholder,
 .com-blk__url input::placeholder {
-  color: var(--text-faint);
+  color: var(--text-muted);
   opacity: 1;
 }
 
@@ -802,25 +799,17 @@
   padding: var(--space-1) 0;
 }
 
+.com-blk__list .com-email__li > .btn {
+  flex: none;
+}
+
 .com-blk__item {
   flex: 1 1 auto;
   min-width: 0;
-  height: 32px;
-  padding: 0 var(--space-1-5);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
   color: var(--em-ink);
   font-size: var(--text-base);
+  line-height: var(--leading-base);
   font-weight: var(--weight-semibold);
-}
-
-.com-blk__item:hover {
-  background: var(--surface-muted);
-}
-
-.com-blk__item:focus-visible {
-  outline-offset: 1px;
 }
 
 .com-blk__listfoot {
@@ -1620,7 +1609,6 @@ button.com-rule__main:hover {
   align-items: center;
   gap: var(--space-2);
   padding-right: var(--space-4);
-  border-left: 2px solid transparent;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
@@ -1629,7 +1617,6 @@ button.com-rule__main:hover {
 }
 
 .com-tlist__row.is-active {
-  border-left-color: var(--accent);
   background: var(--accent-subtle);
 }
 
@@ -1639,7 +1626,7 @@ button.com-rule__main:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-2) var(--space-2) var(--space-2) calc(var(--space-4) - 2px);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
   text-align: left;
 }
 
@@ -2018,10 +2005,6 @@ button.com-rule__main:hover {
   color: var(--accent-fg);
 }
 
-.com-row--skipped > td:first-child {
-  box-shadow: inset 2px 0 0 var(--warning);
-}
-
 .com-outbox__list {
   display: none;
 }
@@ -2151,13 +2134,6 @@ button.com-rule__main:hover {
   color: var(--text-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.com-drawer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
 }
 
 /* ---------- Ruční zpráva ---------- */

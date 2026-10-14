@@ -64,6 +64,11 @@ export function ClientPortal(): JSX.Element {
             Rezervace, zrušení, omluvenky i platby se hned propíšou do kalendáře recepce. Za kterého klienta portál zkoušíte, přepnete v
             testovacím panelu nahoře.
           </p>
+          <ul className="por-aside__list">
+            <li>Zarezervujte termín v 15minutových časech</li>
+            <li>Omluvte zítřejší termín a vyberte náhradu</li>
+            <li>Posuňte testovací čas a sledujte, jak se mění storno podmínky</li>
+          </ul>
         </aside>
         <div className="por-device">
           {client ? (

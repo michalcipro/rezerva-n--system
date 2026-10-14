@@ -1,0 +1,345 @@
+/* Tým a směny (prefix .set-) */
+
+/* ---------- Karty terapeutů ---------- */
+.set-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-4);
+}
+.set-person-card { gap: var(--space-3); }
+.set-person-card.is-inactive { background: var(--surface-muted); }
+.set-person-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.set-person-card__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-person-card__name {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.set-person-card__focus {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.set-person-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-person-card__meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.set-person-card__meta .icon { flex: none; }
+.set-person-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.set-person-card__foot .statline { gap: var(--space-1) var(--space-3); }
+
+/* Mini náhled týdne */
+.set-week-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.set-week-mini__row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 50px;
+  align-items: center;
+  gap: var(--space-2);
+}
+.set-week-mini__day {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.set-week-mini__row.is-off .set-week-mini__day { color: var(--text-muted); }
+.set-week-mini__h {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-secondary);
+  text-align: right;
+}
+.set-week-mini__axis {
+  position: relative;
+  height: 12px;
+  margin: 0 calc(50px + var(--space-2)) 0 calc(22px + var(--space-2));
+  font-size: var(--text-2xs);
+  line-height: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.set-week-mini__axis > span { position: absolute; top: 0; transform: translateX(-50%); }
+.set-week-mini__axis > span:nth-child(1) { left: 0; transform: none; }
+.set-week-mini__axis > span:nth-child(2) { left: 40%; }
+.set-week-mini__axis > span:nth-child(3) { left: 80%; }
+
+.set-shift {
+  position: relative;
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+.set-shift__work {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+}
+.set-shift__break {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, var(--hatch-a) 0 2px, var(--grid-line) 2px 4px);
+}
+
+/* ---------- Editor pracovní doby ---------- */
+.set-days {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.set-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2-5) var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+.set-day:first-child { border-top: 0; }
+.set-day.is-off { background: var(--surface-subtle); }
+.set-day__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+.set-day__switch { flex: 1 1 auto; }
+.set-day__switch .switch__label { font-weight: var(--weight-semibold); }
+.set-day__total {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+.set-day.is-off .set-day__total { color: var(--text-muted); }
+.set-day__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding-left: 42px;
+}
+.set-day__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: calc(-1 * var(--space-2));
+}
+
+.set-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.set-range__kind {
+  width: 44px;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.set-range--break .set-range__kind { color: var(--text-secondary); }
+.set-range__times {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.set-range__dash { color: var(--text-muted); }
+.set-range__error { flex-basis: 100%; }
+
+.set-week-total {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .set-day__body { padding-left: 0; }
+  .set-range__kind { width: 100%; }
+}
+
+/* ---------- Týdenní kapacita ---------- */
+.set-cap-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.set-cap-table th.is-today,
+.set-cap-table td.is-today { background: var(--accent-subtle); }
+.set-cap-table tbody th,
+.set-cap-table tfoot th {
+  position: static;
+  height: auto;
+  padding: var(--space-1-5) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+.set-cap-table tbody tr > th:first-child,
+.set-cap-table tfoot tr > th:first-child { padding-left: var(--space-4); }
+.set-cap-table tfoot th { border-top: 1px solid var(--border); border-bottom: 0; font-weight: var(--weight-semibold); }
+.set-cap-name { max-width: 220px; }
+.set-cap-cell.is-off {
+  background: repeating-linear-gradient(135deg, var(--hatch-a) 0 4px, var(--hatch-b) 4px 8px);
+}
+.set-cap-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  line-height: 16px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.set-cap-occ { min-width: 150px; }
+.set-cap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-2-5) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-cap-legend > span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+
+/* ---------- Nepřítomnosti ---------- */
+.set-offlist {
+  display: flex;
+  flex-direction: column;
+}
+.set-offlist__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  padding: var(--space-2-5) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.set-offlist__item:first-child { border-top: 0; padding-top: var(--space-1); }
+.set-offlist__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--info-soft);
+  color: var(--info-fg);
+}
+.set-offlist__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.set-offlist__who {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+}
+.set-offlist__item.is-past .set-offlist__who { color: var(--text-secondary); }
+.set-offlist__range {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+.set-offlist__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-1-5);
+  margin-top: 2px;
+}
+.set-offlist__reason {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+
+/* Dopad nepřítomnosti v dialogu */
+.set-impact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.set-impact__range {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-variant-numeric: tabular-nums;
+}
+.set-impact__lessons {
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.set-impact .callout p { margin: 0; }
+
+@media (max-width: 640px) {
+  .set-cap-head { flex-wrap: wrap; padding-block: var(--space-2-5); }
+  .set-cap-head .card-header__actions { flex-basis: 100%; }
+  .set-cap-nav { justify-content: flex-start; }
+}

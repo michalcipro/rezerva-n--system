@@ -120,7 +120,7 @@ export function RecipientsDrawer({ open, onClose, segment, campaignName }: Recip
             </ul>
             {rows.length > limit && (
               <Button variant="secondary" full onClick={() => setLimit((l) => l + PAGE)}>
-                Zobrazit další ({formatNumber(Math.min(PAGE, rows.length - limit))} z {formatNumber(rows.length - limit)})
+                Zobrazit další (zbývá {formatNumber(rows.length - limit)})
               </Button>
             )}
           </>

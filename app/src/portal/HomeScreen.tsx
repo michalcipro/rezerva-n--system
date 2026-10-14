@@ -34,6 +34,7 @@ import {
   vocative,
   waitlistLabel,
   whenLabel,
+  zPrep,
 } from './logic';
 import { DateBadge, Screen, SectionTitle, StateChip } from './parts';
 import { inboxSeen } from './storage';
@@ -200,7 +201,7 @@ export function HomeScreen(): JSX.Element {
               <span className="por-tile__label">Omluvenky</span>
               <span className="por-tile__num tnum">
                 {data.excuses.remaining}
-                <span className="por-tile__of"> z {data.excuses.total}</span>
+                <span className="por-tile__of"> {zPrep(data.excuses.total)} {data.excuses.total}</span>
               </span>
               <span className="por-tile__hint">
                 bez permanentky, za {countLabel(clinic.settings.policy.excuses.perClientMonths, ['měsíc', 'měsíce', 'měsíců'])}
@@ -336,7 +337,7 @@ export function PackageTile({ pkg, wide = true }: { pkg: ClientPackage; wide?: b
         {u.free}
         <span className="por-tile__of">
           {' '}
-          {u.free === 1 ? 'volný vstup' : u.free >= 2 && u.free <= 4 ? 'volné vstupy' : 'volných vstupů'} z {u.total}
+          {u.free === 1 ? 'volný vstup' : u.free >= 2 && u.free <= 4 ? 'volné vstupy' : 'volných vstupů'} {zPrep(u.total)} {u.total}
           {u.reserved ? ` · ${u.reserved} ${u.reserved === 1 ? 'rezervovaný' : 'rezervované'}` : ''}
         </span>
       </span>
@@ -353,7 +354,7 @@ export function PackageTile({ pkg, wide = true }: { pkg: ClientPackage; wide?: b
       />
       {pkg.excusesAllowed > 0 && (
         <span className="por-tile__hint">
-          Omluvenky k permanentce: zbývá {u.excusesLeft} z {pkg.excusesAllowed}
+          Omluvenky k permanentce: zbývá {u.excusesLeft} {zPrep(pkg.excusesAllowed)} {pkg.excusesAllowed}
         </span>
       )}
     </div>

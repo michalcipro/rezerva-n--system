@@ -25,7 +25,7 @@ import {
   therapistName,
 } from '../../engine/selectors';
 import { addHours, addMinutes, combine, dateOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Dialog, Field, RadioCards, Segmented, Select, Textarea, toast, type RadioCardOption } from '../../ui';
 import { defaultServiceFor, servicesByCategory } from './model';
@@ -75,14 +75,17 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
   const today = dateOf(now);
   const policy = clinic.settings.policy;
 
+  const actor = useActor();
   const initSession = initial?.sessionId ? getSession(clinic, initial.sessionId) : undefined;
   const groups = useMemo(() => servicesByCategory(clinic), [clinic]);
+  // Terapeut bez kontextu (tlačítko v horní liště) dostane předvyplněný sám sebe.
+  const preferredTherapist = initial?.therapistId ?? (actor.role === 'therapist' ? actor.therapistId : undefined);
 
   const [clientId, setClientId] = useState<Id | null>(initial?.clientId && getClient(clinic, initial.clientId) ? initial.clientId : null);
   const [serviceId, setServiceId] = useState<Id>(() => {
     if (initSession) return initSession.serviceId;
     if (initial?.serviceId && getService(clinic, initial.serviceId)?.active) return initial.serviceId;
-    return defaultServiceFor(clinic, initial?.therapistId)?.id ?? groups[0]?.services[0]?.id ?? '';
+    return defaultServiceFor(clinic, preferredTherapist)?.id ?? groups[0]?.services[0]?.id ?? '';
   });
   const service = getService(clinic, serviceId);
   const isGroup = service?.kind === 'group';
@@ -98,7 +101,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
 
   const [therapistChoice, setTherapistChoice] = useState<Id | 'any'>(() => {
     const svc = getService(clinic, serviceId);
-    if (initial?.therapistId && svc?.therapistIds.includes(initial.therapistId)) return initial.therapistId;
+    if (preferredTherapist && svc?.therapistIds.includes(preferredTherapist)) return preferredTherapist;
     return svc?.therapistIds[0] ?? 'any';
   });
   const [date, setDate] = useState<LocalDate>(initSession ? dateOf(initSession.start) : initial?.start ? dateOf(initial.start) : today);
@@ -135,8 +138,20 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
       setSessionId(null);
     } else {
       setSessionId(null);
-      if (therapistChoice !== 'any' && !svc.therapistIds.includes(therapistChoice)) setTherapistChoice(svc.therapistIds[0] ?? 'any');
-      if (therapistChoice === 'any' && svc.therapistIds.length <= 1) setTherapistChoice(svc.therapistIds[0] ?? 'any');
+      let nextTherapist: Id | 'any' = therapistChoice;
+      if (therapistChoice !== 'any' && !svc.therapistIds.includes(therapistChoice)) nextTherapist = svc.therapistIds[0] ?? 'any';
+      if (therapistChoice === 'any' && svc.therapistIds.length <= 1) nextTherapist = svc.therapistIds[0] ?? 'any';
+      if (nextTherapist !== therapistChoice) {
+        setTherapistChoice(nextTherapist);
+        setSlotTherapist(null);
+      }
+      // Ve výběru z volných časů ponech čas jen tehdy, když je volný i pro novou službu.
+      if (!manual && start) {
+        const stillFree = availableSlots(clinic, { serviceId: id, therapistId: nextTherapist, date, now, mode: 'staff', clientId: clientId ?? undefined }).some(
+          (sl) => sl.start === start && (nextTherapist !== 'any' || sl.therapistId === slotTherapist),
+        );
+        if (!stillFree) setStart(null);
+      }
     }
   };
   const changeDate = (d: LocalDate): void => {
@@ -332,7 +347,16 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
             Služba a terapeut
           </h3>
           <div className={isGroup ? 'cal-form__one' : 'cal-grid2'}>
-            <Field label="Služba" hint={service ? `${formatDuration(service.durationMin)} · ${formatMoney(service.priceCzk)}${service.newClientsOnly ? ' · jen pro nové klienty' : ''}` : undefined}>
+            <Field
+              label="Služba"
+              hint={
+                service
+                  ? [service.description, service.kind === 'group' ? `Skupinová lekce · ${formatDuration(service.durationMin)}` : '', service.newClientsOnly ? 'Jen pro nové klienty.' : '']
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  : undefined
+              }
+            >
               <ServiceSelect groups={groups} value={serviceId} onChange={changeService} disabled={!!initSession} />
             </Field>
             {!isGroup && (
@@ -370,7 +394,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
                 setOverride(false);
               }}
               clientId={clientId}
-              onWaitlist={(id) => joinWaitlistFor({ sessionId: id })}
+              onWaitlist={clinic.settings.waitlist.enabled ? (id) => joinWaitlistFor({ sessionId: id }) : undefined}
             />
           ) : service ? (
             <SlotPicker

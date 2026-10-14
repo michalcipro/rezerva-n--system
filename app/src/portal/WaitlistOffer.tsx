@@ -166,7 +166,7 @@ function AcceptOfferSheet({ entry, onClose }: { entry: WaitlistEntry; onClose: (
         <PaymentPicker options={options} value={key} onChange={setPayKey} />
         {online && selected && <SimulatedPaymentNote amount={formatMoney(selected.amount)} />}
         {terms && <TermsBox terms={terms} onShowPolicy={() => setPolicyOpen(true)} />}
-        <Checkbox checked={agree} onChange={setAgree} label="Souhlasím se storno podmínkami" />
+        <Checkbox className="por-agree" checked={agree} onChange={setAgree} label="Souhlasím se storno podmínkami" />
       </div>
       <PolicySheet open={policyOpen} onClose={() => setPolicyOpen(false)} />
     </Sheet>

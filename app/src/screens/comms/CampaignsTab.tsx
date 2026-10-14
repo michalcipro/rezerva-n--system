@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Campaign, Id, LocalDateTime } from '../../domain/types';
 import { saveCampaign, updateTemplate } from '../../engine/commands';
-import { formatDate, formatDayShort, formatNumber, formatTime } from '../../engine/format';
+import { formatDate, formatDayShort, formatNumber, formatTime, plural } from '../../engine/format';
 import { segmentFunnel } from '../../engine/segments';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { Button, Card, CardHeader, Dialog, EmptyState, Field, Icon, IconButton, Input, RadioCards, Switch } from '../../ui';
 import { CampaignEditor } from './CampaignEditor';
 import type { EditorMode } from './EmailCard';
 import { CAMPAIGN_PRESETS, channelsLabel, emptyCampaign, formatWhen, recipientsLabel, templateTiming } from './lib';
-import { CampaignStatusBadge, type Device } from './shared';
+import { CampaignStatusBadge, revealElement, type Device } from './shared';
 
 /* ------------------------------------------------------------------ */
 /* Seznam kampaní                                                      */
@@ -65,12 +65,7 @@ function CampaignList({
           compact
           icon="mail"
           title="Zatím žádná kampaň"
-          text="Napište první newsletter. Příjemce vyberete podle návštěv, permanentek nebo štítků – vždy jen se souhlasem."
-          action={
-            <Button variant="primary" icon="plus" onClick={onNew}>
-              Nová kampaň
-            </Button>
-          }
+          text="Koncepty, naplánované i odeslané kampaně se zobrazí tady."
         />
       ) : (
         GROUPS.map((g) => {
@@ -213,7 +208,7 @@ function NewCampaignDialog({ open, onClose, onCreated }: { open: boolean; onClos
             aside: (
               <span className="com-preset__count" title="Odhad příjemců podle dnešních dat">
                 <strong className="tnum">{formatNumber(counts[p.id] ?? 0)}</strong>
-                <span>příjemců</span>
+                <span>{plural(counts[p.id] ?? 0, ['příjemce', 'příjemci', 'příjemců'])}</span>
               </span>
             ),
           }))}
@@ -245,13 +240,27 @@ export function CampaignsTab({ selectedId, onSelect, newOpen, onNewOpenChange, o
   const [mode, setMode] = useState<EditorMode>('preview');
   const [device, setDevice] = useState<Device>('desktop');
 
+  const wrapRef = useRef<HTMLDivElement>(null);
+  /** Na telefonu (seznam a detail se střídají) posune stránku na začátek zobrazené části. */
+  const reveal = (part: 'detail' | 'list'): void => {
+    requestAnimationFrame(() => {
+      const root = wrapRef.current;
+      const list = root?.querySelector<HTMLElement>('.com-camp__list');
+      if (!root || !list) return;
+      const phone = getComputedStyle(part === 'detail' ? list : (root.querySelector<HTMLElement>('.com-camp__main') ?? list)).display === 'none';
+      if (!phone) return;
+      revealElement(part === 'detail' ? root.querySelector<HTMLElement>('.com-camp__head') : list, part === 'detail' ? 'start' : 'nearest');
+    });
+  };
+
   const select = (id: Id): void => {
     onSelect(id);
     setDetail(true);
+    reveal('detail');
   };
 
   return (
-    <div className="com-campwrap">
+    <div className="com-campwrap" ref={wrapRef}>
       <div className={detail ? 'com-camp is-detail' : 'com-camp'}>
         <div className="com-camp__list">
           <CampaignList campaigns={sorted} activeId={active?.id ?? null} now={now} onSelect={select} onNew={() => onNewOpenChange(true)} />
@@ -265,7 +274,10 @@ export function CampaignsTab({ selectedId, onSelect, newOpen, onNewOpenChange, o
             onModeChange={setMode}
             device={device}
             onDeviceChange={setDevice}
-            onBack={() => setDetail(false)}
+            onBack={() => {
+              setDetail(false);
+              reveal('list');
+            }}
             onSelect={(id) => {
               onSelect(id);
               setMode('edit');
@@ -300,6 +312,7 @@ export function CampaignsTab({ selectedId, onSelect, newOpen, onNewOpenChange, o
           onSelect(id);
           setMode('edit');
           setDetail(true);
+          reveal('detail');
         }}
       />
     </div>

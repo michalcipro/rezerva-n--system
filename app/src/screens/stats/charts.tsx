@@ -396,9 +396,7 @@ export function ColumnChart({ data, series, label, pointsLabel, totalText, heigh
                 />
               ) : null,
             )}
-            {active && (
-              <rect className="st-hover" x={M.left + band * active.index} y={M.top - 6} width={band} height={plotH + 6} rx={4} />
-            )}
+            {active && <rect className="st-hover" x={M.left + band * active.index} y={M.top - 6} width={band} height={plotH + 6} rx={4} />}
             {scale.ticks.map((t) =>
               t === 0 ? null : (
                 <line key={'g' + t} className="st-gridline" x1={M.left} x2={width - M.right} y1={crisp(yOf(t))} y2={crisp(yOf(t))} />
@@ -535,7 +533,17 @@ interface BarListProps {
   track?: boolean;
 }
 
-export function BarList({ rows, max, columns, headers, target, label, colorClass = 'st-c-accent', size = 'md', track = false }: BarListProps): JSX.Element {
+export function BarList({
+  rows,
+  max,
+  columns,
+  headers,
+  target,
+  label,
+  colorClass = 'st-c-accent',
+  size = 'md',
+  track = false,
+}: BarListProps): JSX.Element {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const roving = useRoving(rows.length, {
     anchor: (i, el) => {
@@ -547,7 +555,9 @@ export function BarList({ rows, max, columns, headers, target, label, colorClass
   });
   const active = roving.active;
   const frac = (v: number): string => `${(max > 0 ? clamp(v / max, 0, 1) : 0) * 100}%`;
-  const style = { '--st-cols': columns } as CSSProperties;
+  const cellCount = Math.max(headers?.length ?? 0, ...rows.map((r) => r.cells.length), 0);
+  // úzký kontejner: popisek a hodnoty na řádku, pruh pod nimi přes celou šířku
+  const style = { '--st-cols': columns, '--st-cols-sm': `minmax(0, 1fr) repeat(${cellCount}, auto)` } as CSSProperties;
   return (
     <div
       className={cx('st-bars', size === 'sm' && 'st-bars--sm', track && 'st-bars--track')}
@@ -641,7 +651,11 @@ export function Heatmap({ cells, label }: { cells: HeatCell[]; label: string }):
                 key={i}
                 role="img"
                 aria-label={c ? `${range(c)}: ${closed ? 'zavřeno' : `obsazeno ${formatNumber(Math.round(c.pct * 100))} %`}` : ''}
-                className={cx('st-heat__cell', closed ? 'is-closed' : `st-heat__cell--${heatLevel(c.pct)}`, active?.index === i && 'is-active')}
+                className={cx(
+                  'st-heat__cell',
+                  closed ? 'is-closed' : `st-heat__cell--${heatLevel(c.pct)}`,
+                  active?.index === i && 'is-active',
+                )}
                 {...roving.itemProps(i)}
               />
             );
@@ -654,11 +668,7 @@ export function Heatmap({ cells, label }: { cells: HeatCell[]; label: string }):
           y={active.y}
           bounds={width}
           title={range(cell)}
-          rows={
-            cell.available > 0
-              ? [{ key: 'p', value: `${formatNumber(Math.round(cell.pct * 100))} %`, label: 'obsazeno' }]
-              : undefined
-          }
+          rows={cell.available > 0 ? [{ key: 'p', value: `${formatNumber(Math.round(cell.pct * 100))} %`, label: 'obsazeno' }] : undefined}
           note={
             cell.available > 0
               ? `${formatDuration(Math.round(cell.booked))} z ${formatDuration(Math.round(cell.available))} pracovní doby`
@@ -721,11 +731,20 @@ export function LineChart({
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
   const scale = niceScale(Math.max(minMax, ...all, 0), 4);
   const tickText = (t: number): string => (tickFormat ?? format)(t);
+  const lastIdx = n - 1;
+  // místo vpravo pro přímé popisky posledního bodu
+  const endTexts = series
+    .map((s) => s.values[lastIdx])
+    .filter((v): v is number => v !== null && v !== undefined)
+    .map(format);
+  const endW = endTexts.length ? Math.max(...endTexts.map(textW)) + 12 : 0;
+  const left = Math.ceil(Math.max(...scale.ticks.map((t) => textW(tickText(t))))) + 10;
+  const band0 = n ? Math.max(0, width - left - 8) / n : 0;
   const M = {
     top: 16,
-    right: 8,
+    right: Math.max(8, Math.ceil(endW - band0 / 2 + 4)),
     bottom: 24,
-    left: Math.ceil(Math.max(...scale.ticks.map((t) => textW(tickText(t))))) + 10,
+    left,
   };
   const plotW = Math.max(0, width - M.left - M.right);
   const plotH = height - M.top - M.bottom;
@@ -733,7 +752,10 @@ export function LineChart({
   const xOf = (i: number): number => M.left + band * (i + 0.5);
   const yOf = (v: number): number => M.top + plotH - (scale.max ? (v / scale.max) * plotH : 0);
   const topAt = (i: number): number => {
-    const ys = series.map((s) => s.values[i]).filter((v): v is number => v !== null).map(yOf);
+    const ys = series
+      .map((s) => s.values[i])
+      .filter((v): v is number => v !== null)
+      .map(yOf);
     return ys.length ? Math.min(...ys) : M.top + plotH;
   };
   const roving = useRoving(n, { anchor: (i) => ({ x: xOf(i), y: topAt(i) - 4 }) });
@@ -759,12 +781,11 @@ export function LineChart({
   };
 
   // přímé popisky na konci čar, jen když se vejdou a nepřekrývají
-  const lastIdx = n - 1;
   const ends = series
     .map((s) => ({ s, v: s.values[lastIdx] }))
     .filter((e): e is { s: LineSeries; v: number } => e.v !== null && e.v !== undefined)
     .map((e) => ({ ...e, y: yOf(e.v), text: format(e.v) }));
-  const room = band / 2 - 10;
+  const room = band / 2 + M.right - 12;
   const endsFit =
     ends.length > 0 &&
     ends.every((e) => textW(e.text) <= room) &&
@@ -799,8 +820,21 @@ export function LineChart({
                 </text>
               ) : null,
             )}
+            {labels.map((l, i) =>
+              series.every((s) => s.values[i] === null) ? (
+                <text key={'n' + l + i} className="st-nodata" x={xOf(i)} y={M.top + plotH / 2 + 4} textAnchor="middle">
+                  bez dat
+                </text>
+              ) : null,
+            )}
             {active && (
-              <line className="st-crosshair" x1={crisp(xOf(active.index))} x2={crisp(xOf(active.index))} y1={M.top - 4} y2={M.top + plotH} />
+              <line
+                className="st-crosshair"
+                x1={crisp(xOf(active.index))}
+                x2={crisp(xOf(active.index))}
+                y1={M.top - 4}
+                y2={M.top + plotH}
+              />
             )}
             {series.map((s) => (
               <path key={s.id} className={cx('st-line', s.colorClass, s.dashed && 'st-line--dashed')} d={pathOf(s.values)} />
@@ -901,9 +935,7 @@ export function HourlyChart({ slots, nowMinutes, label, height = 142 }: HourlyCh
         <>
           <svg className="st-svg" width={width} height={height} role="img" aria-label={label}>
             <Patterns id={uid} />
-            {active && (
-              <rect className="st-hover" x={M.left + band * active.index} y={M.top - 4} width={band} height={plotH + 4} rx={4} />
-            )}
+            {active && <rect className="st-hover" x={M.left + band * active.index} y={M.top - 4} width={band} height={plotH + 4} rx={4} />}
             {slots.map((s, i) => {
               const x = xOf(i) - barW / 2;
               if (s.available <= 0) {
@@ -915,10 +947,7 @@ export function HourlyChart({ slots, nowMinutes, label, height = 142 }: HourlyCh
                 <g key={s.hour}>
                   <path className="st-track" d={topRounded(x, M.top, barW, plotH, 4)} />
                   {r > 0 && (
-                    <path
-                      className={cx('st-seg', past ? 'st-c-past' : 'st-c-accent')}
-                      d={topRounded(x, yOfRatio(r), barW, plotH * r, 4)}
-                    />
+                    <path className={cx('st-seg', past ? 'st-c-past' : 'st-c-accent')} d={topRounded(x, yOfRatio(r), barW, plotH * r, 4)} />
                   )}
                 </g>
               );
@@ -965,7 +994,12 @@ export function HourlyChart({ slots, nowMinutes, label, height = 142 }: HourlyCh
               rows={
                 slots[active.index].available > 0
                   ? [
-                      { key: 'p', value: `${formatNumber(Math.round(ratio(slots[active.index]) * 100))} %`, label: 'obsazeno', colorClass: 'st-c-accent' },
+                      {
+                        key: 'p',
+                        value: `${formatNumber(Math.round(ratio(slots[active.index]) * 100))} %`,
+                        label: 'obsazeno',
+                        colorClass: 'st-c-accent',
+                      },
                       { key: 'f', value: formatDuration(free(slots[active.index])), label: 'volné kapacity' },
                     ]
                   : undefined

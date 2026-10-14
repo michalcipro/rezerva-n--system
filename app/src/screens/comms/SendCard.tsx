@@ -68,7 +68,8 @@ export function SendCard({ campaign, draft, recipients, now, prepare }: SendCard
   const warnings = checks.filter((c) => c.state === 'warn');
   const at = combine(date, time);
   const atValid = isValidLocalDateTime(at) && at > now;
-  const blocked = errors.length > 0;
+  const nameMissing = !draft.name.trim();
+  const blocked = errors.length > 0 || nameMissing;
   const showPicker = !scheduled || reschedule;
 
   const doSend = (): void => {
@@ -165,7 +166,7 @@ export function SendCard({ campaign, draft, recipients, now, prepare }: SendCard
           )}
           {blocked && (
             <p className="com-send__blocked">
-              Před odesláním: {errors.map((e) => e.hint ?? e.label).join(' ')}
+              Před odesláním: {[...(nameMissing ? ['Doplňte název kampaně.'] : []), ...errors.map((e) => e.hint ?? e.label)].join(' ')}
             </p>
           )}
         </div>

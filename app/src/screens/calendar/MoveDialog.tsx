@@ -5,9 +5,9 @@ import { rescheduleBooking } from '../../engine/commands';
 import { formatDateTimeShort, formatDayShort, formatTimeRange } from '../../engine/format';
 import { evaluateCancellation } from '../../engine/policy';
 import { clientName, getBooking, getClient, getService, getTherapist, therapistName } from '../../engine/selectors';
-import { addMinutes, diffMinutes } from '../../engine/time';
+import { addMinutes, dateOf, diffMinutes } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
-import { Callout, ConfirmDialog, Icon } from '../../ui';
+import { Callout, ConfirmDialog, Icon, cx } from '../../ui';
 import './calendar.css';
 
 export interface MoveRequest {
@@ -30,21 +30,16 @@ export function MoveSummary({ from, to }: { from: SlotView; to: SlotView }): JSX
     <div className="cal-move">
       <div className="cal-move__side">
         <span className="cal-move__label">Původně</span>
-        <span className="cal-move__time tnum">
-          {formatDayShort(from.start)} {formatTimeRange(from.start, from.end)}
-        </span>
+        <span className="cal-move__time tnum">{formatTimeRange(from.start, from.end)}</span>
+        <span className="cal-move__who tnum">{formatDayShort(from.start)}</span>
         <span className="cal-move__who">{therapistName(getTherapist(clinic, from.therapistId))}</span>
       </div>
       <Icon name="arrowRight" size={18} className="cal-move__arrow" />
       <div className="cal-move__side is-new">
         <span className="cal-move__label">Nově</span>
-        <span className="cal-move__time tnum">
-          {formatDayShort(to.start)} {formatTimeRange(to.start, to.end)}
-        </span>
-        <span className="cal-move__who">
-          {therapistName(getTherapist(clinic, to.therapistId))}
-          {!sameTherapist && ' (jiný terapeut)'}
-        </span>
+        <span className="cal-move__time tnum">{formatTimeRange(to.start, to.end)}</span>
+        <span className={cx('cal-move__who tnum', dateOf(from.start) !== dateOf(to.start) && 'is-changed')}>{formatDayShort(to.start)}</span>
+        <span className={cx('cal-move__who', !sameTherapist && 'is-changed')}>{therapistName(getTherapist(clinic, to.therapistId))}</span>
       </div>
     </div>
   );

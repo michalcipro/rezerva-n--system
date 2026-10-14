@@ -5,7 +5,7 @@ import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { Button, Card, CardHeader, ConfirmDialog, Field, IconButton, Input, Menu, type MenuEntry } from '../../ui';
 import { newBlockKey, type BlockList } from './BlockEditor';
 import { EmailCard, type EditorMode } from './EmailCard';
-import { cleanBlocks, formatWhen, insertAt, segmentInsight } from './lib';
+import { cleanBlocks, formatWhen, insertAt, recipientsLabel, segmentInsight } from './lib';
 import { RecipientsDrawer } from './RecipientsDrawer';
 import { SegmentBuilder } from './SegmentBuilder';
 import { SendCard, SentCard } from './SendCard';
@@ -124,13 +124,16 @@ export function CampaignEditor({
   // (Immer zachovává identitu nezměněných polí).
   const insight = useMemo(
     () => segmentInsight(clinic, draft.segment, now),
-    [clinic.clients, clinic.bookings, clinic.packages, clinic.ledger, clinic.makeups, clinic.categories, clinic.packageTemplates, draft.segment, now],
+    [clinic.clients, clinic.bookings, clinic.services, clinic.packages, clinic.ledger, clinic.makeups, clinic.categories, clinic.packageTemplates, draft.segment, now],
   );
 
-  const messageCount = useMemo(
-    () => (readOnly ? clinic.messages.filter((m) => m.campaignId === campaign.id).length : 0),
-    [readOnly, clinic.messages, campaign.id],
-  );
+  // u odeslané kampaně skuteční příjemci z Odeslaných (pokud tam zprávy ještě jsou)
+  const sentTo = useMemo(() => {
+    if (!readOnly) return [];
+    const ids: Id[] = [];
+    for (const m of clinic.messages) if (m.campaignId === campaign.id && m.clientId) ids.push(m.clientId);
+    return ids;
+  }, [readOnly, clinic.messages, campaign.id]);
 
   const blockList: BlockList = { blocks: draft.blocks, keys: draft.keys };
   const setBlocks = (update: (prev: BlockList) => BlockList): void =>
@@ -194,7 +197,11 @@ export function CampaignEditor({
             <div className="com-head__meta">
               <CampaignStatusBadge status={campaign.status} />
               {saveLabel && <span className={nameMissing ? 'com-head__save is-error' : 'com-head__save'}>{saveLabel}</span>}
-              {readOnly && campaign.sentAt && <span className="com-head__save">odesláno {formatWhen(campaign.sentAt, now)}</span>}
+              {readOnly && campaign.sentAt && (
+                <span className="com-head__save">
+                  {formatWhen(campaign.sentAt, now)} · {recipientsLabel(campaign.recipients)}
+                </span>
+              )}
             </div>
           </div>
           <Menu label="Akce s kampaní" trigger={<IconButton icon="more" variant="outline" label="Další akce s kampaní" />} items={menuItems} />
@@ -213,7 +220,7 @@ export function CampaignEditor({
           onModeChange={onModeChange}
           device={device}
           onDeviceChange={onDeviceChange}
-          recipients={insight.recipients}
+          recipients={readOnly && sentTo.length ? sentTo : insight.recipients}
         />
       </div>
 
@@ -305,7 +312,7 @@ export function CampaignEditor({
           <SentCard
             clinic={clinic}
             campaign={campaign}
-            messageCount={messageCount}
+            messageCount={sentTo.length}
             onShowMessages={() => onShowMessages(campaign.id)}
             onDuplicate={duplicate}
           />

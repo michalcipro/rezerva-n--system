@@ -150,6 +150,10 @@ export interface Client {
   blocked: boolean;
   /** Ukázkový klient vytvořený generátorem dat. */
   demo?: boolean;
+  /** Kdy klient naposledy dostal reaktivační e-mail. */
+  reactivationSentAt?: LocalDateTime;
+  /** Kdy klient naposledy dostal přání k narozeninám. */
+  birthdaySentAt?: LocalDateTime;
 }
 
 export interface PackageTemplate {

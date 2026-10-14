@@ -186,3 +186,28 @@ export function focusCaret(el: HTMLInputElement | HTMLTextAreaElement | null, ca
     }
   });
 }
+
+/** Nejbližší předek, který se opravdu posouvá (overflow auto/scroll). */
+function scrollParentOf(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Posune nejbližší posuvný kontejner tak, aby byl prvek vidět (start = nahoru,
+ * nearest = jen když je nad viditelnou oblastí). Na rozdíl od scrollIntoView
+ * nehýbe s kostrou aplikace (overflow: hidden).
+ */
+export function revealElement(el: HTMLElement | null | undefined, mode: 'start' | 'nearest' = 'start'): void {
+  if (!el) return;
+  const parent = scrollParentOf(el);
+  if (!parent) return;
+  const offset = el.getBoundingClientRect().top - parent.getBoundingClientRect().top;
+  if (mode === 'nearest' && offset >= 0) return;
+  parent.scrollTo({ top: Math.max(0, parent.scrollTop + offset - 8) });
+}

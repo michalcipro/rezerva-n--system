@@ -1,1 +1,2 @@
-export { StatsScreen, DashboardScreen } from './placeholder';
+export { StatsScreen } from './StatsScreen';
+export { DashboardScreen } from './DashboardScreen';

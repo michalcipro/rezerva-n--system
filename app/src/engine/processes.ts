@@ -122,7 +122,34 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
     }
   }
 
-  // 6) Naplánované kampaně
+  // 6) Obchodní sdělení podle šablon (jen se souhlasem; ve výchozím stavu vypnuté)
+  const reactivationOn = d.templates.some((t) => t.key === 'reactivation' && t.enabled);
+  const birthdayOn = d.templates.some((t) => t.key === 'birthday' && t.enabled);
+  if (reactivationOn || birthdayOn) {
+    const lastVisit = new Map<string, string>();
+    const hasUpcoming = new Set<string>();
+    for (const b of d.bookings) {
+      if (b.status === 'completed' && (lastVisit.get(b.clientId) ?? '') < b.start) lastVisit.set(b.clientId, b.start);
+      if (b.status === 'confirmed' && b.start > now) hasUpcoming.add(b.clientId);
+    }
+    for (const c of d.clients) {
+      if (!c.consents.marketingEmail || !c.email) continue;
+      if (reactivationOn) {
+        const last = lastVisit.get(c.id);
+        const recentlySent = c.reactivationSentAt && c.reactivationSentAt >= addDays(now, -180);
+        if (last && !hasUpcoming.has(c.id) && !recentlySent && daysBetween(dateOf(last), today) >= 90) {
+          queueTemplateMessage(d, { key: 'reactivation', clientId: c.id, now, vars: {} });
+          c.reactivationSentAt = now;
+        }
+      }
+      if (birthdayOn && c.birthDate && c.birthDate.slice(5) === today.slice(5) && (c.birthdaySentAt ?? '').slice(0, 4) !== today.slice(0, 4)) {
+        queueTemplateMessage(d, { key: 'birthday', clientId: c.id, now, vars: {} });
+        c.birthdaySentAt = now;
+      }
+    }
+  }
+
+  // 7) Naplánované kampaně
   for (const c of d.campaigns) {
     if (c.status === 'scheduled' && c.scheduledAt && c.scheduledAt <= now) {
       deliverCampaign(d, systemCtx, c);
@@ -130,7 +157,7 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
     }
   }
 
-  // 7) Údržba objemu dat (odeslané zprávy a audit)
+  // 8) Údržba objemu dat (odeslané zprávy a audit)
   const MAX_MESSAGES = 2500;
   if (d.messages.length > MAX_MESSAGES) d.messages.splice(0, d.messages.length - MAX_MESSAGES);
   const keepAudit = addDays(now, -120);

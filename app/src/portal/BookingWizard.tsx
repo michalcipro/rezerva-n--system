@@ -69,6 +69,7 @@ import {
   upcomingCount,
   watchFor,
   whenLabel,
+  zPrep,
   type DayInfo,
   type DayQuery,
 } from './logic';
@@ -275,7 +276,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
 
   const title = flow.kind === 'reschedule' ? 'Přesunout termín' : flow.kind === 'makeup' ? 'Náhradní termín' : 'Nová rezervace';
   const progressRight =
-    step !== 'hotovo' && stepIndex >= 0 ? <span className="por-top__step tnum">{`Krok ${stepIndex + 1} z ${steps.length}`}</span> : undefined;
+    step !== 'hotovo' && stepIndex >= 0 ? <span className="por-top__step tnum">{`Krok ${stepIndex + 1} ${zPrep(steps.length)} ${steps.length}`}</span> : undefined;
   const progressBelow = step !== 'hotovo' && stepIndex >= 0 ? <StepProgress step={stepIndex + 1} total={steps.length} /> : undefined;
 
   const banner = <FlowBanner flow={flow} />;
@@ -469,15 +470,11 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   };
 
   const totalLine = original
-    ? `Platba zůstává: ${paymentLabel(clinic, original)}`
+    ? flow.useExcuse
+      ? 'Nový termín uhradí náhrada za omluvený termín'
+      : `Platba zůstává: ${paymentLabel(clinic, original)}`
     : payment
-      ? payment.payment.method === 'package' || payment.payment.method === 'makeup'
-        ? payment.amount > 0
-          ? `Doplatek na místě ${formatMoney(payment.amount)}`
-          : `Hrazeno: ${payment.summary}`
-        : payment.payment.method === 'onsite'
-          ? `Zaplatíte na místě ${formatMoney(payment.amount)}`
-          : `K úhradě teď ${formatMoney(payment.amount)}`
+      ? payment.total
       : 'Vyberte způsob platby';
 
   return (
@@ -519,7 +516,13 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           checked={agree}
           onChange={setAgree}
           label="Souhlasím se storno podmínkami"
-          description="Potvrzení rezervace vám pošleme e-mailem."
+          description={
+            client.email
+              ? `Potvrzení pošleme na ${client.email}.`
+              : client.phone
+                ? `Potvrzení pošleme SMS na ${client.phone}.`
+                : undefined
+          }
         />
       )}
       <PolicySheet open={policyOpen} onClose={() => setPolicyOpen(false)} />
@@ -675,6 +678,7 @@ function ServiceStep({ flow, onPick }: { flow: Flow; onPick: (svc: Service) => v
         <div className="por-scroller">
           <ChoiceChips
             aria-label="Kategorie služeb"
+            size="lg"
             value={cat}
             onChange={setCat}
             className="por-catchips"
@@ -1084,8 +1088,9 @@ function NoSlots({
             </Button>
           }
         >
-          Jakmile se {watch.dateFrom === watch.dateTo ? `${formatDayShort(watch.dateFrom)}` : `mezi ${formatDayShort(watch.dateFrom)} a ${formatDayShort(watch.dateTo)}`}{' '}
-          uvolní termín, pošleme vám nabídku e-mailem i SMS.
+          {watch.dateFrom === watch.dateTo
+            ? `Když se uvolní termín na ${formatDayShort(watch.dateFrom)}, pošleme vám nabídku e-mailem nebo SMS.`
+            : `Když se uvolní termín mezi ${formatDayShort(watch.dateFrom)} a ${formatDayShort(watch.dateTo)}, pošleme vám nabídku e-mailem nebo SMS.`}
         </Callout>
       )}
       <WatchSheet open={watchOpen} onClose={() => setWatchOpen(false)} service={service} therapistId={query.therapistId} date={date} lastDate={flow.lastDate} />
@@ -1227,10 +1232,10 @@ function SessionList({
                     max={cap}
                     size="sm"
                     tone={full ? 'danger' : free <= 2 ? 'warning' : 'accent'}
-                    label={`Obsazenost ${cap - free} z ${cap}`}
+                    label={`Obsazenost ${cap - free} ${zPrep(cap)} ${cap}`}
                   />
                   <span className={cx('por-session__free', full && 'is-full')}>
-                    {full ? 'Plně obsazeno' : `${countLabel(free, ['volné místo', 'volná místa', 'volných míst'])} z ${cap}`}
+                    {full ? 'Plně obsazeno' : `${countLabel(free, ['volné místo', 'volná místa', 'volných míst'])} ${zPrep(cap)} ${cap}`}
                   </span>
                 </span>
               </span>
@@ -1348,7 +1353,7 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
           {bookingTitle(clinic, b)} · {whenLabel(b.start, now)}
         </span>
       </ResultHero>
-      <Card padding="md">
+      <Card padding="md" className="por-dlcard">
         <DescriptionList
           termWidth={92}
           items={[
@@ -1362,9 +1367,7 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
       </Card>
       {(emailed || smsed) && (
         <MetaLine icon="mail">
-          Potvrzení jsme poslali {emailed ? `na ${client.email}` : ''}
-          {emailed && smsed ? ' a ' : ''}
-          {smsed ? 'SMS' : ''}.
+          {`Potvrzení jsme poslali ${[emailed ? `e-mailem na ${client.email}` : '', smsed ? `SMS na ${client.phone}` : ''].filter(Boolean).join(' a ')}.`}
         </MetaLine>
       )}
       <section className="por-stack por-stack--tight">

@@ -44,9 +44,9 @@ import {
   type RadioCardOption,
 } from '../ui';
 import { usePortal } from './context';
-import { bookableServices, bookingTitle, calendarText, cancelState, excuseSentence, placeLabel, startsIn } from './logic';
+import { bookableServices, bookingTitle, calendarText, cancelState, excusesLeftText, excuseSentence, placeLabel, startsIn, zPrep } from './logic';
 import { PolicySheet } from './payment';
-import { CopyBlock, DateBadge, ResultHero, Screen, SectionTitle, StateChip } from './parts';
+import { CopyBlock, DateBadge, MetaLine, ResultHero, Screen, SectionTitle } from './parts';
 
 type Mode = 'detail' | 'cancel' | 'done';
 
@@ -57,10 +57,14 @@ interface CancelResult {
 
 export function BookingDetailScreen({ bookingId }: { bookingId: Id }): JSX.Element {
   const clinic = useClinic();
-  const { client, go } = usePortal();
-  const [mode, setMode] = useState<Mode>('detail');
+  const { client, go, scrollToTop } = usePortal();
+  const [mode, setModeRaw] = useState<Mode>('detail');
   const [result, setResult] = useState<CancelResult | null>(null);
   const b = getBooking(clinic, bookingId);
+  const setMode = (m: Mode): void => {
+    setModeRaw(m);
+    scrollToTop();
+  };
 
   if (!b || b.clientId !== client.id) {
     return (
@@ -147,7 +151,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
           <span>{paymentLabel(clinic, b)}</span>
           {pkg && pkgUsage && b.payment.method === 'package' && (
             <span className="por-dd__sub">
-              zbývá {pkgUsage.free} z {countLabel(pkgUsage.total, ['vstupu', 'vstupů', 'vstupů'])}
+              zbývá {pkgUsage.free} {zPrep(pkgUsage.total)} {countLabel(pkgUsage.total, ['vstupu', 'vstupů', 'vstupů'])}
             </span>
           )}
           {b.payment.method === 'onsite' && !b.payment.paid && <span className="por-dd__sub">kartou nebo hotově na recepci</span>}
@@ -237,7 +241,10 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
       {upcoming && ev && (
         <section className="por-card por-stack" aria-label="Storno podmínky">
           <PolicyTimeline evaluation={ev} now={now} start={b.start} title="Storno podmínky tohoto termínu" />
-          <p className={`por-explain por-explain--${cs?.tone ?? 'neutral'}`}>{explain(ev, b, clinic)}</p>
+          <p className={`por-explain por-explain--${cs?.tone ?? 'neutral'}`}>
+            <Icon name={ev.phase === 'free' ? 'checkCircle' : ev.excuse.allowed ? 'heart' : 'alertCircle'} size={16} />
+            <span>{explain(ev, b, clinic)}</span>
+          </p>
           <button type="button" className="link por-terms__link" onClick={() => setPolicyOpen(true)}>
             Storno podmínky kliniky
           </button>
@@ -294,6 +301,11 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
   );
 }
 
+/** Zprávy enginu končí někdy datem s tečkou – „do Čt 29. 10..“ → „do Čt 29. 10.“ */
+function cleanMessage(text: string): string {
+  return text.replace(/\.\.(\s|$)/g, '.$1');
+}
+
 function explain(ev: CancellationEvaluation, b: Booking, clinic: ClinicState): string {
   if (ev.phase === 'free') return `Teď termín zrušíte nebo přesunete zdarma – nejpozději ${formatDateTimeShort(ev.freeUntil)}.`;
   if (ev.phase === 'started') return 'Termín právě probíhá.';
@@ -340,6 +352,14 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   };
 
   const describe = (kind: CancelOptionKind, description: string, amount: number): string => {
+    if (kind === 'excuse') {
+      const makeupUntil = ev.excuse.makeupUntil;
+      return (
+        `Bez poplatku · ${excusesLeftText(ev.excuse.remaining, ev.excuse.total)}` +
+        (b.payment.method === 'package' ? ' · vstup se vrátí na permanentku' : '') +
+        (makeupUntil ? ` · náhradní termín vyberete do ${formatDayShort(makeupUntil)}` : '')
+      );
+    }
     if (kind === 'fee' && amount > 0 && b.payment.method === 'onsite' && !b.payment.paid) {
       return credit >= amount
         ? `${description.replace(/\.$/, '')} · uhradí se z kreditu (zůstatek ${formatMoney(credit)})`
@@ -553,9 +573,11 @@ function CancelDone({ booking: b, result }: { booking: Booking; result: CancelRe
           {bookingTitle(clinic, b)} · {formatDayShort(b.start)} {formatTimeRange(b.start, b.end)}
         </span>
       </ResultHero>
-      <Callout tone={excused ? 'accent' : 'success'} icon={excused ? 'heart' : 'checkCircle'}>
-        {result.message}
-      </Callout>
+      {!openMakeup && (
+        <Callout tone={excused ? 'accent' : 'success'} icon={excused ? 'heart' : 'checkCircle'}>
+          {cleanMessage(result.message)}
+        </Callout>
+      )}
       {openMakeup && (
         <Card padding="md" className="por-mkoffer">
           <span className="por-mkoffer__eyebrow">
@@ -568,11 +590,7 @@ function CancelDone({ booking: b, result }: { booking: Booking; result: CancelRe
           </span>
         </Card>
       )}
-      {mailed && (
-        <StateChip tone="neutral" icon="mail">
-          {`Potvrzení jsme poslali na ${client.email}.`}
-        </StateChip>
-      )}
+      {mailed && <MetaLine icon="mail">{`Potvrzení jsme poslali e-mailem na ${client.email}.`}</MetaLine>}
     </Screen>
   );
 }

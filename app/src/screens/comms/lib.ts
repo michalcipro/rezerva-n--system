@@ -386,7 +386,7 @@ export const CAMPAIGN_PRESETS: CampaignPreset[] = [
   {
     id: 'reactivation',
     title: 'Dlouho jsme se neviděli',
-    description: 'Pozvání pro klienty, kteří 90 dní nepřišli a nemají budoucí termín.',
+    description: 'Pozvání pro klienty, kteří přes měsíc nepřišli a nemají budoucí termín.',
     name: 'Reaktivace klientů',
     build: () => ({
       subject: 'Dlouho jsme se neviděli, [jméno]',
@@ -399,7 +399,7 @@ export const CAMPAIGN_PRESETS: CampaignPreset[] = [
         },
         { type: 'button', label: 'Rezervovat termín', url: '' },
       ],
-      segment: { match: 'all', rules: [{ type: 'no_visit_for', days: 90 }], exclude: [] },
+      segment: { match: 'all', rules: [{ type: 'no_visit_for', days: 30 }], exclude: [] },
     }),
   },
 ];
@@ -432,8 +432,8 @@ export const TEMPLATE_GROUPS: { id: string; label: string; keys: TemplateKey[] }
   { id: 'marketing', label: 'Obchodní sdělení', keys: ['reactivation', 'birthday'] },
 ];
 
-/** Šablony, které engine zatím automaticky neodesílá (v processes.ts chybí krok). */
-export const NOT_AUTOMATED: readonly TemplateKey[] = ['reactivation', 'birthday'];
+/** Šablony, které engine automaticky neodesílá (všechny se už odesílají). */
+export const NOT_AUTOMATED: readonly TemplateKey[] = [];
 
 const PERSON = ['jméno', 'příjmení', 'klinika'];
 const BOOKING = ['jméno', 'příjmení', 'služba', 'datum', 'čas', 'konec', 'terapeut', 'místnost', 'platba', 'klinika'];

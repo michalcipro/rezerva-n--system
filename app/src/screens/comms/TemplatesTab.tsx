@@ -3,6 +3,7 @@ import type { Channel, MessageTemplate, TemplateKey } from '../../domain/types';
 import { updateTemplate } from '../../engine/commands';
 import { countLabel, formatNumber } from '../../engine/format';
 import { DEFAULT_TEMPLATES, MARKETING_TEMPLATES, renderTemplate } from '../../engine/messages';
+import { addDays } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, useSession } from '../../store/session';
 import { Badge, Button, Callout, Card, Checkbox, cx, Field, Icon, Input, Switch, TabPanel, Tabs, Textarea, toast } from '../../ui';
@@ -18,7 +19,7 @@ import {
   templateVariableKeys,
   variableLabel,
 } from './lib';
-import { EmailFrame, focusCaret, MarketingFooter, Paragraphs, Personalized, ServiceFooter } from './shared';
+import { EmailFrame, focusCaret, MarketingFooter, Paragraphs, Personalized, revealElement, ServiceFooter } from './shared';
 
 export type TemplateDraft = Pick<MessageTemplate, 'subject' | 'body' | 'smsBody' | 'channels'>;
 export type TemplateDrafts = Partial<Record<TemplateKey, TemplateDraft>>;
@@ -119,16 +120,17 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const issues = templateIssues(tpl.key, value);
   const marketing = MARKETING_TEMPLATES.includes(tpl.key);
   const automated = !NOT_AUTOMATED.includes(tpl.key);
+  const weekAgo = addDays(now, -7);
   const stats = useMemo(() => {
     let sent = 0;
     let skipped = 0;
     for (const m of clinic.messages) {
-      if (m.kind !== tpl.key) continue;
+      if (m.kind !== tpl.key || m.at < weekAgo) continue;
       if (m.status === 'sent') sent++;
       else skipped++;
     }
     return { sent, skipped };
-  }, [clinic.messages, tpl.key]);
+  }, [clinic.messages, tpl.key, weekAgo]);
   const smsConsent = useMemo(() => clinic.clients.filter((c) => c.consents.sms && c.phone).length, [clinic.clients]);
   const sms = smsInfo(renderTemplate(value.smsBody, vars));
 
@@ -234,7 +236,10 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
       {!automated && (
         <div className="com-tedit__notice">
           <Callout tone="warning" title="Zatím bez automatického odeslání">
-            V prototypu se tato zpráva sama neodesílá. Klienty bez návštěvy oslovíte kampaní „Dlouho jsme se neviděli“.
+            V prototypu se tato zpráva sama neodesílá.{' '}
+            {tpl.key === 'reactivation'
+              ? 'Klienty bez návštěvy zatím oslovte kampaní „Dlouho jsme se neviděli“.'
+              : 'Přání zatím pošlete jako kampaň nebo ruční zprávu.'}
           </Callout>
         </div>
       )}
@@ -424,10 +429,24 @@ interface TemplatesTabProps {
 export function TemplatesTab({ selected, onSelect, drafts, onDraftsChange, onShowMessages }: TemplatesTabProps): JSX.Element {
   const clinic = useClinic();
   const [detail, setDetail] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const tpl = clinic.templates.find((t) => t.key === selected) ?? clinic.templates[0];
 
+  /** Na telefonu (seznam a editor se střídají) posune stránku na začátek zobrazené části. */
+  const reveal = (part: 'detail' | 'list'): void => {
+    requestAnimationFrame(() => {
+      const root = wrapRef.current;
+      const list = root?.querySelector<HTMLElement>('.com-tpl__list');
+      const editor = root?.querySelector<HTMLElement>('.com-tpl__detail');
+      if (!root || !list || !editor) return;
+      const shown = part === 'detail' ? editor : list;
+      const hidden = part === 'detail' ? list : editor;
+      if (getComputedStyle(hidden).display === 'none') revealElement(shown, part === 'detail' ? 'start' : 'nearest');
+    });
+  };
+
   return (
-    <div className="com-tplwrap">
+    <div className="com-tplwrap" ref={wrapRef}>
       <div className={detail ? 'com-tpl is-detail' : 'com-tpl'}>
         <div className="com-tpl__list">
           <TemplateList
@@ -436,6 +455,7 @@ export function TemplatesTab({ selected, onSelect, drafts, onDraftsChange, onSho
             onSelect={(key) => {
               onSelect(key);
               setDetail(true);
+              reveal('detail');
             }}
           />
         </div>
@@ -453,7 +473,10 @@ export function TemplatesTab({ selected, onSelect, drafts, onDraftsChange, onSho
                   return next;
                 })
               }
-              onBack={() => setDetail(false)}
+              onBack={() => {
+                setDetail(false);
+                reveal('list');
+              }}
               onShowMessages={onShowMessages}
             />
           ) : null}

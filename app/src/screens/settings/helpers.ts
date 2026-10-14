@@ -591,12 +591,31 @@ export function dirtySections(draft: SettingsDraft, base: SettingsDraft): Sectio
 /** Sjednocení před uložením: stupně sestupně, ořezané texty. */
 export function normalizeDraft(d: SettingsDraft): SettingsDraft {
   const n = clone(d);
-  n.policy.lateTiers = [...n.policy.lateTiers].sort((a, b) => b.hoursBefore - a.hoursBefore);
+  const free = n.policy.freeCancelHours;
+  // bez bezplatné lhůty nemají stupně smysl (engine by je navíc odmítl)
+  const tiers = free > 0 ? n.policy.lateTiers : n.policy.lateTiers.filter((t) => t.hoursBefore <= 0);
+  n.policy.lateTiers = [...tiers].sort((a, b) => b.hoursBefore - a.hoursBefore);
   n.clinicName = n.clinicName.trim();
   n.clinicTagline = n.clinicTagline.trim();
   n.senderName = n.senderName.trim();
   n.senderEmail = n.senderEmail.trim();
   return n;
+}
+
+/**
+ * Index stupně, který začíná hned po bezplatné lhůtě (hranice = `freeCancelHours`), nebo −1.
+ * Když chybí, engine použije poplatek nejvyššího stupně (případně 100 %).
+ */
+export function lockedTierIndex(p: Pick<CancellationPolicy, 'freeCancelHours' | 'lateTiers'>): number {
+  return p.lateTiers.findIndex((t) => t.hoursBefore === p.freeCancelHours);
+}
+
+/** Poplatek, který platí hned po skončení bezplatné lhůty (stejně jako v enginu). */
+export function firstStageFee(p: Pick<CancellationPolicy, 'freeCancelHours' | 'lateTiers'>): number {
+  const i = lockedTierIndex(p);
+  if (i >= 0) return p.lateTiers[i].feePct;
+  const inside = p.lateTiers.filter((t) => t.hoursBefore <= p.freeCancelHours).sort((a, b) => b.hoursBefore - a.hoursBefore);
+  return inside[0]?.feePct ?? 100;
 }
 
 export type SettingsErrors = Partial<Record<string, string>>;
@@ -605,16 +624,20 @@ export function validateSettings(d: SettingsDraft): SettingsErrors {
   const e: SettingsErrors = {};
   const p = d.policy;
   if (!(p.freeCancelHours >= 0 && p.freeCancelHours <= 168)) e['policy.freeCancelHours'] = 'Zadejte 0–168 hodin.';
-  p.lateTiers.forEach((t, i) => {
-    if (!(t.hoursBefore >= 1)) e[`tier.${i}.hours`] = 'Zadejte alespoň 1 hodinu.';
-    else if (t.hoursBefore > p.freeCancelHours)
-      e[`tier.${i}.hours`] =
-        p.freeCancelHours > 0
-          ? `Stupeň musí ležet uvnitř bezplatné lhůty – nejvýše ${formatNumber(p.freeCancelHours)} h.`
-          : 'Při nulové bezplatné lhůtě nemají stupně význam – odeberte je.';
-    else if (p.lateTiers.some((o, j) => j < i && o.hoursBefore === t.hoursBefore)) e[`tier.${i}.hours`] = 'Stupeň se stejnou hranicí už existuje.';
-    if (!(t.feePct >= 0 && t.feePct <= 100)) e[`tier.${i}.pct`] = 'Poplatek musí být 0–100 %.';
-  });
+  if (p.freeCancelHours > 0) {
+    // první stupeň (hranice = bezplatná lhůta) je pevný, ostatní musí ležet uvnitř lhůty
+    const locked = lockedTierIndex(p);
+    p.lateTiers.forEach((t, i) => {
+      if (i !== locked) {
+        if (!(t.hoursBefore >= 1)) e[`tier.${i}.hours`] = 'Zadejte alespoň 1 hodinu.';
+        else if (t.hoursBefore >= p.freeCancelHours)
+          e[`tier.${i}.hours`] = `Hranice musí být kratší než bezplatná lhůta (${formatNumber(p.freeCancelHours)} h).`;
+        else if (p.lateTiers.some((o, j) => j !== locked && j < i && o.hoursBefore === t.hoursBefore))
+          e[`tier.${i}.hours`] = 'Stupeň se stejnou hranicí už existuje.';
+      }
+      if (!(t.feePct >= 0 && t.feePct <= 100)) e[`tier.${i}.pct`] = 'Poplatek musí být 0–100 %.';
+    });
+  }
   if (!(p.noShowFeePct >= 0 && p.noShowFeePct <= 100)) e['policy.noShowFeePct'] = 'Poplatek musí být 0–100 %.';
   if (!(p.groupCancelHours >= 0 && p.groupCancelHours <= 168)) e['policy.groupCancelHours'] = 'Zadejte 0–168 hodin.';
   if (!(p.blockAfterNoShows >= 0 && p.blockAfterNoShows <= 20)) e['policy.blockAfterNoShows'] = 'Zadejte 1–20.';

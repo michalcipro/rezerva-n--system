@@ -246,7 +246,7 @@ export function CalendarScreen(): JSX.Element {
               ppm={1}
               selectedId={selection?.id ?? null}
               showCancelled={showCancelled}
-              colMinWidth={view === 'week' ? 118 : single ? 220 : 140}
+              colMinWidth={view === 'week' ? 104 : single ? 220 : 124}
               ariaLabel={view === 'week' ? `Týdenní rozvrh – ${focus ? therapistName(focus) : ''}` : `Rozvrh terapeutů – ${formatDateLong(date)}`}
               scrollKey={`${view}|${dates[0]}|${columns.length}`}
               footer={legend}

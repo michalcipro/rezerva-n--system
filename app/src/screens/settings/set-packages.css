@@ -1,0 +1,230 @@
+/* Permanentky a kredity (prefix .set-) */
+
+/* ---------- Cenový souhrn v editoru ---------- */
+.set-pricebox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg);
+  background: var(--accent-subtle);
+}
+.set-pricebox__main {
+  display: flex;
+  flex-direction: column;
+}
+.set-pricebox__label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--accent-fg);
+}
+.set-pricebox__value {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tighter);
+}
+.set-pricebox__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Nabídka permanentek ---------- */
+.set-pkg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
+  gap: var(--space-4);
+}
+.set-pkg.is-inactive { background: var(--surface-muted); }
+.set-pkg__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.set-pkg__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-pkg__name {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.set-pkg__desc {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-pkg__price {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-pkg__amount {
+  font-size: var(--text-4xl);
+  line-height: var(--leading-4xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tighter);
+}
+.set-pkg__per {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.set-pkg__discount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.set-pkg__dl { --dl-term-w: 86px; padding-top: var(--space-1); border-top: 1px solid var(--border-subtle); }
+.set-pkg__dl .dl__row { padding: 3px 0; }
+.set-pkg__foot {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+.set-pkg-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 220px;
+  padding: var(--space-4);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.set-pkg-add:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent-fg);
+}
+
+/* ---------- Prodané permanentky ---------- */
+.set-sold-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.set-sold-usage { white-space: nowrap; }
+.set-sold-usage__bar {
+  display: inline-block;
+  width: 112px;
+  vertical-align: middle;
+}
+.set-sold-usage__text {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.set-sold-table tr.is-ended td { color: var(--text-secondary); }
+.set-sold-table td { padding-block: var(--space-2); }
+.set-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.set-toolbar__seg { max-width: 100%; overflow-x: auto; }
+
+/* ---------- Bonusy za dobití ---------- */
+.set-bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.set-bonus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5) var(--space-2);
+  padding: var(--space-2) var(--space-2-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.set-bonus.has-error { border-color: var(--danger-border); background: var(--danger-soft); }
+.set-bonus__text {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.set-bonus__amount { width: 160px; }
+.set-bonus__pct { width: 120px; }
+.set-bonus__result {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  color: var(--success-fg);
+}
+.set-bonus > .btn--icon { margin-left: auto; }
+.set-bonus__msg { flex-basis: 100%; display: flex; align-items: center; gap: 4px; }
+
+.set-bonus-try {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+.set-bonus-try__label {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-medium);
+}
+.set-bonus-try__result {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.set-bonus-try__result strong { color: var(--text); }
+
+.set-credit-list {
+  display: flex;
+  flex-direction: column;
+}
+.set-credit-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.set-credit-list > li:first-child { border-top: 0; }
+
+.set-kpis .kpi__label { white-space: normal; overflow: visible; }

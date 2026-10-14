@@ -10,6 +10,7 @@ import { ToneDot } from '../../components/domain';
 import { WEEKDAYS, byOrder, clone, cx, deepEqual, emptyWeek, hoursLabel, isEmail, templateEnd, validateWeek, weekMinutes, weekdayName } from './helpers';
 import { TonePicker } from './shared';
 import { WeekScheduleEditor } from './WeekScheduleEditor';
+import './set-team.css';
 
 export type TherapistTab = 'profile' | 'hours' | 'services';
 

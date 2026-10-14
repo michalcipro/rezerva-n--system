@@ -180,7 +180,11 @@ function ArrivalRow({
       </div>
       <div className="st-arrival__main">
         <span className="st-arrival__name">
-          <button type="button" className="link st-arrival__client" onClick={() => navigate({ name: 'klient', clientId: booking.clientId })}>
+          <button
+            type="button"
+            className="link st-arrival__client"
+            onClick={() => navigate({ name: 'klient', clientId: booking.clientId })}
+          >
             {name}
           </button>
           {client && isNewClientForBooking(clinic, booking) && (
@@ -443,8 +447,7 @@ export function DashboardScreen(): JSX.Element {
   const nextArrival = lists.next[0] ?? lists.later;
   const nowCount = lists.inProgress.length + lists.sessionsNow.length;
   const nextCount = lists.next.length + lists.sessionsNext.length;
-  const whoNext = (b: Booking | null): string =>
-    b ? `${formatTime(b.start)} – ${clientName(getClient(clinic, b.clientId))}` : '';
+  const whoNext = (b: Booking | null): string => (b ? `${formatTime(b.start)} – ${clientName(getClient(clinic, b.clientId))}` : '');
 
   /* --------------------------- obsazenost po hodinách --------------------------- */
   const nowMin = minutesOf(now);
@@ -501,8 +504,17 @@ export function DashboardScreen(): JSX.Element {
                 {formatSlot(o.start)}
               </button>
             ),
-            meta: `${svc?.name ?? 'Termín'} · ${therapistShort(getTherapist(clinic, o.therapistId))} · nabídnuto ${countLabel(o.clientIds.length, ['klientovi', 'klientům', 'klientům'])}`,
-            value: <span className="st-countdown">vyprší {formatRelative(o.expiresAt, now)}</span>,
+            meta: (
+              <>
+                <span className="st-alert__line">
+                  {svc?.name ?? 'Termín'} · {therapistShort(getTherapist(clinic, o.therapistId))}
+                </span>
+                <span className="st-alert__line">
+                  nabídnuto {countLabel(o.clientIds.length, ['klientovi', 'klientům', 'klientům'])} ·{' '}
+                  <span className="st-countdown">vyprší {formatRelative(o.expiresAt, now)}</span>
+                </span>
+              </>
+            ),
           };
         })}
       />,
@@ -622,9 +634,7 @@ export function DashboardScreen(): JSX.Element {
           <Card as="section" aria-label="Teď probíhá" className="st-card">
             <CardHeader title="Teď probíhá" meta={nowCount > 0 ? countLabel(nowCount, ['termín', 'termíny', 'termínů']) : undefined} />
             {nowCount === 0 && lists.unmarked.length === 0 ? (
-              <p className="st-muted-text">
-                Teď neprobíhá žádný termín.{nextArrival ? ` Další příchod: ${whoNext(nextArrival)}.` : ''}
-              </p>
+              <p className="st-muted-text">Teď neprobíhá žádný termín.{nextArrival ? ` Další příchod: ${whoNext(nextArrival)}.` : ''}</p>
             ) : (
               <ul className="st-arrivals">
                 {lists.sessionsNow.map((x) => (
@@ -665,7 +675,10 @@ export function DashboardScreen(): JSX.Element {
             ) : (
               <ul className="st-arrivals">
                 {[
-                  ...lists.sessionsNext.map((x) => ({ start: x.session.start, el: <SessionRow key={x.session.id} item={x} now={now} mode="next" /> })),
+                  ...lists.sessionsNext.map((x) => ({
+                    start: x.session.start,
+                    el: <SessionRow key={x.session.id} item={x} now={now} mode="next" />,
+                  })),
                   ...lists.next.map((b) => ({
                     start: b.start,
                     el: <ArrivalRow key={b.id} booking={b} now={now} mode="next" onDetail={setDrawerId} onNoShow={setNoShowId} />,
@@ -675,24 +688,15 @@ export function DashboardScreen(): JSX.Element {
                   .map((x) => x.el)}
               </ul>
             )}
-            {lists.later && nextCount > 0 && (
-              <p className="st-footnote">Potom: {whoNext(lists.later)}</p>
-            )}
-          </Card>
-        </div>
-
-        <aside className="split__aside" aria-label="Upozornění a obsazenost">
-          <Card as="section" aria-label="Upozornění" className="st-card">
-            <CardHeader title="Upozornění" meta={groups.length > 0 ? countLabel(groups.length, ['oblast', 'oblasti', 'oblastí']) : undefined} />
-            {groups.length === 0 ? (
-              <EmptyState compact icon="checkCircle" title="Vše vyřízeno" text="Žádné poplatky, nabídky ani končící permanentky nečekají na pozornost." />
-            ) : (
-              <div className="st-alerts">{groups}</div>
-            )}
+            {lists.later && nextCount > 0 && <p className="st-footnote">Potom: {whoNext(lists.later)}</p>}
           </Card>
 
           <Card as="section" aria-label="Obsazenost dnes po hodinách" className="st-card">
-            <CardHeader title="Obsazenost dnes po hodinách" meta={`${formatNumber(day.occupancy)}${NBSP}% celkem`} />
+            <CardHeader
+              title="Obsazenost dnes"
+              subtitle={scope ? 'Po hodinách, vaše pracovní doba' : 'Po hodinách, pracovní doba celého týmu'}
+              meta={`${formatNumber(day.occupancy)}${NBSP}% celkem`}
+            />
             <div className="st-legend">
               <LegendItem colorClass="st-c-accent">obsazeno</LegendItem>
               <LegendItem colorClass="st-c-past">uplynulé hodiny</LegendItem>
@@ -721,11 +725,34 @@ export function DashboardScreen(): JSX.Element {
               </div>
             )}
           </Card>
+        </div>
+
+        <aside className="split__aside" aria-label="Upozornění">
+          <Card as="section" aria-label="Upozornění" className="st-card">
+            <CardHeader
+              title="Upozornění"
+              meta={groups.length > 0 ? countLabel(groups.length, ['oblast', 'oblasti', 'oblastí']) : undefined}
+            />
+            {groups.length === 0 ? (
+              <EmptyState
+                compact
+                icon="checkCircle"
+                title="Vše vyřízeno"
+                text="Žádné poplatky, nabídky ani končící permanentky nečekají na pozornost."
+              />
+            ) : (
+              <div className="st-alerts">{groups}</div>
+            )}
+          </Card>
         </aside>
       </div>
 
       <NewBookingDialog open={newBooking} onClose={() => setNewBooking(false)} />
-      <NewClientDialog open={newClient} onClose={() => setNewClient(false)} onCreated={(id) => navigate({ name: 'klient', clientId: id })} />
+      <NewClientDialog
+        open={newClient}
+        onClose={() => setNewClient(false)}
+        onCreated={(id) => navigate({ name: 'klient', clientId: id })}
+      />
       <BookingDrawer bookingId={drawerId} onClose={() => setDrawerId(null)} />
       <ConfirmDialog
         open={!!noShowBooking}

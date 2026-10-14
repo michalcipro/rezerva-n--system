@@ -39,6 +39,7 @@ import {
 import { ShiftBar } from './shared';
 import { TherapistEditor, newTherapist, type TherapistTab } from './TherapistEditor';
 import { TimeOffDialog } from './TimeOffDialog';
+import './set-team.css';
 
 export function TeamScreen(): JSX.Element {
   const clinic = useClinic();
@@ -270,6 +271,7 @@ function CapacityCard(): JSX.Element {
     <Card padding="none" as="section" aria-label="Týdenní kapacita">
       <CardHeader
         divided
+        className="set-cap-head"
         title="Týdenní kapacita"
         subtitle={
           total < nominal
@@ -301,9 +303,8 @@ function CapacityCard(): JSX.Element {
             <tr>
               <th scope="col">Terapeut</th>
               {dates.map((d, i) => (
-                <th key={d} scope="col" className={cx('num', d === today && 'is-today')}>
-                  <span className="set-cap-dow">{WEEKDAY_SHORT[i]}</span>
-                  <span className="set-cap-date">{Number(d.slice(8, 10))}.</span>
+                <th key={d} scope="col" className={cx('num', d === today && 'is-today')} aria-label={formatDayShort(d)}>
+                  {WEEKDAY_SHORT[i]} {Number(d.slice(8, 10))}.
                 </th>
               ))}
               <th scope="col" className="num">
@@ -423,7 +424,8 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
     <Card padding="none" as="section" aria-label="Nepřítomnosti a zavřeno">
       <CardHeader
         divided
-        title="Nepřítomnosti a zavřeno"
+        title="Nepřítomnosti"
+        subtitle="Dovolené, nemoci a zavírací dny"
         actions={
           <Menu
             label="Přidat"

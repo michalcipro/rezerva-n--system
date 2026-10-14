@@ -1,0 +1,217 @@
+/* Služby a ceník + rozvrh skupinových lekcí (prefix .set-) */
+
+/* ---------- Kategorie a tabulka služeb ---------- */
+.set-cat__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.set-cat__title {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+}
+.set-cat__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.set-svc-table td { padding-block: var(--space-2); }
+.set-svc-name { min-width: 230px; }
+.set-svc-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-1-5);
+  margin-top: 2px;
+}
+.set-svc-sub:empty { display: none; }
+.set-svc-desc {
+  max-width: 44ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.set-svc-table tr.is-inactive td { color: var(--text-muted); }
+.set-svc-table tr.is-inactive .set-rowlink { color: var(--text-secondary); }
+.set-cell-actions { width: 1%; white-space: nowrap; }
+
+/* Stejné šířky sloupců ve všech kategoriích (pevné rozvržení od tabletu výš) */
+@media (min-width: 761px) {
+  .set-svc-table { table-layout: fixed; }
+  .set-svc-table .set-c-dur { width: 92px; }
+  .set-svc-table .set-c-price { width: 104px; }
+  .set-svc-table .set-c-buf { width: 88px; }
+  .set-svc-table .set-c-kind { width: 132px; }
+  .set-svc-table .set-c-team { width: 116px; }
+  .set-svc-table .set-c-online { width: 116px; }
+  .set-svc-table .set-c-active { width: 100px; }
+  .set-svc-table .set-c-act { width: 56px; }
+  .set-svc-name { min-width: 0; }
+  .set-svc-desc { max-width: 100%; }
+}
+@media (max-width: 1300px) {
+  .set-col-lg { display: none; }
+}
+@media (max-width: 1100px) {
+  .set-col-md { display: none; }
+}
+@media (max-width: 760px) {
+  .set-col-sm { display: none; }
+  .set-svc-name { min-width: 160px; }
+  .set-svc-desc { display: none; }
+}
+
+/* ---------- Týdenní rozvrh lekcí ---------- */
+.set-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+}
+.set-week__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.set-week__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding-left: var(--space-1);
+}
+.set-week__title {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.set-week__empty {
+  margin: 0;
+  padding: var(--space-4) var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+.set-week__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.set-lesson {
+  --l-bg: var(--tone-violet-bg);
+  --l-border: var(--tone-violet-border);
+  --l-fg: var(--tone-violet-fg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-2-5);
+  border: 1px solid var(--l-border);
+  border-radius: var(--radius-md);
+  background: var(--l-bg);
+  color: var(--l-fg);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.set-lesson:hover { box-shadow: var(--shadow-sm); }
+.set-lesson--teal { --l-bg: var(--tone-teal-bg); --l-border: var(--tone-teal-border); --l-fg: var(--tone-teal-fg); }
+.set-lesson--sand { --l-bg: var(--tone-sand-bg); --l-border: var(--tone-sand-border); --l-fg: var(--tone-sand-fg); }
+.set-lesson--blue { --l-bg: var(--tone-blue-bg); --l-border: var(--tone-blue-border); --l-fg: var(--tone-blue-fg); }
+.set-lesson--violet { --l-bg: var(--tone-violet-bg); --l-border: var(--tone-violet-border); --l-fg: var(--tone-violet-fg); }
+.set-lesson--slate { --l-bg: var(--tone-slate-bg); --l-border: var(--tone-slate-border); --l-fg: var(--tone-slate-fg); }
+.set-lesson--rose { --l-bg: var(--tone-rose-bg); --l-border: var(--tone-rose-border); --l-fg: var(--tone-rose-fg); }
+.set-lesson--olive { --l-bg: var(--tone-olive-bg); --l-border: var(--tone-olive-border); --l-fg: var(--tone-olive-fg); }
+.set-lesson.is-inactive {
+  --l-bg: var(--surface-muted);
+  --l-border: var(--border-strong);
+  --l-fg: var(--text-secondary);
+  border-style: dashed;
+}
+.set-lesson__time {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.set-lesson__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.set-lesson__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.set-lesson__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.set-lesson__next {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: var(--space-1);
+}
+.set-lesson__next-label {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1180px) {
+  .set-week { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+}
+@media (max-width: 640px) {
+  .set-week { grid-template-columns: minmax(0, 1fr); }
+  .set-week__day.is-empty { display: none; }
+}
+
+/* Telefony: délka pod názvem, přidání služby jen ikonou */
+.set-show-xs { display: none; }
+.set-svc-dur {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .set-col-xs,
+  .set-hide-xs { display: none; }
+  .set-show-xs { display: inline-flex; }
+  .set-svc-name { min-width: 0; }
+}

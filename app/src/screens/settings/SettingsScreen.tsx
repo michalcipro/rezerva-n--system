@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, ReminderSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
-import { countLabel, formatDayShort, formatDuration, formatTime } from '../../engine/format';
+import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
 import { therapistName } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -28,6 +28,8 @@ import {
   byOrder,
   cx,
   dirtySections,
+  firstStageFee,
+  lockedTierIndex,
   normalizeDraft,
   settingsDraftOf,
   tierWarning,
@@ -36,8 +38,9 @@ import {
   type SettingsDraft,
   type SettingsErrors,
 } from './helpers';
-import { PolicyPreview } from './PolicyPreview';
+import { PolicyClientText, PolicyPreview } from './PolicyPreview';
 import { SettingRow, useSyncedDraft } from './shared';
+import './set-settings.css';
 
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
@@ -186,13 +189,16 @@ export function SettingsScreen(): JSX.Element {
 
           <section id="set-sec-policy" className="set-section" aria-labelledby="set-sec-policy-h">
             <div className="set-policy-grid">
-              <Card className="set-section-card">
+              <Card className="set-section-card set-policy-grid__form">
                 <SectionHeading id="policy" title="Storno podmínky" subtitle="Kdy lze zrušit zdarma a kolik stojí pozdní zrušení nebo nedostavení." />
                 <PolicySection policy={draft.policy} onChange={setPolicy} errors={visibleErrors} />
               </Card>
               <aside className="set-policy-grid__preview" aria-label="Živý náhled storno podmínek">
                 <PolicyPreview policy={draft.policy} />
               </aside>
+              <div className="set-policy-grid__text">
+                <PolicyClientText policy={draft.policy} />
+              </div>
             </div>
           </section>
 
@@ -284,7 +290,7 @@ interface CompactExample {
 
 function compactExample(clinic: ClinicState, rules: BookingRules, now: LocalDateTime): CompactExample | null {
   const svc = clinic.services
-    .filter((s) => s.active && s.kind === 'individual' && s.onlineBookable && s.durationMin >= 30)
+    .filter((s) => s.active && s.kind === 'individual' && s.onlineBookable && !s.newClientsOnly && s.durationMin >= 30)
     .sort(byOrder)
     .find((s) => s.therapistIds.some((id) => clinic.therapists.find((t) => t.id === id && t.active)));
   if (!svc) return null;
@@ -459,24 +465,34 @@ function PolicySection({
   const lastBlock = useRef(policy.blockAfterNoShows || 3);
   if (policy.blockAfterNoShows > 0) lastBlock.current = policy.blockAfterNoShows;
   const tiers = policy.lateTiers;
-  const warning = tierWarning(tiers);
+  const free = policy.freeCancelHours;
+  const locked = lockedTierIndex(policy);
+  const firstFee = firstStageFee(policy);
+  const extras = tiers.map((t, i) => ({ t, i })).filter(({ i }) => i !== locked);
+  const warning = free > 0 ? tierWarning(locked >= 0 ? tiers : [{ hoursBefore: free, feePct: firstFee }, ...tiers]) : null;
 
+  /* První stupeň vždy začíná koncem bezplatné lhůty – při změně lhůty se posune s ní. */
   const setFree = (v: number): void => {
-    const old = policy.freeCancelHours;
+    if (locked < 0) {
+      onChange({ freeCancelHours: v });
+      return;
+    }
     onChange({
       freeCancelHours: v,
-      // první stupeň obvykle začíná koncem bezplatné lhůty – posuneme ho s ní
-      lateTiers: tiers.map((t) => (t.hoursBefore === old ? { ...t, hoursBefore: v } : t)),
+      lateTiers: [{ hoursBefore: v, feePct: tiers[locked].feePct }, ...tiers.filter((_, i) => i !== locked)],
     });
   };
+  const setFirstFee = (fee: number): void =>
+    onChange({
+      lateTiers: locked >= 0 ? tiers.map((t, i) => (i === locked ? { ...t, feePct: fee } : t)) : [{ hoursBefore: free, feePct: fee }, ...tiers],
+    });
   const setTier = (i: number, patch: Partial<{ hoursBefore: number; feePct: number }>): void =>
     onChange({ lateTiers: tiers.map((t, j) => (j === i ? { ...t, ...patch } : t)) });
   const addTier = (): void => {
-    const sorted = [...tiers].sort((a, b) => b.hoursBefore - a.hoursBefore);
-    const lowest = sorted[sorted.length - 1];
-    const hours = lowest ? Math.max(1, Math.floor(lowest.hoursBefore / 2)) : Math.max(1, policy.freeCancelHours);
-    const fee = lowest ? Math.min(100, lowest.feePct + 25) : 50;
-    onChange({ lateTiers: [...sorted, { hoursBefore: hours, feePct: fee }] });
+    const lowest = Math.min(free, ...extras.map(({ t }) => t.hoursBefore));
+    const maxFee = Math.max(firstFee, ...extras.map(({ t }) => t.feePct));
+    const base = locked >= 0 ? tiers : [{ hoursBefore: free, feePct: firstFee }, ...tiers];
+    onChange({ lateTiers: [...base, { hoursBefore: Math.max(1, Math.floor(lowest / 2)), feePct: Math.min(100, maxFee + 25) }] });
   };
 
   return (
@@ -486,77 +502,100 @@ function PolicySection({
         hint="Do kolika hodin před začátkem může klient zrušit nebo přesunout termín bez poplatku."
         error={errors['policy.freeCancelHours']}
       >
-        <NumberInput className="set-ctl-sm" value={policy.freeCancelHours} min={0} max={168} suffix="h předem" onChange={setFree} />
+        <NumberInput className="set-ctl-sm" value={free} min={0} max={168} suffix="h předem" onChange={setFree} />
       </SettingRow>
 
       <SettingRow
         label="Stupně storno poplatku"
-        hint={policy.freeCancelHours > 0 ? 'Po skončení bezplatné lhůty. Čím blíž začátku, tím vyšší poplatek.' : 'Při nulové bezplatné lhůtě se pozdní storno nepočítá.'}
+        hint={
+          free > 0
+            ? 'Platí po skončení bezplatné lhůty. Čím blíž začátku, tím vyšší poplatek – další stupně přidáte tlačítkem.'
+            : 'S nulovou bezplatnou lhůtou se pozdní zrušení nepočítá – platí jen poplatek za nedostavení.'
+        }
         group
         wide
       >
-        <ol className="set-tiers">
-          {tiers.map((t, i) => {
-            const hoursError = errors[`tier.${i}.hours`];
-            const pctError = errors[`tier.${i}.pct`];
-            return (
-              <li key={i} className={cx('set-tier', (hoursError || pctError) && 'has-error')}>
-                <span className="set-tier__text">Méně než</span>
-                <NumberInput
-                  size="sm"
-                  className="set-tier__hours"
-                  value={t.hoursBefore}
-                  min={0}
-                  max={168}
-                  suffix="h"
-                  aria-label={`Stupeň ${i + 1}: méně než kolik hodin před začátkem`}
-                  invalid={!!hoursError}
-                  onChange={(v) => setTier(i, { hoursBefore: v })}
-                />
-                <span className="set-tier__text">předem</span>
-                <Icon name="arrowRight" size={14} className="set-tier__arrow" />
-                <NumberInput
-                  size="sm"
-                  className="set-tier__pct"
-                  value={t.feePct}
-                  min={0}
-                  max={100}
-                  step={5}
-                  suffix="%"
-                  aria-label={`Stupeň ${i + 1}: poplatek v procentech ceny`}
-                  invalid={!!pctError}
-                  onChange={(v) => setTier(i, { feePct: v })}
-                />
-                <span className="set-tier__text set-tier__text--muted">ceny</span>
-                <IconButton
-                  icon="trash"
-                  size="sm"
-                  label={`Odebrat stupeň ${i + 1}`}
-                  onClick={() => onChange({ lateTiers: tiers.filter((_, j) => j !== i) })}
-                />
-                {(hoursError || pctError) && (
-                  <span className="field__error set-tier__error" role="alert">
-                    <Icon name="alertCircle" size={14} />
-                    <span>{hoursError ?? pctError}</span>
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-        {tiers.length === 0 && policy.freeCancelHours > 0 && (
-          <p className="set-muted-note">Bez stupňů se po skončení bezplatné lhůty účtuje 100 % ceny.</p>
+        {free > 0 && (
+          <ol className="set-tiers">
+            <li className={cx('set-tier set-tier--first', errors[`tier.${locked}.pct`] && 'has-error')}>
+              <span className="set-tier__text">
+                Po skončení lhůty <span className="set-tier__text--muted">(méně než {formatNumber(free)} h předem)</span>
+              </span>
+              <Icon name="arrowRight" size={14} className="set-tier__arrow" />
+              <NumberInput
+                size="sm"
+                className="set-tier__pct"
+                value={firstFee}
+                min={0}
+                max={100}
+                step={5}
+                suffix="%"
+                aria-label={`Poplatek po skončení bezplatné lhůty (méně než ${free} h předem) v procentech ceny`}
+                onChange={setFirstFee}
+              />
+              <span className="set-tier__text set-tier__text--muted">ceny</span>
+            </li>
+            {extras.map(({ t, i }, n) => {
+              const hoursError = errors[`tier.${i}.hours`];
+              const pctError = errors[`tier.${i}.pct`];
+              return (
+                <li key={i} className={cx('set-tier', (hoursError || pctError) && 'has-error')}>
+                  <span className="set-tier__text">Méně než</span>
+                  <NumberInput
+                    size="sm"
+                    className="set-tier__hours"
+                    value={t.hoursBefore}
+                    min={0}
+                    max={168}
+                    suffix="h"
+                    aria-label={`Stupeň ${n + 2}: méně než kolik hodin před začátkem`}
+                    invalid={!!hoursError}
+                    onChange={(v) => setTier(i, { hoursBefore: v })}
+                  />
+                  <span className="set-tier__text">předem</span>
+                  <Icon name="arrowRight" size={14} className="set-tier__arrow" />
+                  <NumberInput
+                    size="sm"
+                    className="set-tier__pct"
+                    value={t.feePct}
+                    min={0}
+                    max={100}
+                    step={5}
+                    suffix="%"
+                    aria-label={`Stupeň ${n + 2}: poplatek v procentech ceny`}
+                    invalid={!!pctError}
+                    onChange={(v) => setTier(i, { feePct: v })}
+                  />
+                  <span className="set-tier__text set-tier__text--muted">ceny</span>
+                  <IconButton
+                    icon="trash"
+                    size="sm"
+                    label={`Odebrat stupeň ${n + 2} (méně než ${t.hoursBefore} h)`}
+                    onClick={() => onChange({ lateTiers: tiers.filter((_, j) => j !== i) })}
+                  />
+                  {(hoursError || pctError) && (
+                    <span className="field__error set-tier__error" role="alert">
+                      <Icon name="alertCircle" size={14} />
+                      <span>{hoursError ?? pctError}</span>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         )}
         {warning && (
           <p className="set-warn-text">
             <Icon name="alert" size={14} /> {warning}
           </p>
         )}
-        <div>
-          <Button size="sm" variant="ghost" icon="plus" onClick={addTier} disabled={policy.freeCancelHours === 0 || tiers.length >= 5}>
-            Přidat stupeň
-          </Button>
-        </div>
+        {free > 0 && (
+          <div>
+            <Button size="sm" variant="ghost" icon="plus" onClick={addTier} disabled={extras.length >= 4 || free <= 1}>
+              Přidat stupeň
+            </Button>
+          </div>
+        )}
       </SettingRow>
 
       <SettingRow label="Nedostavení" hint="Klient nepřišel a termín předem nezrušil." error={errors['policy.noShowFeePct']}>

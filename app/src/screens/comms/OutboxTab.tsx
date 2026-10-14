@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Channel, Client, ClinicState, Id, Message, MessageTemplate } from '../../domain/types';
 import { sendManualMessage } from '../../engine/commands';
-import { formatDateLong, formatNumber, formatSlot, formatTime } from '../../engine/format';
+import { formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
 import { getBooking, getClient, getService } from '../../engine/selectors';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
@@ -103,7 +103,7 @@ function MessageDrawer({
       title="Detail zprávy"
       footer={
         m && client ? (
-          <div className="com-drawer-actions">
+          <>
             <Button
               icon="user"
               onClick={() => {
@@ -123,7 +123,7 @@ function MessageDrawer({
             >
               Napsat klientovi
             </Button>
-          </div>
+          </>
         ) : undefined
       }
     >
@@ -266,7 +266,17 @@ function ClientPicker({ clinic, value, onChange }: { clinic: ClinicState; value:
   );
 }
 
-function ComposeDialog({ open, onClose, clientId }: { open: boolean; onClose: () => void; clientId: Id | null }): JSX.Element {
+function ComposeDialog({
+  open,
+  onClose,
+  onSent,
+  clientId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSent: () => void;
+  clientId: Id | null;
+}): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
   const [picked, setPicked] = useState<Id | null>(clientId);
@@ -295,8 +305,15 @@ function ComposeDialog({ open, onClose, clientId }: { open: boolean; onClose: ()
   const ready = !!client && !!body.trim() && (channel === 'email' ? canEmail : canSms);
   const send = (): void => {
     if (!client) return;
-    const r = run(sendManualMessage, { clientId: client.id, channel, subject: channel === 'email' ? subject : '', body }, { success: `Zpráva pro ${clientLabel(client)} odeslána` });
-    if (r.ok) onClose();
+    const r = run(
+      sendManualMessage,
+      { clientId: client.id, channel, subject: channel === 'email' ? subject : '', body },
+      { success: `Zpráva odeslána (simulace): ${clientLabel(client)}`, quiet: true },
+    );
+    if (r.ok) {
+      onSent();
+      onClose();
+    }
   };
 
   return (
@@ -436,10 +453,10 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
     <div className="com-outbox">
       <div className="com-outbox__stats statline">
         <span>
-          <strong>{formatNumber(totals.all)}</strong> zpráv celkem
+          <strong>{formatNumber(totals.all)}</strong> {plural(totals.all, ['zpráva', 'zprávy', 'zpráv'])} celkem
         </span>
         <span>
-          <strong>{formatNumber(totals.email)}</strong> e-mailů
+          <strong>{formatNumber(totals.email)}</strong> {plural(totals.email, ['e-mail', 'e-maily', 'e-mailů'])}
         </span>
         <span>
           <strong>{formatNumber(totals.sms)}</strong> SMS
@@ -531,7 +548,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                   {rows.map((m) => {
                     const c = m.clientId ? getClient(clinic, m.clientId) : undefined;
                     return (
-                      <tr key={m.id} data-clickable="" className={m.status === 'skipped' ? 'com-row--skipped' : undefined} onClick={() => setOpenId(m.id)}>
+                      <tr key={m.id} data-clickable="" onClick={() => setOpenId(m.id)}>
                         <td className="nowrap tnum com-cell-time">{formatWhen(m.at, now)}</td>
                         <td className="com-cell-client">
                           <span className="truncate">{clientLabel(c)}</span>
@@ -606,7 +623,14 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
       </Card>
 
       <MessageDrawer message={openMessage} onClose={() => setOpenId(null)} onOpenCampaign={onOpenCampaign} onReply={(id) => onCompose(id)} />
-      <ComposeDialog open={composeOpen} onClose={onComposeClose} clientId={composeClientId} />
+      <ComposeDialog
+        open={composeOpen}
+        onClose={onComposeClose}
+        clientId={composeClientId}
+        onSent={() => {
+          if (filtered) onFilterChange(DEFAULT_OUTBOX_FILTER);
+        }}
+      />
     </div>
   );
 }

@@ -11,14 +11,7 @@
  */
 import type { ClinicState, Id, LocalDate, LocalDateTime } from '../../domain/types';
 import { workingIntervals } from '../../engine/availability';
-import {
-  MONTH_GENITIVE,
-  MONTH_NOMINATIVE,
-  NBSP,
-  formatMoney,
-  formatMonthYear,
-  formatNumber,
-} from '../../engine/format';
+import { MONTH_GENITIVE, MONTH_NOMINATIVE, NBSP, formatMoney, formatMonthYear, formatNumber } from '../../engine/format';
 import {
   bookingsOfTherapistOnDate,
   bookingsOnDate,
@@ -86,11 +79,7 @@ export interface ResolvedPeriod {
 
 export const MAX_CUSTOM_DAYS = 366;
 
-const ymd = (date: LocalDate): [number, number, number] => [
-  Number(date.slice(0, 4)),
-  Number(date.slice(5, 7)),
-  Number(date.slice(8, 10)),
-];
+const ymd = (date: LocalDate): [number, number, number] => [Number(date.slice(0, 4)), Number(date.slice(5, 7)), Number(date.slice(8, 10))];
 
 /** „1.–14. října 2026“, „28. 9. – 4. 10. 2026“, „14. října 2026“. */
 export function formatRange(from: LocalDate, toExclusive: LocalDate): string {
@@ -443,6 +432,20 @@ export function dailySeries(s: ClinicState, range: DateRange, f: StatsFilters, a
   });
 }
 
+/** Proběhlé individuální návštěvy (základ míry rebookingu – skupinové lekce se nepočítají). */
+export function countSoloCompleted(s: ClinicState, range: DateRange, f: StatsFilters): number {
+  let n = 0;
+  for (const date of eachDay(range.from, range.to)) {
+    for (const b of bookingsOnDate(s, date)) {
+      if (b.status !== 'completed' || b.sessionId) continue;
+      if (f.therapistId && b.therapistId !== f.therapistId) continue;
+      if (f.categoryId && getService(s, b.serviceId)?.categoryId !== f.categoryId) continue;
+      n++;
+    }
+  }
+  return n;
+}
+
 export const rowTotal = (r: Pick<DayRow, 'completed' | 'noShow' | 'upcoming' | 'cancelled'>): number =>
   r.completed + r.noShow + r.upcoming + r.cancelled;
 
@@ -607,7 +610,12 @@ const sign = (n: number): string => (n > 0 ? '+' : n < 0 ? '−' : '');
  * Procentní změna (počty, částky). Když srovnávací hodnota je 0, ukáže absolutní rozdíl.
  * Vrací null, když se nic nezměnilo.
  */
-export function changeDelta(cur: number, prev: number, higherIsBetter: boolean, absFormat: (n: number) => string = formatNumber): KpiDelta | null {
+export function changeDelta(
+  cur: number,
+  prev: number,
+  higherIsBetter: boolean,
+  absFormat: (n: number) => string = formatNumber,
+): KpiDelta | null {
   if (cur === prev) return null;
   const direction: KpiDelta['direction'] = cur > prev ? 'up' : 'down';
   const good = (direction === 'up') === higherIsBetter;

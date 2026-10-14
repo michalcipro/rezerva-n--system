@@ -441,8 +441,20 @@ export function TimeGrid(props: TimeGridProps): JSX.Element {
                       ppm={ppm}
                       now={now}
                       selected={selectedId === g.booking.id}
-                      style={place(g.startMin, g.endMin, 'right')}
+                      style={place(g.startMin, g.endMin, g.offer ? 'full' : 'right')}
                       onOpen={open(() => props.onOpenBooking(g.booking.id))}
+                    />
+                  ))}
+                  {lay.cancelledSessions.map((g) => (
+                    <SessionBlock
+                      key={g.session.id}
+                      session={g.session}
+                      offer={null}
+                      ppm={ppm}
+                      now={now}
+                      selected={selectedId === g.session.id}
+                      style={place(g.startMin, g.endMin, lay.items.some((p) => p.startMin < g.endMin && g.startMin < p.endMin) ? 'right' : 'full')}
+                      onOpen={open(() => props.onOpenSession(g.session.id))}
                     />
                   ))}
                   {lay.items.map((p) => {

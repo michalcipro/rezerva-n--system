@@ -42,6 +42,7 @@ import {
   capacityModel,
   changeDelta,
   clampCustom,
+  countSoloCompleted,
   dailySeries,
   firstBookingDate,
   granularityFor,
@@ -81,6 +82,9 @@ interface StatsModel {
   buckets: Bucket[];
   granularity: Granularity;
   trend: TrendPoint[];
+  /** Proběhlé individuální návštěvy (základ rebookingu) v období a ve srovnání. */
+  solo: number;
+  soloPrev: number;
 }
 
 const coreOf = (r: StatsResult): StatsCore => r;
@@ -100,7 +104,9 @@ function buildModel(s: ClinicState, p: ResolvedPeriod, f: StatsFilters, compare:
   const cap = capacityModel(s, p.range, f);
   const granularity = granularityFor(days);
   const buckets = bucketize(dailySeries(s, p.range, f, cap.availableByDay), granularity, p.range);
-  return { stats, cmp, cap, capPrev, buckets, granularity, trend: trendSeries(s, f, now) };
+  const solo = countSoloCompleted(s, p.range, f);
+  const soloPrev = compare ? countSoloCompleted(s, p.compare, f) : 0;
+  return { stats, cmp, cap, capPrev, buckets, granularity, trend: trendSeries(s, f, now), solo, soloPrev };
 }
 
 /* ------------------------------------------------------------------ */
@@ -215,23 +221,20 @@ export function StatsScreen(): JSX.Element {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(today));
   useEffect(() => savePrefs(prefs), [prefs]);
 
-  const therapists = useMemo(
-    () => clinic.therapists.filter((t) => t.active).sort((a, b) => a.order - b.order),
-    [clinic.therapists],
-  );
+  const therapists = useMemo(() => clinic.therapists.filter((t) => t.active).sort((a, b) => a.order - b.order), [clinic.therapists]);
   const categories = useMemo(() => [...clinic.categories].sort((a, b) => a.order - b.order), [clinic.categories]);
   const therapistId = therapists.some((t) => t.id === prefs.therapistId) ? prefs.therapistId : '';
   const categoryId = categories.some((c) => c.id === prefs.categoryId) ? prefs.categoryId : '';
   const filtered = Boolean(therapistId || categoryId);
 
   const resolved = useMemo(() => resolvePeriod(prefs.period, today), [prefs.period, today]);
-  const filters = useMemo<StatsFilters>(() => ({ therapistId: therapistId || null, categoryId: categoryId || null }), [therapistId, categoryId]);
+  const filters = useMemo<StatsFilters>(
+    () => ({ therapistId: therapistId || null, categoryId: categoryId || null }),
+    [therapistId, categoryId],
+  );
   const dataStart = useMemo(() => firstBookingDate(clinic), [clinic]);
   // drahý výpočet: jen při změně dat, období, filtrů nebo dne
-  const model = useMemo(
-    () => buildModel(clinic, resolved, filters, prefs.compare, now),
-    [clinic, resolved, filters, prefs.compare, today],
-  );
+  const model = useMemo(() => buildModel(clinic, resolved, filters, prefs.compare, now), [clinic, resolved, filters, prefs.compare, today]);
   const { stats, cap, capPrev, buckets, granularity, trend } = model;
 
   const compareUsable = prefs.compare && model.cmp !== null && dataStart !== null && resolved.compare.to > dataStart;
@@ -243,13 +246,31 @@ export function StatsScreen(): JSX.Element {
   const empty = stats.bookings === 0 && stats.revenue === 0 && stats.packages.soldTotal === 0;
 
   /* ------------------------------ KPI ------------------------------ */
-  const rph = cap.booked > 0 ? Math.round(stats.deliveredValue / (cap.booked / 60)) : 0;
-  const rphPrev = cmp && prevCap && prevCap.booked > 0 ? Math.round(cmp.deliveredValue / (prevCap.booked / 60)) : 0;
-  const hintFor = (d: KpiDelta | null): ReactNode => {
+  // podíly se zobrazují jen s nenulovým jmenovatelem, srovnání jen když ho mají obě období
+  const ok = {
+    util: cap.available > 0,
+    utilPrev: !!prevCap && prevCap.available > 0,
+    rph: cap.booked > 0 && stats.completed > 0,
+    rphPrev: !!cmp && !!prevCap && prevCap.booked > 0 && cmp.completed > 0,
+    cancel: stats.bookings > 0,
+    cancelPrev: !!cmp && cmp.bookings > 0,
+    noShow: stats.completed + stats.noShow > 0,
+    noShowPrev: !!cmp && cmp.completed + cmp.noShow > 0,
+    rebook: model.solo > 0,
+    rebookPrev: !!cmp && model.soloPrev > 0,
+  };
+  const rph = ok.rph ? Math.round(stats.deliveredValue / (cap.booked / 60)) : 0;
+  const rphPrev = ok.rphPrev && cmp && prevCap ? Math.round(cmp.deliveredValue / (prevCap.booked / 60)) : 0;
+  const hintFor = (d: KpiDelta | null, comparable: boolean): ReactNode => {
     if (!cmp) return undefined;
+    if (!comparable) return 'nelze srovnat';
     return d ? resolved.compareShort : `beze změny ${resolved.compareShort}`;
   };
-  const kpi = (d: KpiDelta | null): { delta?: KpiDelta; hint?: ReactNode } => ({ delta: d ?? undefined, hint: hintFor(d) });
+  const kpi = (d: KpiDelta | null, comparable = true): { delta?: KpiDelta; hint?: ReactNode } => ({
+    delta: comparable && d ? d : undefined,
+    hint: hintFor(d, comparable),
+  });
+  const NA = '—';
   const category = categories.find((c) => c.id === categoryId);
   const therapist = therapists.find((t) => t.id === therapistId);
 
@@ -265,7 +286,11 @@ export function StatsScreen(): JSX.Element {
           )}
         </span>
       </KpiTile>
-      <KpiTile label="Obsazenost" value={pct(cap.utilization)} {...kpi(prevCap && pointsDelta(cap.utilization, prevCap.utilization, true))}>
+      <KpiTile
+        label="Obsazenost"
+        value={ok.util ? pct(cap.utilization) : NA}
+        {...kpi(prevCap && pointsDelta(cap.utilization, prevCap.utilization, true), ok.util && ok.utilPrev)}
+      >
         <span className="st-kpi-progress">
           <Progress value={Math.round(cap.utilization * 100)} target={85} label={`Obsazenost ${pct(cap.utilization)}, cíl 85 %`} />
           <span className="st-kpi-extra">cíl 85{NBSP}%</span>
@@ -278,32 +303,50 @@ export function StatsScreen(): JSX.Element {
       >
         <span className="st-kpi-extra">{filtered ? 'proběhlé termíny ve filtru' : 'přijaté platby'}</span>
       </KpiTile>
-      <KpiTile label="Tržba za hodinu" value={formatMoney(rph)} {...kpi(cmp && changeDelta(rph, rphPrev, true, formatMoney))}>
+      <KpiTile
+        label="Tržba za hodinu"
+        value={ok.rph ? formatMoney(rph) : NA}
+        {...kpi(cmp && changeDelta(rph, rphPrev, true, formatMoney), ok.rph && ok.rphPrev)}
+      >
         <span className="st-kpi-extra">na obsazenou hodinu</span>
       </KpiTile>
-      <KpiTile label="Noví klienti" value={formatNumber(stats.newClients)} {...kpi(cmp && changeDelta(stats.newClients, cmp.newClients, true))}>
+      <KpiTile
+        label="Noví klienti"
+        value={formatNumber(stats.newClients)}
+        {...kpi(cmp && changeDelta(stats.newClients, cmp.newClients, true))}
+      >
         <span className="st-kpi-extra">
           vracející se <strong>{formatNumber(stats.returningClients)}</strong>
         </span>
       </KpiTile>
-      <KpiTile label="Míra storna" value={pct(stats.cancellationRate, 1)} {...kpi(cmp && pointsDelta(stats.cancellationRate, cmp.cancellationRate, false))}>
+      <KpiTile
+        label="Míra storna"
+        value={ok.cancel ? pct(stats.cancellationRate, 1) : NA}
+        {...kpi(cmp && pointsDelta(stats.cancellationRate, cmp.cancellationRate, false), ok.cancel && ok.cancelPrev)}
+      >
         <span className="st-kpi-extra">
           z toho pozdní <strong>{pct(stats.lateRate, 1)}</strong>
         </span>
       </KpiTile>
-      <KpiTile label="Nedostavení" value={pct(stats.noShowRate, 1)} {...kpi(cmp && pointsDelta(stats.noShowRate, cmp.noShowRate, false))}>
+      <KpiTile
+        label="Nedostavení"
+        value={ok.noShow ? pct(stats.noShowRate, 1) : NA}
+        {...kpi(cmp && pointsDelta(stats.noShowRate, cmp.noShowRate, false), ok.noShow && ok.noShowPrev)}
+      >
         <span className="st-kpi-extra">{countLabel(stats.noShow, ['termín', 'termíny', 'termínů'])}</span>
       </KpiTile>
-      <KpiTile label="Rebooking do 30 dní" value={pct(stats.rebookingRate)} {...kpi(cmp && pointsDelta(stats.rebookingRate, cmp.rebookingRate, true))}>
-        <span className="st-kpi-extra">další termín po návštěvě</span>
+      <KpiTile
+        label="Rebooking do 30 dní"
+        value={ok.rebook ? pct(stats.rebookingRate) : NA}
+        {...kpi(cmp && pointsDelta(stats.rebookingRate, cmp.rebookingRate, true), ok.rebook && ok.rebookPrev)}
+      >
+        <span className="st-kpi-extra">{ok.rebook ? 'další termín po návštěvě' : 'jen po individuálních návštěvách'}</span>
       </KpiTile>
     </div>
   );
 
   /* ------------------------- Rezervace po dnech ------------------------- */
-  const sums = SERIES.map((_, si) =>
-    buckets.reduce((sum, b) => sum + [b.completed, b.noShow, b.upcoming, b.cancelled][si], 0),
-  );
+  const sums = SERIES.map((_, si) => buckets.reduce((sum, b) => sum + [b.completed, b.noShow, b.upcoming, b.cancelled][si], 0));
   const columns = buckets.map((b) => ({
     key: b.key,
     axisLabel: granularity === 'month' ? monthShort(b.key) : dm(b.from),
@@ -314,7 +357,8 @@ export function StatsScreen(): JSX.Element {
     strong: b.from <= today && today < b.to,
   }));
   const maxBucket = buckets.reduce<Bucket | null>((m, b) => (!m || rowTotal(b) > rowTotal(m) ? b : m), null);
-  const dailyTitle = granularity === 'day' ? 'Rezervace po dnech' : granularity === 'week' ? 'Rezervace po týdnech' : 'Rezervace po měsících';
+  const dailyTitle =
+    granularity === 'day' ? 'Rezervace po dnech' : granularity === 'week' ? 'Rezervace po týdnech' : 'Rezervace po měsících';
   const dailyCard = (
     <ChartCard
       title={dailyTitle}
@@ -379,6 +423,7 @@ export function StatsScreen(): JSX.Element {
       )}
     >
       <ColumnChart
+        height={236}
         data={columns}
         series={SERIES}
         totalText={rez}
@@ -451,7 +496,12 @@ export function StatsScreen(): JSX.Element {
       }
     >
       {catRows.length === 0 ? (
-        <EmptyState compact icon="chart" title="Žádné termíny v období" text="Jakmile proběhnou první termíny, uvidíte tu rozdělení podle kategorií." />
+        <EmptyState
+          compact
+          icon="chart"
+          title="Žádné termíny v období"
+          text="Jakmile proběhnou první termíny, uvidíte tu rozdělení podle kategorií."
+        />
       ) : (
         <BarList
           label="Tržby podle kategorií"
@@ -626,7 +676,10 @@ export function StatsScreen(): JSX.Element {
     >
       <LineChart
         label={`Spojnicový graf storen a nedostavení za posledních 6 měsíců: ${trend
-          .map((t) => `${monthName(t.month)} storno ${t.cancelRate === null ? 'bez dat' : pct(t.cancelRate, 1)}, nedostavení ${t.noShowRate === null ? 'bez dat' : pct(t.noShowRate, 1)}`)
+          .map(
+            (t) =>
+              `${monthName(t.month)} storno ${t.cancelRate === null ? 'bez dat' : pct(t.cancelRate, 1)}, nedostavení ${t.noShowRate === null ? 'bez dat' : pct(t.noShowRate, 1)}`,
+          )
           .join('; ')}.`}
         pointsLabel="Jednotlivé měsíce"
         labels={trend.map((t) => monthName(t.month))}
@@ -818,70 +871,77 @@ export function StatsScreen(): JSX.Element {
           : undefined
       }
     >
-      {pk.sold.length === 0 ? (
-        <p className="st-muted-text">V období se neprodala žádná permanentka.</p>
-      ) : (
-        <BarList
-          label="Prodané permanentky podle typu"
-          size="sm"
-          max={soldMax}
-          columns="minmax(84px, 1fr) minmax(40px, 1.2fr) 32px minmax(84px, auto)"
-          headers={['Ks', 'Tržba']}
-          rows={pk.sold.map(
-            (x): BarRow => ({
-              key: x.templateId,
-              label: <span className="st-ellipsis">{x.name}</span>,
-              value: x.count,
-              cells: [<strong key="c">{formatNumber(x.count)}</strong>, formatMoney(x.revenue)],
-              ariaLabel: `${x.name}: prodáno ${formatNumber(x.count)}, tržba ${formatMoney(x.revenue)}`,
-              tipTitle: x.name,
-              tipRows: [
-                { key: 'c', value: formatNumber(x.count), label: 'prodáno', colorClass: 'st-c-accent' },
-                { key: 'r', value: formatMoney(x.revenue), label: 'tržba' },
-              ],
-            }),
+      <div className="st-pk">
+        <div className="st-pk__col">
+          <span className="st-section-label">Prodané v období podle typu</span>
+          {pk.sold.length === 0 ? (
+            <p className="st-muted-text">V období se neprodala žádná permanentka.</p>
+          ) : (
+            <BarList
+              label="Prodané permanentky podle typu"
+              size="sm"
+              max={soldMax}
+              columns="minmax(84px, 1fr) minmax(40px, 1.2fr) 32px minmax(84px, auto)"
+              headers={['Ks', 'Tržba']}
+              rows={pk.sold.map(
+                (x): BarRow => ({
+                  key: x.templateId,
+                  label: <span className="st-ellipsis">{x.name}</span>,
+                  value: x.count,
+                  cells: [<strong key="c">{formatNumber(x.count)}</strong>, formatMoney(x.revenue)],
+                  ariaLabel: `${x.name}: prodáno ${formatNumber(x.count)}, tržba ${formatMoney(x.revenue)}`,
+                  tipTitle: x.name,
+                  tipRows: [
+                    { key: 'c', value: formatNumber(x.count), label: 'prodáno', colorClass: 'st-c-accent' },
+                    { key: 'r', value: formatMoney(x.revenue), label: 'tržba' },
+                  ],
+                }),
+              )}
+            />
           )}
-        />
-      )}
-      {pk.expiringSoon > 0 ? (
-        <Callout
-          tone="warning"
-          title="Končí do 30 dní"
-          actions={
-            <Button size="sm" icon="mail" onClick={remind}>
-              Poslat připomínku
-            </Button>
-          }
-        >
-          {countLabel(pk.expiringSoon, ['permanentka', 'permanentky', 'permanentek'])} ·{' '}
-          {countLabel(pk.expiringEntries, ['nevyčerpaný vstup', 'nevyčerpané vstupy', 'nevyčerpaných vstupů'])}
-        </Callout>
-      ) : (
-        <Callout tone="success" title="Končí do 30 dní">
-          Žádná platná permanentka s volnými vstupy v nejbližších 30 dnech nekončí.
-        </Callout>
-      )}
-      <div>
-        <span className="st-section-label">Závazek k dnešnímu dni</span>
-        <DescriptionList
-          termWidth={150}
-          items={[
-            {
-              term: 'Nevyčerpané vstupy',
-              detail: (
-                <span className="st-dl-value">
-                  {formatMoney(pk.liabilityValue)}
-                  <span className="st-muted-text"> · {countLabel(pk.liabilityEntries, ['vstup', 'vstupy', 'vstupů'])}</span>
-                </span>
-              ),
-            },
-            { term: 'Kredity klientů', detail: <span className="st-dl-value">{formatMoney(pk.creditLiability)}</span> },
-            {
-              term: 'Celkem',
-              detail: <strong className="st-dl-value">{formatMoney(pk.liabilityValue + pk.creditLiability)}</strong>,
-            },
-          ]}
-        />
+        </div>
+        <div className="st-pk__col">
+          {pk.expiringSoon > 0 ? (
+            <Callout
+              tone="warning"
+              title="Končí do 30 dní"
+              actions={
+                <Button size="sm" icon="mail" onClick={remind}>
+                  Poslat připomínku
+                </Button>
+              }
+            >
+              {countLabel(pk.expiringSoon, ['permanentka', 'permanentky', 'permanentek'])} ·{' '}
+              {countLabel(pk.expiringEntries, ['nevyčerpaný vstup', 'nevyčerpané vstupy', 'nevyčerpaných vstupů'])}
+            </Callout>
+          ) : (
+            <Callout tone="success" title="Končí do 30 dní">
+              Žádná platná permanentka s volnými vstupy v nejbližších 30 dnech nekončí.
+            </Callout>
+          )}
+          <div>
+            <span className="st-section-label">Závazek k dnešnímu dni</span>
+            <DescriptionList
+              termWidth={150}
+              items={[
+                {
+                  term: 'Nevyčerpané vstupy',
+                  detail: (
+                    <span className="st-dl-value">
+                      {formatMoney(pk.liabilityValue)}
+                      <span className="st-muted-text"> · {countLabel(pk.liabilityEntries, ['vstup', 'vstupy', 'vstupů'])}</span>
+                    </span>
+                  ),
+                },
+                { term: 'Kredity klientů', detail: <span className="st-dl-value">{formatMoney(pk.creditLiability)}</span> },
+                {
+                  term: 'Celkem',
+                  detail: <strong className="st-dl-value">{formatMoney(pk.liabilityValue + pk.creditLiability)}</strong>,
+                },
+              ]}
+            />
+          </div>
+        </div>
       </div>
     </ChartCard>
   );
@@ -933,9 +993,11 @@ export function StatsScreen(): JSX.Element {
 
   /* ------------------------- Hlavička a filtry ------------------------- */
   const coverage: string[] = [];
-  if (dataStart && resolved.range.from < dataStart && resolved.range.to > dataStart)
+  if (dataStart && resolved.range.to <= dataStart)
+    coverage.push(`Záznamy v systému začínají ${formatDate(dataStart)}, vybrané období je celé před nimi.`);
+  else if (dataStart && resolved.range.from < dataStart)
     coverage.push(`Záznamy v systému začínají ${formatDate(dataStart)}, dny před tím jsou v období bez dat.`);
-  if (prefs.compare && dataStart && resolved.compare.to <= dataStart)
+  if (prefs.compare && dataStart && resolved.range.to > dataStart && resolved.compare.to <= dataStart)
     coverage.push(`Srovnávací období (${resolved.compareText}) je celé před prvním záznamem, rozdíly se proto nezobrazují.`);
   else if (prefs.compare && dataStart && resolved.compare.from < dataStart)
     coverage.push('Srovnávací období začíná před prvním záznamem, rozdíly mohou být zkreslené.');
@@ -973,6 +1035,14 @@ export function StatsScreen(): JSX.Element {
               options={PRESETS}
             />
           </div>
+          <Select
+            className="st-presets-select"
+            aria-label="Období"
+            value={preset}
+            placeholder="Jiné období"
+            onValueChange={(v) => v && setPeriod(applyPreset(prefs.period, v as PresetId, today))}
+            options={PRESETS}
+          />
           <PeriodNav
             label={resolved.navLabel}
             onPrev={() => setPeriod(shiftPeriod(prefs.period, -1))}
@@ -1077,12 +1147,12 @@ export function StatsScreen(): JSX.Element {
           </div>
           <div className="st-row">
             {heatCard}
-            {channelCard}
+            <div className="st-stack">
+              {channelCard}
+              {excusesCard}
+            </div>
           </div>
-          <div className="st-grid">
-            {packagesCard}
-            {excusesCard}
-          </div>
+          {packagesCard}
         </>
       )}
     </div>

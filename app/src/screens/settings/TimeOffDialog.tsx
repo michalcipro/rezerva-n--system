@@ -9,6 +9,7 @@ import { navigate, setSession } from '../../store/session';
 import { Button, Callout, Checkbox, ChoiceChips, Dialog, Field, Input, Segmented, Select, toast } from '../../ui';
 import { TIME_OFF_REASONS, byOrder, describeRange, timeOffImpact } from './helpers';
 import { FieldGroup, TimeSelect } from './shared';
+import './set-team.css';
 
 const CLINIC = 'clinic';
 type Mode = 'days' | 'hours';

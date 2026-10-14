@@ -1,1 +1,1 @@
-export { ClientPortal } from './placeholder';
+export { ClientPortal } from './ClientPortal';

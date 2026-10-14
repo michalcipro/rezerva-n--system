@@ -7,7 +7,6 @@ import { useClinic, useNow } from '../../store/hooks';
 import { Badge, Icon, Segmented, Select } from '../../ui';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
 import {
-  byOrder,
   cx,
   fallbackService,
   hoursText,
@@ -18,6 +17,7 @@ import {
   previewPackage,
   tiersFromEvaluation,
 } from './helpers';
+import './set-settings.css';
 
 type Kind = 'individual' | 'group';
 type Payment = 'onsite' | 'package';
@@ -36,11 +36,13 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
   const [hours, setHours] = useState<number | null>(null);
 
   const services = useMemo(
-    () => clinic.services.filter((s) => s.active && s.kind === kind && s.priceCzk > 0).sort(byOrder),
+    () =>
+      clinic.services
+        .filter((s) => s.active && s.kind === kind && s.priceCzk > 0)
+        .sort((a, b) => Number(a.newClientsOnly) - Number(b.newClientsOnly) || a.order - b.order),
     [clinic.services, kind],
   );
   const service = services.find((s) => s.id === serviceId) ?? services[0] ?? fallbackService(kind);
-  const individual = clinic.services.filter((s) => s.active && s.kind === 'individual').sort(byOrder)[0] ?? fallbackService('individual');
 
   const start = combine(addDays(dateOf(now), 1), '09:00');
   const windowHours = kind === 'group' ? policy.groupCancelHours : policy.freeCancelHours;
@@ -55,15 +57,6 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
   const booking = previewBooking({ service, start, createdAt: now, payment });
   const ev = evaluateCancellation(state, booking, cancelAt, 'client');
 
-  const summaryState = useMemo(() => previewClinic(clinic, policy), [clinic, policy]);
-  const summaryEval = evaluateCancellation(summaryState, previewBooking({ service: individual, start, createdAt: now, payment: 'onsite' }), now, 'client');
-  const input = {
-    policy,
-    tiers: tiersFromEvaluation(summaryEval, start),
-    packageExcuses: clinic.packageTemplates.filter((t) => t.active).map((t) => t.excusesAllowed),
-  };
-  const rows = policyRows(input);
-  const clauses = policyClauses(input);
 
   let outcomeTone: 'success' | 'warning' | 'danger' | 'neutral' = 'neutral';
   let outcome = '';
@@ -159,9 +152,9 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
             min={0}
             max={maxHours}
             step={1}
-            value={sliderValue}
-            aria-valuetext={`${hoursText(sliderValue)} před začátkem`}
-            onChange={(e) => setHours(Number(e.target.value))}
+            value={maxHours - sliderValue}
+            aria-valuetext={sliderValue > 0 ? `${hoursText(sliderValue)} před začátkem` : 'začátek termínu'}
+            onChange={(e) => setHours(maxHours - Number(e.target.value))}
           />
           <div className="set-preview__scale" aria-hidden="true">
             <span>{formatNumber(maxHours)} h předem</span>
@@ -201,31 +194,55 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
           </div>
         )}
       </div>
-
-      <div className="set-clientview" aria-labelledby="set-clientview-h">
-        <div className="set-clientview__head">
-          <h3 id="set-clientview-h" className="set-clientview__title">
-            Storno podmínky
-          </h3>
-          <span className="set-clientview__badge">jak je čte klient</span>
-        </div>
-        <ul className="set-policy-rows">
-          {rows.map((r, i) => (
-            <li key={i} className={`set-policy-row set-policy-row--${r.tone}`}>
-              <span className="set-policy-row__label">{r.label}</span>
-              <span className="set-policy-row__value">{r.value}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="set-clauses">
-          {clauses.map((c) => (
-            <p key={c.id} className="set-clause">
-              <strong>{c.title}.</strong> {c.text}
-            </p>
-          ))}
-        </div>
-        <p className="set-clientview__foot">Text se skládá automaticky z nastavení – po uložení platí pro nové i stávající rezervace.</p>
-      </div>
     </div>
+  );
+}
+
+/**
+ * Storno podmínky celými větami – přesně tak, jak je čte klient.
+ * Stupně poplatků bere z vyhodnocení enginu nad rozpracovanými podmínkami.
+ */
+export function PolicyClientText({ policy }: { policy: CancellationPolicy }): JSX.Element {
+  const clinic = useClinic();
+  const now = useNow();
+  const start = combine(addDays(dateOf(now), 1), '09:00');
+  const individual =
+    clinic.services
+      .filter((s) => s.active && s.kind === 'individual')
+      .sort((a, b) => Number(a.newClientsOnly) - Number(b.newClientsOnly) || a.order - b.order)[0] ?? fallbackService('individual');
+  const state = useMemo(() => previewClinic(clinic, policy), [clinic, policy]);
+  const ev = evaluateCancellation(state, previewBooking({ service: individual, start, createdAt: now, payment: 'onsite' }), now, 'client');
+  const input = {
+    policy,
+    tiers: tiersFromEvaluation(ev, start),
+    packageExcuses: clinic.packageTemplates.filter((t) => t.active).map((t) => t.excusesAllowed),
+  };
+  const rows = policyRows(input);
+  const clauses = policyClauses(input);
+  return (
+    <section className="set-clientview" aria-labelledby="set-clientview-h">
+      <div className="set-clientview__head">
+        <h3 id="set-clientview-h" className="set-clientview__title">
+          <Icon name="user" size={14} /> Jak podmínky uvidí klient
+        </h3>
+        <span className="set-clientview__badge">živě z nastavení</span>
+      </div>
+      <ul className="set-policy-rows" aria-label="Stručný přehled">
+        {rows.map((r, i) => (
+          <li key={i} className={`set-policy-row set-policy-row--${r.tone}`}>
+            <span className="set-policy-row__label">{r.label}</span>
+            <span className="set-policy-row__value">{r.value}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="set-clauses">
+        {clauses.map((c) => (
+          <p key={c.id} className="set-clause">
+            <strong>{c.title}.</strong> {c.text}
+          </p>
+        ))}
+      </div>
+      <p className="set-clientview__foot">Po uložení platí pro všechny nadcházející rezervace – klient vždy vidí aktuální podmínky.</p>
+    </section>
   );
 }

@@ -176,18 +176,29 @@ export interface LabeledSpan extends Span {
   label: string;
 }
 
+export interface SessionGhost extends Span {
+  session: GroupSession;
+}
+
 export interface ColumnLayout {
   offhours: Span[];
   breaks: LabeledSpan[];
   timeOff: LabeledSpan[];
   items: Placed<ColumnItem>[];
   ghosts: GhostItem[];
+  /** Zrušené skupinové lekce (nezabírají místo). */
+  cancelledSessions: SessionGhost[];
   frees: FreeItem[];
   /** Terapeut ten den nepracuje (nebo má celý den volno). */
   closedLabel: string | null;
 }
 
 const overlapsSpan = (a: Span, b: Span): boolean => a.startMin < b.endMin && b.startMin < a.endMin;
+
+/** Datum + minuty od půlnoci → LocalDateTime (1440 = půlnoc dalšího dne). */
+export function combineMin(date: LocalDate, minutes: number): LocalDateTime {
+  return addMinutes(date + 'T00:00', minutes);
+}
 
 function complement(range: GridRange, spans: Span[]): Span[] {
   const sorted = [...spans].sort((a, b) => a.startMin - b.startMin);
@@ -230,9 +241,8 @@ export function columnLayout(
     .map((iv) => ({ ...toSpan(iv), label: 'Pauza' }))
     .filter((b) => !timeOff.some((t) => t.startMin <= b.startMin && t.endMin >= b.endMin));
 
-  let closedLabel: string | null = null;
-  if (!hours.length) closedLabel = 'Nepracuje';
-  else if (!day.working.length) closedLabel = timeOff[0]?.label ?? 'Nepracuje';
+  // Popisek jen pro den bez směny; celodenní nepřítomnost má vlastní šrafovaný blok.
+  const closedLabel: string | null = hours.length ? null : 'Nepracuje';
 
   const occupying: ColumnItem[] = [];
   const ghosts: GhostItem[] = [];
@@ -242,8 +252,12 @@ export function columnLayout(
       ghosts.push({ booking: b, startMin: minuteIn(b.start, date), endMin: minuteIn(b.end, date), offer: opts.offers.get(offerKey(b.therapistId, b.start)) ?? null });
     }
   }
+  const cancelledSessions: SessionGhost[] = [];
   for (const ses of day.sessions) {
-    if (ses.cancelled && !opts.showCancelled) continue;
+    if (ses.cancelled) {
+      if (opts.showCancelled) cancelledSessions.push({ session: ses, startMin: minuteIn(ses.start, date), endMin: minuteIn(ses.end, date) });
+      continue;
+    }
     occupying.push({ kind: 'session', session: ses });
   }
   const items = layoutLanes(occupying, (it) => {
@@ -254,18 +268,40 @@ export function columnLayout(
   const visibleGhosts = ghosts.filter((g) => !items.some((p) => p.startMin <= g.startMin && p.endMin >= g.endMin));
   // Jeden zrušený termín na stejný čas stačí (jinak by se kreslily přes sebe).
   const dedup: GhostItem[] = [];
-  for (const g of visibleGhosts.sort((a, b) => (b.offer ? 1 : 0) - (a.offer ? 1 : 0))) {
+  const cancelledAt = (g: GhostItem): string => g.booking.cancel?.at ?? g.booking.start;
+  visibleGhosts.sort((a, b) => (b.offer ? 1 : 0) - (a.offer ? 1 : 0) || (cancelledAt(a) < cancelledAt(b) ? 1 : -1));
+  for (const g of visibleGhosts) {
     if (!dedup.some((d) => overlapsSpan(d, g))) dedup.push(g);
   }
 
-  const frees: FreeItem[] = dateOf(now) <= date
-    ? day.freeWindows.map((iv) => {
-        const span = toSpan(iv);
-        return { ...span, start: iv.start, end: iv.end, narrow: dedup.some((g) => overlapsSpan(g, span)) };
-      })
-    : [];
+  // Volná okna bez uvolněných termínů nabídnutých čekající listině (ty mají vlastní blok přes celou šířku).
+  const released = dedup.filter((g) => g.offer);
+  const frees: FreeItem[] = [];
+  if (dateOf(now) <= date) {
+    for (const iv of day.freeWindows) {
+      let pieces: Span[] = [toSpan(iv)];
+      for (const r of released) {
+        pieces = pieces.flatMap((p) =>
+          overlapsSpan(p, r)
+            ? [
+                { startMin: p.startMin, endMin: r.startMin },
+                { startMin: r.endMin, endMin: p.endMin },
+              ].filter((x) => x.endMin - x.startMin >= 30)
+            : [p],
+        );
+      }
+      for (const p of pieces) {
+        frees.push({
+          ...p,
+          start: combineMin(date, p.startMin),
+          end: combineMin(date, p.endMin),
+          narrow: dedup.some((g) => !g.offer && overlapsSpan(g, p)),
+        });
+      }
+    }
+  }
 
-  return { offhours, breaks, timeOff, items, ghosts: dedup, frees, closedLabel };
+  return { offhours, breaks, timeOff, items, ghosts: dedup, cancelledSessions, frees, closedLabel };
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,11 +335,14 @@ export function packageEntry(s: ClinicState, b: Booking, today: LocalDate): Pack
   if (!b.payment.packageId) return null;
   const p = getPackage(s, b.payment.packageId);
   if (!p) return null;
-  const list = bookingsOfClient(s, b.clientId).filter((x) => x.payment.packageId === p.id && countsAsEntry(x));
-  const idx = list.findIndex((x) => x.id === b.id);
+  // Pořadí vstupu: dřívější čerpání (termíny i propadlé náhrady z této permanentky) + 1.
+  const counted = countsAsEntry(b);
+  const before =
+    bookingsOfClient(s, b.clientId).filter((x) => x.id !== b.id && x.payment.packageId === p.id && countsAsEntry(x) && x.start < b.start).length +
+    s.makeups.filter((m) => m.packageId === p.id && m.status === 'expired' && m.validUntil < b.start).length;
   const u = packageUsage(s, p, today);
   return {
-    index: idx >= 0 ? idx + 1 : 0,
+    index: counted ? before + 1 : 0,
     total: p.entriesTotal,
     name: p.name,
     validUntil: packageValidUntil(p),

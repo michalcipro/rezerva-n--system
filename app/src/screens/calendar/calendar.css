@@ -179,7 +179,10 @@
   pointer-events: none;
 }
 
-.cal-now-line--all {
+/* Čára aktuálního času vede pod bloky – nepřeškrtává jména (čas ukazuje štítek vlevo). */
+.cal-now-line--all,
+.cal-col .cal-now-line {
+  z-index: 1;
   right: 0;
 }
 
@@ -472,6 +475,7 @@ body.cal-is-dragging * {
    Boční panel: čekací listina, volná okna
    ========================================================================= */
 .cal-aside {
+  flex-basis: 280px;
   gap: var(--space-3);
 }
 .cal-aside__body {
@@ -1026,6 +1030,7 @@ body.cal-is-dragging * {
 }
 .cal-move__time {
   color: var(--text-secondary);
+  white-space: nowrap;
   font-size: var(--text-base);
   line-height: var(--leading-base);
   font-weight: var(--weight-semibold);
@@ -1037,6 +1042,10 @@ body.cal-is-dragging * {
   color: var(--text-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
+}
+.cal-move__who.is-changed {
+  color: var(--accent-fg);
+  font-weight: var(--weight-semibold);
 }
 .cal-move__arrow {
   color: var(--text-muted);

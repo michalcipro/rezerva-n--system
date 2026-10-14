@@ -8,6 +8,7 @@ import { Badge, Button, Callout, Checkbox, ChoiceChips, Drawer, Field, Input, Nu
 import { ToneDot } from '../../components/domain';
 import { byOrder, clone, cx, deepEqual, discountLabel, packagePricing, validityLabel } from './helpers';
 import { FieldGroup } from './shared';
+import './set-packages.css';
 
 export function newPackageTemplate(clinic: ClinicState): PackageTemplate {
   return {

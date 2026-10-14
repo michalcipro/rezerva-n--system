@@ -35,7 +35,7 @@ import {
 } from '../ui';
 import { usePortal, type AccountView } from './context';
 import { BlockedNotice } from './HomeScreen';
-import { clientMessages, MONEY_LABEL, packageSavings, packageServicesLabel } from './logic';
+import { clientMessages, MONEY_LABEL, packageSavings, packageServicesLabel, zPrep } from './logic';
 import { PolicyList, SimulatedPaymentNote, useSimulatedPayment } from './payment';
 import { ListRow, Screen, SectionTitle, Sheet } from './parts';
 import { markInboxSeen } from './storage';
@@ -408,7 +408,7 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
       {!done && (
         <span className="por-tile__num tnum">
           {u.free}
-          <span className="por-tile__of"> volných z {countLabel(u.total, ['vstupu', 'vstupů', 'vstupů'])}</span>
+          <span className="por-tile__of"> volných {zPrep(u.total)} {countLabel(u.total, ['vstupu', 'vstupů', 'vstupů'])}</span>
         </span>
       )}
       <StackedBar cells size="md" segments={segments.filter((sg) => sg.value > 0 || sg.label === 'volné')} />
@@ -419,7 +419,7 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
         </span>
         {pkg.excusesAllowed > 0 && (
           <span>
-            Omluvenky: zbývá {u.excusesLeft} z {pkg.excusesAllowed}
+            Omluvenky: zbývá {u.excusesLeft} {zPrep(pkg.excusesAllowed)} {pkg.excusesAllowed}
           </span>
         )}
         <span className="por-pkg__bought">
@@ -578,7 +578,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
         <span className="por-credit__text">
           Kreditem zaplatíte termíny i permanentky.
           {bonusRules.length
-            ? ` Při dobití ${bonusRules.map((r) => `od ${formatMoney(r.minTopup)} + ${formatPercent(r.pct)}`).join(', ')} navíc.`
+            ? ` Bonus za dobití: ${bonusRules.map((r) => `od ${formatMoney(r.minTopup)} +${formatPercent(r.pct)}`).join(', ')}.`
             : ''}
         </span>
       </Card>

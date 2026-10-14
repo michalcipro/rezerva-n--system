@@ -30,7 +30,7 @@ import {
 } from '../../engine/selectors';
 import { addHours, diffMinutes } from '../../engine/time';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
-import { BookingStatusBadges, ClientAvatar } from '../../components/domain';
+import { ClientAvatar } from '../../components/domain';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import {
@@ -56,7 +56,7 @@ import {
 import { CancelBookingDialog } from './CancelBookingDialog';
 import { NewBookingDialog, type NewBookingInitial } from './NewBookingDialog';
 import { RescheduleDialog } from './RescheduleDialog';
-import { isFirstVisit, noShowLabel, packageEntry, paymentHint, waitingForSession } from './model';
+import { activeOfferGroups, isFirstVisit, noShowLabel, packageEntry, paymentHint, waitingForSession } from './model';
 import './calendar.css';
 
 type DialogKind = 'cancel' | 'clinic' | 'reschedule' | 'noshow' | 'waive' | 'rebook' | 'makeup';
@@ -83,11 +83,16 @@ export interface BookingDrawerProps {
 /** Detail rezervace v bočním panelu (na telefonu spodní list) se všemi akcemi podle stavu. */
 export function BookingDrawer({ bookingId, onClose }: BookingDrawerProps): JSX.Element | null {
   const clinic = useClinic();
-  const [viewId, setViewId] = useState<Id | null>(bookingId);
-  useEffect(() => setViewId(bookingId), [bookingId]);
-  const booking = bookingId ? getBooking(clinic, viewId ?? bookingId) : undefined;
+  // Přepnutí na jiného účastníka lekce uvnitř panelu (platí jen pro aktuálně otevřenou rezervaci).
+  const [switched, setSwitched] = useState<{ parent: Id; id: Id } | null>(null);
+  const viewId = bookingId && switched && switched.parent === bookingId ? switched.id : bookingId;
+  const booking = viewId ? getBooking(clinic, viewId) : undefined;
   if (!bookingId || !booking) return null;
-  return <BookingDrawerView booking={booking} onClose={onClose} onSwitch={setViewId} />;
+  const close = (): void => {
+    setSwitched(null);
+    onClose();
+  };
+  return <BookingDrawerView booking={booking} onClose={close} onSwitch={(id) => setSwitched({ parent: bookingId, id })} />;
 }
 
 function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking; onClose: () => void; onSwitch: (id: Id) => void }): JSX.Element {
@@ -114,6 +119,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const feeWaivable = !!b.fee && b.fee.status === 'paid' && b.fee.amount > 0 && b.fee.settledBy !== 'package_entry';
   const openMakeup = clinic.makeups.find((m) => m.sourceBookingId === b.id && m.status === 'open' && m.validUntil > now);
   const noShowText = noShowLabel(client);
+  const offer = isOccupying(b.status) ? undefined : activeOfferGroups(clinic, now).find((g) => g.therapistId === b.therapistId && g.start === b.start);
 
   /* ---------- akce ---------- */
   const complete = (method: MoneyMethod | 'credit' | null): void => {
@@ -293,7 +299,16 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
 
         <div className="cal-dr__badges">
           {isFirstVisit(clinic, b) && isOccupying(b.status) && <Badge tone="accent">Nový klient</Badge>}
-          <BookingStatusBadges booking={b} />
+          {b.fee?.status === 'due' && <Badge tone="warning">Poplatek {formatMoney(b.fee.amount)} k úhradě</Badge>}
+          {b.fee?.status === 'waived' && b.fee.amount > 0 && <Badge tone="neutral">Poplatek odpuštěn</Badge>}
+          {b.status === 'completed' && unpaidOnsite && <Badge tone="warning">Čeká na platbu</Badge>}
+          {b.makeupForBookingId && <Badge tone="info">Náhradní termín</Badge>}
+          {b.fromWaitlist && <Badge tone="accent">Z čekací listiny</Badge>}
+          {b.rescheduledFrom && (
+            <Badge tone="neutral" icon="repeat">
+              Přesunuto
+            </Badge>
+          )}
           {client?.blocked && (
             <Badge tone="danger" icon="ban">
               Online rezervace zablokované
@@ -302,6 +317,14 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
         </div>
 
         {ev && <PolicySection ev={ev} now={now} start={b.start} />}
+
+        {offer && (
+          <Callout tone="accent" title="Uvolněno pro čekací listinu" icon="hourglass">
+            Termín je nabídnut {countLabel(offer.entries.length, ['klientovi', 'klientům', 'klientům'])}:{' '}
+            {offer.entries.map((w) => clientName(getClient(clinic, w.clientId))).join(', ')}. Nabídka vyprší za {formatSpan(diffMinutes(offer.expiresAt, now))} – potvrdí
+            první, kdo odpoví.
+          </Callout>
+        )}
 
         <DescriptionList items={details} termWidth={92} />
 
@@ -509,7 +532,14 @@ function buildDetails({
       f.status === 'due' ? (
         <Badge tone="warning">k úhradě</Badge>
       ) : f.status === 'paid' ? (
-        <Badge tone="neutral">uhrazeno {f.settledBy ? MONEY_LABEL[f.settledBy] : ''}</Badge>
+        <Badge tone="neutral">
+          uhrazeno{' '}
+          {f.settledBy === 'credit' && b.payment.paidAmount > 0 && b.payment.method !== 'credit'
+            ? 'z platby za termín'
+            : f.settledBy
+              ? MONEY_LABEL[f.settledBy]
+              : ''}
+        </Badge>
       ) : (
         <Badge tone="success">odpuštěno</Badge>
       );
@@ -821,9 +851,11 @@ export function SessionPanel({
       )}
       {!past && !ses.cancelled && (
         <div className="cal-row">
-          <Button size="sm" variant="secondary" icon={free > 0 ? 'userPlus' : 'hourglass'} onClick={() => setDialog('add')}>
-            {free > 0 ? 'Přidat účastníka' : 'Přidat na čekací listinu'}
-          </Button>
+          {(free > 0 || clinic.settings.waitlist.enabled) && (
+            <Button size="sm" variant="secondary" icon={free > 0 ? 'userPlus' : 'hourglass'} onClick={() => setDialog('add')}>
+              {free > 0 ? 'Přidat účastníka' : 'Přidat na čekací listinu'}
+            </Button>
+          )}
           <Button size="sm" variant="danger-secondary" icon="calendarX" onClick={() => setDialog('cancel')}>
             Zrušit lekci
           </Button>

@@ -297,6 +297,8 @@ export interface PayOption {
   amount: number;
   /** Krátký popis do souhrnu („z permanentky Fyzio 10 · zbývá 4 vstupy“). */
   summary: string;
+  /** Řádek k úhradě v posledním kroku („Zaplatíte na místě 1 190 Kč“). */
+  total: string;
   icon: IconName;
 }
 
@@ -325,6 +327,7 @@ export function paymentOptions(
       disabled: false,
       amount: extra,
       summary: 'náhrada za omluvený termín',
+      total: extra ? `Doplatek na místě ${formatMoney(extra)}` : 'Hrazeno náhradou za omluvený termín',
       icon: 'repeat',
     });
   }
@@ -335,11 +338,12 @@ export function paymentOptions(
       key: 'package:' + p.id,
       payment: { method: 'package', packageId: p.id },
       title: `Permanentka ${p.name}`,
-      description: `Zbývá ${u.free} z ${countLabel(u.total, ['vstupu', 'vstupů', 'vstupů'])} · platí do ${formatDate(u.validUntil)}`,
+      description: `Zbývá ${u.free} ${zPrep(u.total)} ${countLabel(u.total, ['vstupu', 'vstupů', 'vstupů'])} · platí do ${formatDate(u.validUntil)}`,
       aside: '1 vstup',
       disabled: false,
       amount: 0,
       summary: `z permanentky ${p.name} · zbývá ${countLabel(u.free, ['vstup', 'vstupy', 'vstupů'])}`,
+      total: `Permanentka ${p.name} · ${entriesLeftAfter(u.free - 1)}`,
       icon: 'ticket',
     });
   }
@@ -358,6 +362,7 @@ export function paymentOptions(
       disabled: !enough,
       amount: price,
       summary: `z kreditu (${formatMoney(price)})`,
+      total: `Z kreditu ${formatMoney(price)} · zůstatek potom ${formatMoney(Math.max(0, balance - price))}`,
       icon: 'wallet',
     });
   }
@@ -371,6 +376,7 @@ export function paymentOptions(
     disabled: false,
     amount: price,
     summary: `kartou online (${formatMoney(price)})`,
+    total: `K úhradě kartou ${formatMoney(price)}`,
     icon: 'card',
   });
   out.push({
@@ -382,9 +388,18 @@ export function paymentOptions(
     disabled: false,
     amount: price,
     summary: `na místě (${formatMoney(price)})`,
+    total: `Zaplatíte na místě ${formatMoney(price)}`,
     icon: 'cash',
   });
   return out;
+}
+
+/** „zůstanou 3 vstupy“, „zůstane 5 vstupů“, „poslední vstup“. */
+export function entriesLeftAfter(n: number): string {
+  if (n <= 0) return 'využijete poslední vstup';
+  if (n === 1) return 'zůstane 1 vstup';
+  if (n <= 4) return `zůstanou ${n} vstupy`;
+  return `zůstane ${n} vstupů`;
 }
 
 /** Výchozí volba platby: zvolená náhrada → náhrada → permanentka → na místě. */
@@ -467,9 +482,19 @@ function tiersSentence(s: ClinicState): string {
   return 'Potom storno ' + parts.join(', ') + ' ceny.';
 }
 
+/** Předložka „z“ / „ze“ před číslovkou (ze 2, ze 3, ze 4, ze 6, ze 7, ze 100…). */
+export function zPrep(n: number): string {
+  return [2, 3, 4, 6, 7].includes(n) || (n >= 100 && n < 200) ? 'ze' : 'z';
+}
+
+/** „zbývá 1 ze 2 omluvenek“, „zbývá 0 z 1 omluvenky“. */
+export function excusesLeftText(remaining: number, total: number): string {
+  return `zbývá ${remaining} ${zPrep(total)} ${total} ${total === 1 ? 'omluvenky' : 'omluvenek'}`;
+}
+
 export function excuseSentence(s: ClinicState, ex: ExcuseStatus): string {
   const p = s.settings.policy.excuses;
-  const left = `zbývá ${ex.remaining} z ${ex.total}`;
+  const left = `zbývá ${ex.remaining} ${zPrep(ex.total)} ${ex.total}`;
   return ex.scope === 'package'
     ? `omluvenky k permanentce ${ex.packageName ?? ''}: ${left}`.replace('  ', ' ')
     : `omluvenky: ${left} za ${countLabel(p.perClientMonths, ['měsíc', 'měsíce', 'měsíců'])}`;
@@ -549,13 +574,15 @@ export function clinicPolicy(settings: Settings): PolicyItem[] {
     text: `Termín zrušíte nebo přesunete bez poplatku nejpozději ${p.freeCancelHours} h před začátkem – v aplikaci v Moje termíny.`,
   });
   const tiers = [...p.lateTiers].filter((t) => t.hoursBefore <= p.freeCancelHours).sort((a, b) => b.hoursBefore - a.hoursBefore);
+  const tierText = tiers.length
+    ? tiers.map((t) => `méně než ${t.hoursBefore} h předem ${formatPercent(t.feePct)} ceny`).join(', ')
+    : 'po lhůtě 100 % ceny';
   items.push({
     icon: 'percent',
     title: 'Pozdní zrušení',
     text:
-      (tiers.length
-        ? tiers.map((t) => `méně než ${t.hoursBefore} h předem ${formatPercent(t.feePct)} ceny`).join(', ')
-        : 'po lhůtě 100 % ceny') +
+      tierText.charAt(0).toUpperCase() +
+      tierText.slice(1) +
       '. ' +
       (p.packageLateHandling === 'forfeit_entry'
         ? 'U permanentky při pozdním zrušení propadá vstup.'

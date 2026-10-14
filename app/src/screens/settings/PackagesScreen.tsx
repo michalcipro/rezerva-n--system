@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CreditBonusRule, Id, PackageTemplate } from '../../domain/types';
 import { updateSettings, upsertPackageTemplate } from '../../engine/commands';
-import { countLabel, formatDate, formatMoney, formatPercent, plural } from '../../engine/format';
+import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, plural } from '../../engine/format';
 import { clientName, getService } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -41,6 +41,7 @@ import {
 } from './helpers';
 import { PackageTemplateEditor, newPackageTemplate } from './PackageTemplateEditor';
 import { useSyncedDraft } from './shared';
+import './set-packages.css';
 
 type Tab = 'templates' | 'sold' | 'credit';
 type SoldFilter = 'active' | 'expiring' | 'ended' | 'all';
@@ -89,11 +90,11 @@ export function PackagesScreen(): JSX.Element {
         }
       />
 
-      <div className="kpi-grid" role="group" aria-label="Souhrn permanentek a kreditů">
+      <div className="kpi-grid set-kpis" role="group" aria-label="Souhrn permanentek a kreditů">
         <KpiTile
           icon="ticket"
           label="Aktivní permanentky"
-          value={activeRows.length}
+          value={formatNumber(activeRows.length)}
           hint={
             expiring.length ? (
               <button
@@ -114,7 +115,7 @@ export function PackagesScreen(): JSX.Element {
         <KpiTile
           icon="layers"
           label="Nevyčerpané vstupy"
-          value={openEntries}
+          value={formatNumber(openEntries)}
           hint={`v hodnotě ${formatMoney(openValue)}`}
         />
         <KpiTile icon="wallet" label="Kredity klientů" value={formatMoney(credit)} hint={`u ${countLabel(creditClients, ['klienta', 'klientů', 'klientů'])}`} />
@@ -128,7 +129,7 @@ export function PackagesScreen(): JSX.Element {
         value={tab}
         onChange={setTab}
         items={[
-          { id: 'templates', label: 'Nabídka permanentek', count: templates.length },
+          { id: 'templates', label: 'Nabídka', count: templates.length },
           { id: 'sold', label: 'Prodané', count: rows.length },
           { id: 'credit', label: 'Kredit a bonusy' },
         ]}
@@ -257,7 +258,9 @@ function TemplateGrid({
                   {pricing.singleMin === pricing.singleMax
                     ? formatMoney(pricing.singleMin)
                     : `${formatMoney(pricing.singleMin)}–${formatMoney(pricing.singleMax ?? 0)}`}
-                  {pricing.savingsMax !== null && pricing.savingsMax > 0 ? ` · ušetří až ${formatMoney(pricing.savingsMax)}` : ''}
+                  {pricing.savingsMax !== null && pricing.savingsMax > 0
+                    ? ` · ušetří ${pricing.singleMin !== pricing.singleMax ? 'až ' : ''}${formatMoney(pricing.savingsMax)}`
+                    : ''}
                 </span>
               )}
             </div>

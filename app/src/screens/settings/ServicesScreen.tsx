@@ -27,6 +27,7 @@ import { GroupTemplateEditor, newGroupTemplate } from './GroupTemplateEditor';
 import { ServiceEditor } from './ServiceEditor';
 import { WEEKDAYS, byOrder, cx, groupOccupancy, newServiceDraft, nextSessions, templateEnd, weekdayName } from './helpers';
 import { TherapistStack } from './shared';
+import './set-services.css';
 
 type Tab = 'catalog' | 'schedule';
 
@@ -288,9 +289,17 @@ function CategoryBlock({
             : `${activeCount} z ${countLabel(all.length, ['služby', 'služeb', 'služeb'])} v nabídce`}
         </span>
         <span className="spacer" />
-        <Button size="sm" variant="ghost" icon="plus" onClick={onAdd} aria-label={`Přidat službu do kategorie ${category.name}`}>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="plus"
+          className="set-hide-xs"
+          onClick={onAdd}
+          aria-label={`Přidat službu do kategorie ${category.name}`}
+        >
           Přidat službu
         </Button>
+        <IconButton icon="plus" size="sm" className="set-show-xs" label={`Přidat službu do kategorie ${category.name}`} onClick={onAdd} />
         <Menu label={`Kategorie ${category.name}`} trigger={<IconButton icon="more" size="sm" label={`Další akce – kategorie ${category.name}`} />} items={categoryMenu} />
       </div>
 
@@ -312,26 +321,28 @@ function CategoryBlock({
             <thead>
               <tr>
                 <th scope="col">Služba</th>
-                <th scope="col" className="num">
+                <th scope="col" className="num set-col-xs set-c-dur">
                   Délka
                 </th>
-                <th scope="col" className="num">
+                <th scope="col" className="num set-c-price">
                   Cena
                 </th>
-                <th scope="col" className="num set-col-md">
+                <th scope="col" className="num set-col-md set-c-buf">
                   Rezerva
                 </th>
-                <th scope="col" className="set-col-md">
+                <th scope="col" className="set-col-sm set-c-kind">
                   Typ
                 </th>
-                <th scope="col" className="set-col-lg">
+                <th scope="col" className="set-col-lg set-c-team">
                   Terapeuti
                 </th>
-                <th scope="col" className="set-col-md">
+                <th scope="col" className="set-col-md set-c-online">
                   Online
                 </th>
-                <th scope="col">V nabídce</th>
-                <th scope="col">
+                <th scope="col" className="set-c-active">
+                  V nabídce
+                </th>
+                <th scope="col" className="set-c-act">
                   <span className="visually-hidden">Akce</span>
                 </th>
               </tr>
@@ -361,6 +372,7 @@ function CategoryBlock({
                         {svc.name}
                       </button>
                       <span className="set-svc-sub">
+                        <span className="set-show-xs set-svc-dur tnum">{formatDuration(svc.durationMin)}</span>
                         {!svc.active && (
                           <Badge tone="neutral" size="sm">
                             Skrytá
@@ -379,10 +391,10 @@ function CategoryBlock({
                         {svc.description && <span className="set-svc-desc">{svc.description}</span>}
                       </span>
                     </td>
-                    <td className="num">{formatDuration(svc.durationMin)}</td>
+                    <td className="num set-col-xs">{formatDuration(svc.durationMin)}</td>
                     <td className="num set-strong">{formatMoney(svc.priceCzk)}</td>
                     <td className="num set-col-md muted">{svc.bufferMin ? `+${svc.bufferMin} min` : '—'}</td>
-                    <td className="set-col-md nowrap">
+                    <td className="set-col-sm nowrap">
                       {svc.kind === 'group' ? (
                         <span className="set-kind">
                           <Icon name="users" size={14} /> {countLabel(svc.capacity, ['místo', 'místa', 'míst'])}
