@@ -69,11 +69,37 @@ const HORIZON_PRESETS = [14, 30, 60, 90, 180];
 
 const withCurrent = (list: number[], current: number): number[] => (list.includes(current) ? list : [...list, current].sort((a, b) => a - b));
 
+/**
+ * Neuložený koncept, když uživatel odejde na jinou obrazovku (navigace se nedá zastavit).
+ * Po návratu se obnoví, aby se rozpracované změny neztratily.
+ */
+let parkedDraft: SettingsDraft | null = null;
+
 export function SettingsScreen(): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
   const base = useMemo(() => settingsDraftOf(clinic.settings), [clinic.settings]);
-  const { draft, setDraft, reset, dirty } = useSyncedDraft<SettingsDraft>(base);
+  const [restored] = useState(() => parkedDraft !== null);
+  const { draft, setDraft, reset, dirty } = useSyncedDraft<SettingsDraft>(base, parkedDraft);
+
+  // Odchod z obrazovky: rozpracované změny si podržíme; zavření stránky: upozorníme prohlížečem.
+  const latest = useRef({ draft, dirty });
+  latest.current = { draft, dirty };
+  useEffect(() => {
+    parkedDraft = null;
+    return () => {
+      parkedDraft = latest.current.dirty ? latest.current.draft : null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
   const [active, setActive] = useState<SectionId>('booking');
   const [showErrors, setShowErrors] = useState(false);
 
@@ -154,6 +180,11 @@ export function SettingsScreen(): JSX.Element {
   return (
     <div className="page set-page set-settings-page">
       <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky a údaje kliniky" />
+      {restored && dirty && (
+        <Callout tone="info" title="Rozpracované změny">
+          Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(sectionLabel).join(', ')}). Uložte je, nebo je zahoďte.
+        </Callout>
+      )}
 
       <div className="set-settings">
         <nav className="set-anchors" aria-label="Sekce nastavení">

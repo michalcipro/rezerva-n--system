@@ -369,7 +369,7 @@ export function checkBookingSlot(
   if (strict && !service.onlineBookable) push('Tuto službu nelze rezervovat online.', true);
   if (!service.therapistIds.includes(therapist.id)) push(`${therapist.firstName} ${therapist.lastName} tuto službu neposkytuje.`, strict);
   if (strict && client.blocked) push('Online rezervace jsou pro tento účet pozastavené. Ozvěte se prosím na recepci.', true);
-  if (service.newClientsOnly && !isNewClient(s, client.id)) push('Služba je určená novým klientům.', strict);
+  if (service.newClientsOnly && !isNewClient(s, client.id, q.ignoreBookingId)) push('Služba je určená novým klientům.', strict);
 
   const minuteOfDay = minutesOf(q.start);
   const step = s.settings.bookingRules.slotStepMin || 15;

@@ -175,13 +175,17 @@ export function ShiftBar({ work, breaks, label }: { work: TimeRange[]; breaks: T
  * (např. změnu z jiného zařízení); rozpracované změny se nepřepíšou.
  * `base` musí mít stabilní identitu (část stavu nebo useMemo).
  */
-export function useSyncedDraft<T>(base: T): {
+export function useSyncedDraft<T>(
+  base: T,
+  /** Rozpracovaný koncept z dřívějška (např. po odchodu z obrazovky). */
+  initial?: T | null,
+): {
   draft: T;
   setDraft: (next: T | ((prev: T) => T)) => void;
   reset: () => void;
   dirty: boolean;
 } {
-  const [draft, setDraft] = useState<T>(() => clone(base));
+  const [draft, setDraft] = useState<T>(() => clone(initial ?? base));
   const baseRef = useRef(base);
   useEffect(() => {
     if (baseRef.current === base) return;

@@ -1,5 +1,5 @@
 import type { Booking, ClinicState, LocalDateTime, Service } from '../domain/types';
-import { formatDayShort, formatMoney, formatPercent } from './format';
+import { formatDayShort, formatMoney, formatPercent, prepZ } from './format';
 import {
   bookingsOfClient,
   excuseStatusFor,
@@ -174,7 +174,7 @@ export function evaluateCancellation(
         kind: 'excuse',
         title: 'Omluvit s omluvenkou',
         description:
-          `Bez poplatku · zbývá ${ex.remaining} z ${ex.total} omluvenek` +
+          `Bez poplatku · zbývá ${ex.remaining} ${prepZ(ex.total)} ${ex.total} ${ex.total === 1 ? 'omluvenky' : 'omluvenek'}` +
           (makeupUntil ? ` · náhradní termín do ${formatDayShort(makeupUntil)}` : ''),
         feeAmount: 0,
         feePct: 0,

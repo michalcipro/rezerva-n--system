@@ -532,13 +532,13 @@ export const cancelBooking: Command<CancelBookingInput, { message: string }> = (
           status: 'open',
         };
         d.makeups.push(right);
-        message = `Omluvenka uplatněna. Náhradní termín vyberte do ${formatDayShort(right.validUntil)}.`;
+        message = `Omluvenka uplatněna. Náhradní termín vyberte nejpozději do ${formatDayShort(right.validUntil)}`;
         queueTemplateMessage(d, {
           key: 'excuse',
           clientId: b.clientId,
           now: ctx.now,
           bookingId: b.id,
-          vars: { ...vars, náhrada_do: formatDayShort(right.validUntil), náhrada_text: `Náhradní termín si vyberte do ${formatDayShort(right.validUntil)}.` },
+          vars: { ...vars, náhrada_do: formatDayShort(right.validUntil), náhrada_text: `Náhradní termín si vyberte nejpozději do ${formatDayShort(right.validUntil)}` },
         });
       } else {
         message = 'Omluvenka uplatněna, termín je zrušen bez poplatku.';

@@ -149,6 +149,13 @@ export function formatSpan(minutes: number): string {
   return parts.length ? parts.join(' ') : '0' + NBSP + 'min';
 }
 
+/** Předložka „z" / „ze" před číslovkou (ze 2, ze 3, z 5, z 10…). */
+export function prepZ(n: number): 'z' | 'ze' {
+  const s = String(Math.abs(Math.round(n)));
+  if (s.length === 2 && s[0] === '1') return '23467'.includes(s[1]) ? 'ze' : 'z';
+  return '23467'.includes(s[0]) ? 'ze' : 'z';
+}
+
 export function personName(p: { firstName: string; lastName: string }): string {
   return p.firstName + ' ' + p.lastName;
 }

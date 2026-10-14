@@ -411,8 +411,8 @@ export function clientSummary(s: ClinicState, clientId: Id, now: LocalDateTime):
 }
 
 /** Má klient už absolvovanou (nebo potvrzenou) návštěvu? */
-export function isNewClient(s: ClinicState, clientId: Id): boolean {
-  return !bookingsOfClient(s, clientId).some((b) => b.status === 'completed' || b.status === 'confirmed');
+export function isNewClient(s: ClinicState, clientId: Id, ignoreBookingId?: Id): boolean {
+  return !bookingsOfClient(s, clientId).some((b) => b.id !== ignoreBookingId && (b.status === 'completed' || b.status === 'confirmed'));
 }
 
 export function serviceCategoryTone(s: ClinicState, serviceId: Id): Category['tone'] {
