@@ -538,7 +538,7 @@
 
 @media (max-width: 640px) {
   .field__label { font-size: var(--text-md); line-height: var(--leading-md); font-weight: var(--weight-medium); }
-  .field--inline { flex-direction: column; gap: var(--space-1); }
+  .field--inline { flex-direction: column; align-items: stretch; gap: var(--space-1); }
   .field--inline > .field__label-col { flex: none; padding-top: 0; }
 }
 
@@ -1183,6 +1183,21 @@
   animation-name: ui-drawer-in-left;
 }
 
+/* Docked, non-modal variant (in-layout detail column). */
+.drawer--inline {
+  width: var(--drawer-w);
+  max-width: 100%;
+  height: auto;
+  align-self: stretch;
+  border-radius: 0;
+  background: var(--surface);
+  box-shadow: none;
+  animation: none;
+}
+@media (max-width: 640px) {
+  .drawer--inline { width: 100%; border-left: 0; border-top: 1px solid var(--border); }
+}
+
 .drawer__handle { display: none; }
 
 .drawer__header {
@@ -1237,7 +1252,7 @@
     flex-direction: column;
     justify-content: flex-end;
   }
-  .drawer:not(.drawer--left) {
+  .overlay--drawer:not(.overlay--left) > .drawer {
     width: 100%;
     height: auto;
     max-height: 92dvh;
@@ -1246,7 +1261,7 @@
     border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     animation-name: ui-sheet-in;
   }
-  .drawer:not(.drawer--left) .drawer__handle {
+  .overlay--drawer:not(.overlay--left) > .drawer .drawer__handle {
     display: block;
     flex: none;
     width: 36px;
@@ -1255,7 +1270,7 @@
     border-radius: var(--radius-full);
     background: var(--border-strong);
   }
-  .drawer:not(.drawer--left) .drawer__header { flex-basis: 48px; min-height: 48px; border-bottom-color: transparent; }
+  .overlay--drawer:not(.overlay--left) > .drawer .drawer__header { flex-basis: 48px; min-height: 48px; border-bottom-color: transparent; }
   .drawer__body { padding: var(--space-2) var(--space-4) var(--space-4); }
   .drawer__footer { padding-inline: var(--space-4); }
   .drawer__footer > .btn { flex: 1 1 auto; }
@@ -1587,7 +1602,7 @@
 
 .avatar-stack { display: inline-flex; align-items: center; }
 .avatar-stack > .avatar { box-shadow: 0 0 0 2px var(--avatar-ring, var(--surface)); }
-.avatar-stack > .avatar + .avatar { margin-left: -5px; }
+.avatar-stack > .avatar + .avatar { margin-left: -3px; }
 
 .kpi {
   display: flex;
@@ -2356,6 +2371,9 @@ button.event:hover { box-shadow: var(--shadow-sm); z-index: 3; }
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+
+/* A single wrapper element passed as `topbar` fills the bar. */
+.shell__topbar > :only-child { flex: 1 1 auto; min-width: 0; }
 
 .shell__content {
   flex: 1 0 auto;

@@ -43,6 +43,19 @@ export function normalize(text: string): string {
 
 export const digitsOf = (text: string): string => text.replace(/\D/g, '');
 
+/** Předložka před číslovkou: „ze 2“, „ze 7“, ale „z 10“ (podle vyslovené číslovky). */
+export function zeZ(n: number): 'z' | 'ze' {
+  const a = Math.abs(Math.round(n));
+  if (a >= 100) return a < 200 ? 'ze' : zeZ(Math.floor(a / 100));
+  if (a >= 20) return [2, 3, 4, 6, 7].includes(Math.floor(a / 10)) ? 'ze' : 'z';
+  return [2, 3, 4, 6, 7, 12, 13, 14, 16, 17].includes(a) ? 'ze' : 'z';
+}
+
+/** '2026-09-14…' → '14. 9.' */
+export function shortDate(value: string): string {
+  return `${Number(value.slice(8, 10))}. ${Number(value.slice(5, 7))}.`;
+}
+
 export const csCollator = new Intl.Collator('cs', { sensitivity: 'base' });
 
 /* ------------------------------------------------------------------ */
@@ -554,9 +567,10 @@ export function policyLines(p: CancellationPolicy): PolicyLine[] {
     const label = next ? `${t.hoursBefore}–${next.hoursBefore} h:` : `Méně než ${t.hoursBefore} h:`;
     lines.push({ strong: label, text: formatPercent(t.feePct) });
   });
+  lines.push({ strong: 'Nedostavení:', text: formatPercent(p.noShowFeePct) });
   lines.push({
-    strong: 'Nedostavení:',
-    text: formatPercent(p.noShowFeePct) + (p.packageLateHandling === 'forfeit_entry' ? ' (vstup z permanentky propadá)' : ''),
+    strong: 'Permanentka:',
+    text: p.packageLateHandling === 'forfeit_entry' ? 'při pozdním zrušení vstup propadá' : 'vstup se vrací, účtuje se storno poplatek',
   });
   if (p.excuses.enabled) {
     lines.push({ strong: 'Omluvenka', text: `ruší sankci · náhradní termín do ${countLabel(p.excuses.makeupDays, ['dne', 'dnů', 'dnů'])}` });

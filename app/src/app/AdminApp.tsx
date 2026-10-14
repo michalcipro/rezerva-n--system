@@ -143,12 +143,14 @@ export function AdminApp(): JSX.Element {
   let screen: JSX.Element;
   if (!canSee) {
     screen = (
+      <div className="page">
       <EmptyState
         icon="lock"
         title="Sem tato role nemá přístup"
         text="Statistiky a nastavení vidí jen majitelka. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře."
         action={<Button variant="primary" onClick={() => navigate({ name: 'kalendar' })}>Otevřít kalendář</Button>}
       />
+      </div>
     );
   } else {
     switch (route.name) {

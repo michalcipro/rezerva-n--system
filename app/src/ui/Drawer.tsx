@@ -20,6 +20,11 @@ export interface DrawerProps {
   side?: 'right' | 'left';
   /** Remove body padding (full-bleed sections). */
   flush?: boolean;
+  /**
+   * Docked, non-modal panel rendered in place (no portal, backdrop, focus trap
+   * or scroll lock) — the calendar's detail column on wide screens.
+   */
+  inline?: boolean;
   initialFocus?: RefObject<HTMLElement>;
   dismissible?: boolean;
   className?: string;
@@ -37,6 +42,7 @@ export function Drawer({
   headerActions,
   side = 'right',
   flush,
+  inline,
   initialFocus,
   dismissible = true,
   className,
@@ -44,9 +50,49 @@ export function Drawer({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const { onKeyDown, onBackdropMouseDown } = useModal(open, { panelRef, onClose, dismissible, initialFocus });
+  const { onKeyDown, onBackdropMouseDown } = useModal(open && !inline, {
+    panelRef,
+    onClose,
+    dismissible,
+    initialFocus,
+  });
 
   if (!open) return null;
+
+  const header = (
+    <div className="drawer__header">
+      <h2 id={titleId} className="drawer__title">
+        {title}
+      </h2>
+      {headerActions}
+      {dismissible && <IconButton icon="x" label="Zavřít" size="sm" onClick={onClose} />}
+    </div>
+  );
+  const body = (
+    <div className={cx('drawer__body', flush && 'drawer__body--flush')} data-overlay-body="">
+      {description != null && (
+        <div id={descriptionId} className="drawer__description">
+          {description}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+  const footerEl = footer != null && <div className="drawer__footer">{footer}</div>;
+
+  if (inline) {
+    return (
+      <aside
+        aria-labelledby={titleId}
+        aria-describedby={description != null ? descriptionId : undefined}
+        className={cx('drawer', 'drawer--inline', size !== 'sm' && `drawer--${size}`, className)}
+      >
+        {header}
+        {body}
+        {footerEl}
+      </aside>
+    );
+  }
 
   return (
     <Portal>
@@ -63,22 +109,9 @@ export function Drawer({
           onKeyDown={onKeyDown}
         >
           <div className="drawer__handle" aria-hidden="true" />
-          <div className="drawer__header">
-            <h2 id={titleId} className="drawer__title">
-              {title}
-            </h2>
-            {headerActions}
-            {dismissible && <IconButton icon="x" label="Zavřít" size="sm" onClick={onClose} />}
-          </div>
-          <div className={cx('drawer__body', flush && 'drawer__body--flush')} data-overlay-body="">
-            {description != null && (
-              <div id={descriptionId} className="drawer__description">
-                {description}
-              </div>
-            )}
-            {children}
-          </div>
-          {footer != null && <div className="drawer__footer">{footer}</div>}
+          {header}
+          {body}
+          {footerEl}
         </div>
       </div>
     </Portal>
