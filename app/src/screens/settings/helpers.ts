@@ -445,11 +445,15 @@ export function packagePricing(s: ClinicState, tpl: Pick<PackageTemplate, 'price
   const prices = tpl.serviceIds
     .map((id) => getService(s, id)?.priceCzk)
     .filter((p): p is number => typeof p === 'number' && p > 0);
-  if (!prices.length || tpl.entries <= 0 || tpl.priceCzk <= 0) {
+  if (!prices.length) {
     return { perEntry, singleMin: null, singleMax: null, discountMin: null, discountMax: null, savingsMin: null, savingsMax: null };
   }
   const min = Math.min(...prices);
   const max = Math.max(...prices);
+  // bez ceny nebo vstupů nelze slevu spočítat, jednotlivé ceny ale ukážeme (rychlý výpočet ceny)
+  if (tpl.entries <= 0 || tpl.priceCzk <= 0) {
+    return { perEntry, singleMin: min, singleMax: max, discountMin: null, discountMax: null, savingsMin: null, savingsMax: null };
+  }
   const disc = (single: number): number => Math.round((1 - tpl.priceCzk / (single * tpl.entries)) * 100);
   return {
     perEntry,

@@ -545,9 +545,10 @@ export function cancelState(s: ClinicState, b: Booking, now: LocalDateTime): { l
   if (ev.phase === 'free') return { label: `Zdarma zrušíte do ${formatDateTimeShort(ev.freeUntil)}`, tone: 'success', ev };
   if (ev.phase === 'late') {
     const forfeit = ev.isGroup || (b.payment.method === 'package' && s.settings.policy.packageLateHandling === 'forfeit_entry');
-    const base = b.payment.method === 'makeup' ? 'Zrušení teď: náhrada propadne' : forfeit ? 'Zrušení teď: vstup propadne' : `Storno teď ${formatPercent(ev.feePct)}`;
-    if (ev.excuse.allowed) return { label: base + ' · lze omluvit', tone: 'warning', ev };
-    if (ev.grace) return { label: base + ' · první pozdní storno zdarma', tone: 'warning', ev };
+    const fee = `Storno teď ${formatPercent(ev.feePct)}`;
+    if (ev.excuse.allowed) return { label: (forfeit ? 'Po lhůtě' : fee) + ' · lze omluvit', tone: 'warning', ev };
+    if (ev.grace) return { label: (forfeit ? 'Po lhůtě' : fee) + ' · první pozdní storno zdarma', tone: 'warning', ev };
+    const base = b.payment.method === 'makeup' ? 'Po lhůtě · náhrada propadne' : forfeit ? 'Po lhůtě · vstup propadne' : fee;
     return { label: base, tone: 'danger', ev };
   }
   if (ev.phase === 'started') return { label: 'Právě probíhá', tone: 'neutral', ev };

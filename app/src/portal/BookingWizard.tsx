@@ -504,7 +504,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
         <>
           <PaymentPicker options={payOpts} value={effectivePayKey} onChange={setPayKey} />
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
-          <Field label="Poznámka pro terapeuta" optional hint="Uvidí ji jen personál kliniky.">
+          <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
             <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. bolest kolene po běhu" />
           </Field>
         </>

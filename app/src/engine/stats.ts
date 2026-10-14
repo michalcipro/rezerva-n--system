@@ -152,7 +152,16 @@ function core(s: ClinicState, q: StatsQuery, now: LocalDateTime): StatsCore {
       }
     }
   } else {
-    for (const b of list) if (isOccupying(b.status)) booked += diffMinutes(b.end, b.start);
+    // skupinová lekce se počítá jednou, ne za každého účastníka
+    const seenSessions = new Set<string>();
+    for (const b of list) {
+      if (!isOccupying(b.status)) continue;
+      if (b.sessionId) {
+        if (seenSessions.has(b.sessionId)) continue;
+        seenSessions.add(b.sessionId);
+      }
+      booked += diffMinutes(b.end, b.start);
+    }
     for (const t of therapists) for (const day of days) available += workingMinutes(s, t.id, day);
   }
 
@@ -299,7 +308,15 @@ export function computeStats(s: ClinicState, q: StatsQuery, now: LocalDateTime):
       for (const iv of workingIntervals(s, t.id, day)) spread(iv.start, iv.end, wd, 'available');
     }
   }
-  for (const b of list) if (isOccupying(b.status) && !b.sessionId) spread(b.start, b.end, weekdayOf(b.start), 'booked');
+  const heatSessions = new Set<string>();
+  for (const b of list) {
+    if (!isOccupying(b.status)) continue;
+    if (b.sessionId) {
+      if (heatSessions.has(b.sessionId)) continue;
+      heatSessions.add(b.sessionId);
+    }
+    spread(b.start, b.end, weekdayOf(b.start), 'booked');
+  }
   const heatmap: StatsResult['heatmap'] = [];
   for (let wd = 0; wd < 6; wd++) {
     for (let hour = 7; hour <= 19; hour++) {
@@ -356,7 +373,8 @@ export function computeStats(s: ClinicState, q: StatsQuery, now: LocalDateTime):
     const from = addMonths(thisMonth, -i);
     const to = addMonths(from, 1);
     const tq: StatsQuery = { ...q, from, to };
-    const mList = s.bookings.filter((b) => inPeriod(b.start, tq) && matches(s, b, tq) && b.status !== 'clinic_cancelled');
+    // jen termíny, které už proběhly (budoucí potvrzené by snižovaly míru storna)
+    const mList = s.bookings.filter((b) => inPeriod(b.start, tq) && b.start < now && matches(s, b, tq) && b.status !== 'clinic_cancelled');
     const cancels = mList.filter((b) => CANCEL_STATUSES.has(b.status)).length;
     const ns = mList.filter((b) => b.status === 'no_show').length;
     const comp = mList.filter((b) => b.status === 'completed').length;

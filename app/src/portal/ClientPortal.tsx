@@ -66,7 +66,7 @@ export function ClientPortal(): JSX.Element {
           </p>
           <ul className="por-aside__list">
             <li>Zarezervujte termín v 15minutových časech</li>
-            <li>Omluvte zítřejší termín a vyberte náhradu</li>
+            <li>Omluvte termín a vyberte si náhradní</li>
             <li>Posuňte testovací čas a sledujte, jak se mění storno podmínky</li>
           </ul>
         </aside>

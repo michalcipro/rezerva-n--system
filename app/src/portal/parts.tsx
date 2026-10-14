@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Booking, Tone } from '../domain/types';
 import { BookingStatusBadges } from '../components/domain';
 import { WEEKDAY_SHORT, formatTimeRange } from '../engine/format';
@@ -7,7 +7,7 @@ import { weekdayOf } from '../engine/time';
 import { useClinic, useNow } from '../store/hooks';
 import { useSession } from '../store/session';
 import { Button, Drawer, Icon, IconButton, cx, toast, type DrawerProps, type IconName } from '../ui';
-import { usePortal } from './context';
+import { PortalContext, usePortal } from './context';
 import { bookingTitle, cancelState, clientOffers, placeLabel, type ChipTone } from './logic';
 
 /* ------------------------------------------------------------------ */
@@ -32,12 +32,12 @@ export interface ScreenProps {
 }
 
 export function Screen({ title, brand, onBack, backLabel = 'Zpět', right, below, dock, children, mainClassName }: ScreenProps): JSX.Element {
-  const { hasNavigated } = usePortal();
+  const portal = useContext(PortalContext);
   const topRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!hasNavigated()) return;
+    if (!portal?.hasNavigated()) return;
     const h1 = topRef.current?.querySelector<HTMLElement>('h1') ?? mainRef.current?.querySelector<HTMLElement>('h1');
     h1?.focus({ preventScroll: true });
     // fokus jen při otevření obrazovky

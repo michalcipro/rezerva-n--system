@@ -337,7 +337,11 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const forfeit = ev.isGroup || (b.payment.method === 'package' && clinic.settings.policy.packageLateHandling === 'forfeit_entry');
   const canReschedule =
     !client.blocked && !svc?.newClientsOnly && b.payment.method !== 'makeup' && b.start > now && (ev.phase === 'free' || ev.excuse.allowed);
-  const [choice, setChoice] = useState<string | null>(() => options.find((o) => o.recommended)?.kind ?? options[0]?.kind ?? null);
+  const fallbackChoice = options.find((o) => o.recommended)?.kind ?? options[0]?.kind ?? (canReschedule ? 'reschedule' : null);
+  const [picked, setChoice] = useState<string | null>(fallbackChoice);
+  // volby se mohou s časem změnit (např. uplyne lhůta omluvenky) – vybraná musí stále existovat
+  const choice =
+    picked === 'reschedule' ? (canReschedule ? picked : fallbackChoice) : options.some((o) => o.kind === picked) ? picked : fallbackChoice;
   const [reason, setReason] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);

@@ -21,6 +21,7 @@ import {
   bookingsOnDate,
   clientCredit,
   clientName,
+  getBooking,
   getClient,
   getRoom,
   getService,
@@ -443,7 +444,7 @@ export function DashboardScreen(): JSX.Element {
   const greeting = greetingFor(now) + (voc ? `, ${voc}` : '');
 
   /* --------------------------- docházka --------------------------- */
-  const noShowBooking = noShowId ? clinic.bookings.find((b) => b.id === noShowId) : undefined;
+  const noShowBooking = noShowId ? getBooking(clinic, noShowId) : undefined;
   const nextArrival = lists.next[0] ?? lists.later;
   const nowCount = lists.inProgress.length + lists.sessionsNow.length;
   const nextCount = lists.next.length + lists.sessionsNext.length;

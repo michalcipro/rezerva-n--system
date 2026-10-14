@@ -9,7 +9,7 @@
  * - trendSeries: storna a nedostavení za 6 měsíců jen z termínů, které už začaly.
  * - hourlyOccupancy: obsazenost jednoho dne po hodinách.
  */
-import type { ClinicState, Id, LocalDate, LocalDateTime } from '../../domain/types';
+import type { Booking, ClinicState, Id, LocalDate, LocalDateTime } from '../../domain/types';
 import { workingIntervals } from '../../engine/availability';
 import { MONTH_GENITIVE, MONTH_NOMINATIVE, NBSP, formatMoney, formatMonthYear, formatNumber } from '../../engine/format';
 import {
@@ -240,9 +240,9 @@ export function resolvePeriod(p: PeriodState, today: LocalDate): ResolvedPeriod 
 }
 
 /** Datum prvního termínu v systému (od kdy existují data). */
-export function firstBookingDate(s: ClinicState): LocalDate | null {
+export function firstBookingDate(bookings: readonly Booking[]): LocalDate | null {
   let min: LocalDateTime | null = null;
-  for (const b of s.bookings) if (min === null || b.start < min) min = b.start;
+  for (const b of bookings) if (min === null || b.start < min) min = b.start;
   return min ? dateOf(min) : null;
 }
 

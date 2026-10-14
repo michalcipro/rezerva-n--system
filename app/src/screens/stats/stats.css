@@ -361,7 +361,7 @@
   fill: var(--text-muted);
 }
 .st-nodata {
-  fill: var(--text-faint);
+  fill: var(--text-muted);
 }
 .st-tick--strong {
   fill: var(--text);

@@ -202,11 +202,12 @@ const SERIES: ColumnSeries[] = [
 const dm = (date: LocalDate): string => `${Number(date.slice(8, 10))}.${NBSP}${Number(date.slice(5, 7))}.`;
 const rez = (n: number): string => countLabel(n, ['rezervace', 'rezervace', 'rezervací']);
 
-function bucketTitle(b: Bucket, g: Granularity): string {
+function bucketTitle(b: Bucket, g: Granularity, prefix = true): string {
   if (g === 'day') return formatDayShort(b.from);
-  if (g === 'week') return 'Týden ' + (daysBetween(b.from, b.to) === 1 ? dm(b.from) : `${dm(b.from)}${NBSP}– ${dm(addDays(b.to, -1))}`);
+  const span = daysBetween(b.from, b.to) === 1 ? dm(b.from) : `${dm(b.from)}${NBSP}– ${dm(addDays(b.to, -1))}`;
+  if (g === 'week') return prefix ? 'Týden ' + span : span;
   const full = Number(b.from.slice(8, 10)) === 1 && daysBetween(b.from, b.to) >= 28;
-  return full ? formatMonthYear(b.from) : `${dm(b.from)}${NBSP}– ${dm(addDays(b.to, -1))}`;
+  return full ? formatMonthYear(b.from) : span;
 }
 
 /* ------------------------------------------------------------------ */
@@ -232,7 +233,7 @@ export function StatsScreen(): JSX.Element {
     () => ({ therapistId: therapistId || null, categoryId: categoryId || null }),
     [therapistId, categoryId],
   );
-  const dataStart = useMemo(() => firstBookingDate(clinic), [clinic]);
+  const dataStart = useMemo(() => firstBookingDate(clinic.bookings), [clinic.bookings]);
   // drahý výpočet: jen při změně dat, období, filtrů nebo dne
   const model = useMemo(() => buildModel(clinic, resolved, filters, prefs.compare, now), [clinic, resolved, filters, prefs.compare, today]);
   const { stats, cap, capPrev, buckets, granularity, trend } = model;
@@ -384,7 +385,7 @@ export function StatsScreen(): JSX.Element {
         </>
       }
       table={() => (
-        <Table density="compact" minWidth={480} maxHeight={340} caption={`${dailyTitle} – ${resolved.rangeText}`}>
+        <Table density="compact" minWidth={460} maxHeight={420} caption={`${dailyTitle} – ${resolved.rangeText}`}>
           <thead>
             <tr>
               <th>{granularity === 'day' ? 'Den' : granularity === 'week' ? 'Týden' : 'Měsíc'}</th>
@@ -399,7 +400,7 @@ export function StatsScreen(): JSX.Element {
           <tbody>
             {buckets.map((b) => (
               <tr key={b.key}>
-                <td className="nowrap">{bucketTitle(b, granularity)}</td>
+                <td className="nowrap">{bucketTitle(b, granularity, false)}</td>
                 <td className="num">{b.completed}</td>
                 <td className="num">{b.noShow}</td>
                 <td className="num">{b.upcoming}</td>
@@ -993,14 +994,16 @@ export function StatsScreen(): JSX.Element {
 
   /* ------------------------- Hlavička a filtry ------------------------- */
   const coverage: string[] = [];
-  if (dataStart && resolved.range.to <= dataStart)
+  if (dataStart && resolved.range.to <= dataStart) {
     coverage.push(`Záznamy v systému začínají ${formatDate(dataStart)}, vybrané období je celé před nimi.`);
-  else if (dataStart && resolved.range.from < dataStart)
-    coverage.push(`Záznamy v systému začínají ${formatDate(dataStart)}, dny před tím jsou v období bez dat.`);
-  if (prefs.compare && dataStart && resolved.range.to > dataStart && resolved.compare.to <= dataStart)
-    coverage.push(`Srovnávací období (${resolved.compareText}) je celé před prvním záznamem, rozdíly se proto nezobrazují.`);
-  else if (prefs.compare && dataStart && resolved.compare.from < dataStart)
-    coverage.push('Srovnávací období začíná před prvním záznamem, rozdíly mohou být zkreslené.');
+  } else if (dataStart) {
+    if (resolved.range.from < dataStart)
+      coverage.push(`Záznamy v systému začínají ${formatDate(dataStart)}, dny před tím jsou v období bez dat.`);
+    if (prefs.compare && resolved.compare.to <= dataStart)
+      coverage.push(`Srovnávací období (${resolved.compareText}) je celé před prvním záznamem, rozdíly se proto nezobrazují.`);
+    else if (prefs.compare && resolved.compare.from < dataStart)
+      coverage.push('Srovnávací období začíná před prvním záznamem, rozdíly mohou být zkreslené.');
+  }
 
   const custom = prefs.period.unit === 'custom' ? clampCustom(prefs.period.customFrom, prefs.period.customTo) : null;
   const setCustom = (from: string, to: string): void => {
@@ -1114,20 +1117,30 @@ export function StatsScreen(): JSX.Element {
         <>
           <EmptyState
             icon="chart"
-            title="V tomto období nejsou žádná data"
+            title={dataStart ? 'V tomto období nejsou žádná data' : 'Zatím tu nejsou žádné rezervace'}
             text={
-              filtered
-                ? 'Pro vybraného terapeuta nebo kategorii tu nejsou žádné rezervace ani platby. Zkuste zrušit filtry nebo vybrat jiné období.'
-                : 'Ve vybraném období nejsou žádné rezervace ani platby. Vyberte jiné období.'
+              !dataStart
+                ? 'Statistiky se začnou plnit s prvními termíny. Rezervace vytvoříte v kalendáři.'
+                : filtered
+                  ? 'Pro vybraného terapeuta nebo kategorii tu nejsou žádné rezervace ani platby. Zkuste zrušit filtry nebo vybrat jiné období.'
+                  : 'Ve vybraném období nejsou žádné rezervace ani platby. Vyberte jiné období.'
             }
             action={
-              filtered ? (
+              !dataStart ? (
+                <Button variant="primary" icon="calendar" onClick={() => navigate({ name: 'kalendar' })}>
+                  Otevřít kalendář
+                </Button>
+              ) : filtered ? (
                 <Button variant="primary" onClick={() => setPrefs((p) => ({ ...p, therapistId: '', categoryId: '' }))}>
                   Zrušit filtry
                 </Button>
-              ) : (
+              ) : preset === 'month' ? (
                 <Button variant="primary" onClick={() => setPeriod(applyPreset(prefs.period, 'd90', today))}>
                   Zobrazit posledních 90 dní
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={() => setPeriod(applyPreset(prefs.period, 'month', today))}>
+                  Zobrazit tento měsíc
                 </Button>
               )
             }
