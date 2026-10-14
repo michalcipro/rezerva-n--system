@@ -425,7 +425,7 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
       <CardHeader
         divided
         title="Nepřítomnosti"
-        subtitle="Dovolené, nemoci a zavírací dny"
+        subtitle="Dovolené a zavírací dny"
         actions={
           <Menu
             label="Přidat"

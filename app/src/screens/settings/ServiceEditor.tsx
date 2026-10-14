@@ -176,7 +176,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
               full
               value={String(draft.bufferMin)}
               onChange={(v) => set('bufferMin', Number(v))}
-              options={bufferOptions.map((b) => ({ value: String(b), label: b ? `${b} min` : 'Bez rezervy' }))}
+              options={bufferOptions.map((b) => ({ value: String(b), label: b ? formatDuration(b) : 'Bez rezervy' }))}
             />
           </FieldGroup>
           {!isNew && upcoming > 0 && (draft.durationMin !== initial.durationMin || draft.priceCzk !== initial.priceCzk) && (

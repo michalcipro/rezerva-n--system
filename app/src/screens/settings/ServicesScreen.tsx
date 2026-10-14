@@ -393,7 +393,7 @@ function CategoryBlock({
                     </td>
                     <td className="num set-col-xs">{formatDuration(svc.durationMin)}</td>
                     <td className="num set-strong">{formatMoney(svc.priceCzk)}</td>
-                    <td className="num set-col-md muted">{svc.bufferMin ? `+${svc.bufferMin} min` : '—'}</td>
+                    <td className="num set-col-md muted">{svc.bufferMin ? `+${formatDuration(svc.bufferMin)}` : '—'}</td>
                     <td className="set-col-sm nowrap">
                       {svc.kind === 'group' ? (
                         <span className="set-kind">
@@ -558,7 +558,7 @@ function GroupSchedule({ onEdit, onNew }: { onEdit: (t: GroupTemplate) => void; 
                         {n && t.active && (
                           <span className="set-lesson__next">
                             <span className="set-lesson__next-label">
-                              {formatDayShort(n.session.start)}: {n.participants}/{n.session.capacity}
+                              nejbližší {formatDayShort(n.session.start)} · {n.participants}/{n.session.capacity}
                             </span>
                             <Progress
                               size="xs"

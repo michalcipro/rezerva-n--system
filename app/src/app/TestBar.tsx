@@ -78,95 +78,137 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
     );
   }
 
+  const roleControl = compact ? (
+    <Select
+      aria-label="Testovací role"
+      className="tb__select tb__select--role"
+      value={session.role}
+      options={ROLES}
+      onChange={(e) => setRole(e.target.value as ActorRole)}
+    />
+  ) : (
+    <Segmented size="sm" aria-label="Testovací role" options={ROLES} value={session.role} onChange={(v) => setRole(v as ActorRole)} />
+  );
+
+  const personControl =
+    session.role === 'therapist' ? (
+      <Select
+        aria-label="Terapeut"
+        className="tb__select"
+        value={session.therapistId ?? ''}
+        options={therapistOptions}
+        onChange={(e) => setSession({ therapistId: e.target.value })}
+      />
+    ) : session.role === 'client' ? (
+      <Select
+        aria-label="Klient"
+        className="tb__select"
+        value={ensureClient() ?? ''}
+        options={clientOptions}
+        onChange={(e) => setSession({ clientId: e.target.value, portalRoute: { name: 'domu' } })}
+      />
+    ) : null;
+
+  const clockControls = (
+    <>
+      <span className="tb__label">
+        <Icon name="clock" size={14} />
+        {compact ? null : simulated ? 'Testovací čas' : 'Čas'}
+      </span>
+      <span className="tb__now tnum" title={simulated ? 'Testovací čas kliniky' : 'Skutečný čas'}>
+        {formatDayShort(now)} {formatTime(now)}
+      </span>
+      <Button size="sm" variant="ghost" onClick={() => shift(-1)} aria-label="Posunout čas o hodinu zpět">
+        −1 h
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => shift(1)} aria-label="Posunout čas o hodinu dopředu">
+        +1 h
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => run(setSimulatedNow, { value: addDays(now, 1) })} aria-label="Posunout čas o den dopředu">
+        +1 den
+      </Button>
+      <Menu
+        label="Nastavit testovací čas"
+        trigger={
+          <span className="tb__menu-trigger">
+            <Icon name="edit" size={14} />
+            {compact ? null : ' Nastavit'}
+          </span>
+        }
+        items={[]}
+        content={
+          <form
+            className="tb__clock-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              applyClock();
+            }}
+          >
+            <label htmlFor="tb-clock" className="tb__label">Datum a čas kliniky</label>
+            <input id="tb-clock" type="datetime-local" step={900} value={clockInput || now} onChange={(e) => setClockInput(e.target.value)} className="tb__datetime" />
+            <p className="tb__hint">Posun dopředu spustí automatiku: připomínky, docházku, propadání náhrad a nabídek. Posun zpět už provedené změny nevrací.</p>
+            <Button type="submit" size="sm" variant="primary">Použít</Button>
+          </form>
+        }
+      />
+      {simulated && (
+        <Button size="sm" variant="subtle" onClick={() => run(setSimulatedNow, { value: null }, { success: 'Zpět ve skutečném čase' })}>
+          {compact ? 'Teď' : 'Skutečný čas'}
+        </Button>
+      )}
+    </>
+  );
+
+  const dataControls = (
+    <>
+      <span className={'tb__sync tb__sync--' + sync} title={syncError ?? syncLabel}>
+        <span className="tb__sync-dot" aria-hidden="true" />
+        {compact ? <span className="visually-hidden">{syncLabel}</span> : syncLabel}
+      </span>
+      <Menu
+        label="Data a vzhled"
+        trigger={<span className="tb__menu-trigger"><Icon name="more" size={16} /></span>}
+        items={[
+          { id: 'theme-system', label: 'Motiv podle systému', icon: 'refresh', onSelect: () => setSession({ theme: 'system' }) },
+          { id: 'theme-light', label: 'Světlý motiv', icon: 'sun', onSelect: () => setSession({ theme: 'light' }) },
+          { id: 'theme-dark', label: 'Tmavý motiv', icon: 'moon', onSelect: () => setSession({ theme: 'dark' }) },
+          { id: 'demo', label: 'Znovu vygenerovat ukázková data', icon: 'repeat', onSelect: () => setConfirm('demo') },
+          { id: 'wipe', label: 'Smazat všechna data', icon: 'trash', danger: true, onSelect: () => setConfirm('wipe') },
+        ]}
+      />
+      <IconButton label="Skrýt testovací panel" icon="chevronUp" size="sm" variant="ghost" onClick={() => setSession({ testBarOpen: false })} />
+    </>
+  );
+
   return (
     <div className={'tb' + (compact ? ' tb--compact' : '')} role="region" aria-label="Testovací režim">
-      <div className="tb__group tb__group--title">
-        <span className="tb__badge">Test</span>
-        <span className="tb__title">Zobrazit jako</span>
-      </div>
-      <div className="tb__group">
-        <Segmented size="sm" aria-label="Testovací role" options={ROLES} value={session.role} onChange={(v) => setRole(v as ActorRole)} />
-        {session.role === 'therapist' && (
-          <Select
-            aria-label="Terapeut"
-            className="tb__select"
-            value={session.therapistId ?? ''}
-            options={therapistOptions}
-            onChange={(e) => setSession({ therapistId: e.target.value })}
-          />
-        )}
-        {session.role === 'client' && (
-          <Select
-            aria-label="Klient"
-            className="tb__select"
-            value={ensureClient() ?? ''}
-            options={clientOptions}
-            onChange={(e) => setSession({ clientId: e.target.value, portalRoute: { name: 'domu' } })}
-          />
-        )}
-      </div>
-
-      <div className="tb__group tb__clock">
-        <span className="tb__label">
-          <Icon name="clock" size={14} />
-          {simulated ? 'Testovací čas' : 'Čas'}
-        </span>
-        <span className="tb__now tnum">
-          {formatDayShort(now)} {formatTime(now)}
-        </span>
-        <Button size="sm" variant="ghost" onClick={() => shift(-1)} aria-label="Posunout čas o hodinu zpět">
-          −1 h
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => shift(1)} aria-label="Posunout čas o hodinu dopředu">
-          +1 h
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => run(setSimulatedNow, { value: addDays(now, 1) })} aria-label="Posunout čas o den dopředu">
-          +1 den
-        </Button>
-        <Menu
-          label="Nastavit testovací čas"
-          trigger={<span className="tb__menu-trigger"><Icon name="edit" size={14} /> Nastavit</span>}
-          items={[]}
-          content={
-            <form
-              className="tb__clock-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                applyClock();
-              }}
-            >
-              <label htmlFor="tb-clock" className="tb__label">Datum a čas kliniky</label>
-              <input id="tb-clock" type="datetime-local" step={900} value={clockInput || now} onChange={(e) => setClockInput(e.target.value)} className="tb__datetime" />
-              <p className="tb__hint">Posun dopředu spustí automatiku: připomínky, docházku, propadání náhrad a nabídek. Posun zpět už provedené změny nevrací.</p>
-              <Button type="submit" size="sm" variant="primary">Použít</Button>
-            </form>
-          }
-        />
-        {simulated && (
-          <Button size="sm" variant="subtle" onClick={() => run(setSimulatedNow, { value: null }, { success: 'Zpět ve skutečném čase' })}>
-            Skutečný čas
-          </Button>
-        )}
-      </div>
-
-      <div className="tb__group tb__data">
-        <span className={'tb__sync tb__sync--' + sync} title={syncError ?? undefined}>
-          <span className="tb__sync-dot" aria-hidden="true" />
-          {syncLabel}
-        </span>
-        <Menu
-          label="Data a vzhled"
-          trigger={<span className="tb__menu-trigger"><Icon name="more" size={16} /></span>}
-          items={[
-            { id: 'theme-system', label: 'Motiv podle systému', icon: 'refresh', onSelect: () => setSession({ theme: 'system' }) },
-            { id: 'theme-light', label: 'Světlý motiv', icon: 'sun', onSelect: () => setSession({ theme: 'light' }) },
-            { id: 'theme-dark', label: 'Tmavý motiv', icon: 'moon', onSelect: () => setSession({ theme: 'dark' }) },
-            { id: 'demo', label: 'Znovu vygenerovat ukázková data', icon: 'repeat', onSelect: () => setConfirm('demo') },
-            { id: 'wipe', label: 'Smazat všechna data', icon: 'trash', danger: true, onSelect: () => setConfirm('wipe') },
-          ]}
-        />
-        <IconButton label="Skrýt testovací panel" icon="chevronUp" size="sm" variant="ghost" onClick={() => setSession({ testBarOpen: false })} />
-      </div>
+      {compact ? (
+        <>
+          <div className="tb__row">
+            <span className="tb__badge">Test</span>
+            {roleControl}
+            {personControl}
+          </div>
+          <div className="tb__row">
+            {clockControls}
+            <span className="tb__spacer" />
+            {dataControls}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="tb__group tb__group--title">
+            <span className="tb__badge">Test</span>
+            <span className="tb__title">Zobrazit jako</span>
+          </div>
+          <div className="tb__group">
+            {roleControl}
+            {personControl}
+          </div>
+          <div className="tb__group tb__clock">{clockControls}</div>
+          <div className="tb__group tb__data">{dataControls}</div>
+        </>
+      )}
 
       <ConfirmDialog
         open={confirm === 'demo'}

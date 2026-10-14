@@ -3,6 +3,8 @@
 .set-settings-page { padding-bottom: 0; }
 
 .set-settings {
+  /* odsazení lepivých prvků pod horní lištou (mění se podle šířky) */
+  --set-offset: calc(var(--topbar-h) + var(--space-4));
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
   gap: var(--space-6);
@@ -63,7 +65,7 @@
 }
 .set-section {
   min-width: 0;
-  scroll-margin-top: calc(var(--topbar-h) + var(--space-4));
+  scroll-margin-top: var(--set-offset);
 }
 .set-section-card {
   gap: 0;
@@ -104,7 +106,7 @@
   .set-policy-grid__preview {
     grid-area: preview;
     position: sticky;
-    top: calc(var(--topbar-h) + var(--space-4));
+    top: var(--set-offset);
   }
 }
 
@@ -498,7 +500,11 @@
 
 /* ---------- Úzké displeje: kotvy jako vodorovný pás ---------- */
 @media (max-width: 1180px) {
-  .set-settings { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .set-settings {
+    --set-offset: calc(var(--topbar-h) + 66px);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
   .set-anchors {
     top: var(--topbar-h);
     z-index: var(--z-sticky);
@@ -515,12 +521,15 @@
   }
   .set-anchors__list::-webkit-scrollbar { display: none; }
 }
+/* pod 960 px horní lišta aplikace nelepí – kotvy se drží úplně nahoře */
+@media (max-width: 959px) {
+  .set-settings { --set-offset: 66px; }
+  .set-anchors { top: 0; }
+}
 @media (max-width: 640px) {
   .set-anchors {
-    top: 0;
     margin: 0 calc(-1 * var(--space-4));
     padding: var(--space-2) var(--space-4);
   }
   .set-anchors__link { min-height: 32px; padding: 0 var(--space-2); font-size: var(--text-sm); }
-  .set-section { scroll-margin-top: 60px; }
 }

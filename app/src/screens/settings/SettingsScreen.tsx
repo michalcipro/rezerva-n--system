@@ -407,7 +407,7 @@ function BookingSection({
             aria-label="Rychlá volba horizontu"
             value={HORIZON_PRESETS.includes(rules.horizonDays) ? String(rules.horizonDays) : null}
             onChange={(v) => onChange({ horizonDays: Number(v) })}
-            options={HORIZON_PRESETS.map((d) => ({ value: String(d), label: `${d} dní`, ariaLabel: `${d} dní dopředu` }))}
+            options={HORIZON_PRESETS.map((d) => ({ value: String(d), label: countLabel(d, ['den', 'dny', 'dní']), ariaLabel: `${countLabel(d, ['den', 'dny', 'dní'])} dopředu` }))}
           />
         </div>
       </SettingRow>
@@ -862,7 +862,7 @@ function RemindersSection({
             className="set-ctl-md"
             value={String(reminders.hoursBefore)}
             onValueChange={(v) => onChange({ hoursBefore: Number(v) })}
-            options={withCurrent(REMINDER_OPTIONS, reminders.hoursBefore).map((h) => ({ value: String(h), label: `${h} h předem` }))}
+            options={withCurrent(REMINDER_OPTIONS, reminders.hoursBefore).map((h) => ({ value: String(h), label: `${formatDuration(h * 60)} předem` }))}
           />
         </SettingRow>
       </fieldset>

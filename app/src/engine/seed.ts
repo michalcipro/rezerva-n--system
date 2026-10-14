@@ -18,9 +18,11 @@ import {
   joinWaitlist,
   markCompleted,
   markNoShow,
+  payFee,
   saveCampaign,
   sellPackage,
   topUpCredit,
+  waiveFee,
 } from './commands';
 import { createBaseState } from './defaults';
 import { evaluateCancellation } from './policy';
@@ -395,7 +397,12 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
             cursor += 15;
             continue;
           }
-          if (created > now) created = addHours(now, -between(1, 72));
+          if (created > now) created = addHours(now, -between(1, 24 * 10));
+          if (created < createdFloor) created = createdFloor;
+          if (created >= start) {
+            cursor += 15;
+            continue;
+          }
           if (chance(0.05)) topUpCredit(d, { clientId: c.id, amount: pick([2000, 3000, 5000]), method: pick(['card', 'cash', 'transfer'] as const) }, at(addMinutes(created, -10)));
           maybeBuyPackage(c, serviceId, addMinutes(created, -5));
           const payment = choosePayment(c.id, serviceId, start, created);
@@ -435,7 +442,8 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
         let created = addHours(ses.start, -between(4, 24 * 6));
         if (created < combine(c.createdDate, '08:00')) created = combine(c.createdDate, '08:00');
         if (created >= ses.start) continue;
-        if (created > now) created = addHours(now, -between(1, 48));
+        if (created > now) created = addHours(now, -between(1, 24 * 6));
+        if (created < combine(c.createdDate, '08:00') || created >= ses.start) continue;
         maybeBuyPackage(c, ses.serviceId, addMinutes(created, -5));
         const payment = choosePayment(c.id, ses.serviceId, ses.start, created);
         const res = createBooking(d, { clientId: c.id, serviceId: ses.serviceId, therapistId: ses.therapistId, start: ses.start, sessionId: ses.id, payment }, at(created, clientActor(c.id)));
@@ -520,6 +528,16 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     rules: [{ type: 'visited_category', categoryId: 'cat_fyzio', withinDays: 180 }],
     exclude: [{ type: 'has_upcoming_booking', withinDays: 7 }],
   });
+
+  /* ---------------- vybrané poplatky ---------------- */
+  for (const b of d.bookings) {
+    if (!b.fee || b.fee.status !== 'due' || b.start > addDays(now, -3)) continue;
+    const when = addHours(b.start, between(20, 24 * 5));
+    if (when > now) continue;
+    const r = rand();
+    if (r < 0.82) payFee(d, { bookingId: b.id, method: pick(['card', 'card', 'cash', 'transfer'] as const) }, at(when));
+    else if (r < 0.9) waiveFee(d, { bookingId: b.id, reason: pick(['Doložená nemoc', 'Dohoda s klientem', 'První nedostavení']) }, at(when, owner));
+  }
 
   /* ---------------- dokončení ---------------- */
   runProcesses(d, {}, at(now, owner));

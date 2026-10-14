@@ -518,7 +518,7 @@ function SoldRowView({ row: r }: { row: SoldRow }): JSX.Element {
               : r.daysLeft === 0
                 ? 'končí dnes'
                 : `ještě ${countLabel(r.daysLeft, ['den', 'dny', 'dní'])}`}
-          {r.pkg.extendedDays ? ` · prodlouženo o ${r.pkg.extendedDays} d` : ''}
+          {r.pkg.extendedDays ? ` · prodlouženo o ${countLabel(r.pkg.extendedDays, ['den', 'dny', 'dní'])}` : ''}
         </span>
       </td>
       <td className="num">
