@@ -1,5 +1,6 @@
 import {
   cloneElement,
+  isValidElement,
   useCallback,
   useEffect,
   useId,
@@ -12,7 +13,9 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
+import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
+import { IconButton } from './IconButton';
 import {
   Portal,
   getFocusable,
@@ -45,17 +48,43 @@ function triggerRefOf(trigger: ReactElement): Ref<HTMLElement> | undefined {
   return (trigger as unknown as { ref?: Ref<HTMLElement> }).ref;
 }
 
+function isButtonLike(node: ReactNode): node is ReactElement {
+  return isValidElement(node) && (node.type === 'button' || node.type === Button || node.type === IconButton);
+}
+
+/**
+ * Our Button / IconButton / a native <button> are used as the trigger directly.
+ * Anything else (icon, text, span) is wrapped in a real <button> so it stays
+ * focusable and keyboard operable; `label` then becomes its accessible name.
+ */
+function toTriggerElement(trigger: ReactNode, label: string | undefined): ReactElement {
+  if (isButtonLike(trigger)) return trigger;
+  return (
+    <button type="button" className="menu-trigger" aria-label={label}>
+      {trigger}
+    </button>
+  );
+}
+
 function isAction(entry: MenuEntry): entry is MenuAction {
   return !('type' in entry);
 }
 
 export interface MenuProps {
-  /** The button that opens the menu, e.g. <IconButton icon="more" label="Další akce" />. */
-  trigger: ReactElement;
-  items: MenuEntry[];
+  /**
+   * What opens the menu. Best: <IconButton icon="more" label="Další akce" /> or <Button>.
+   * Any other node is wrapped in a plain <button> named by `label`.
+   */
+  trigger: ReactNode;
+  items?: MenuEntry[];
+  /**
+   * Free content instead of (or under) the items — turns the panel into a small
+   * non-modal dialog (quick forms). A submit inside it closes the panel.
+   */
+  content?: ReactNode | ((close: () => void) => ReactNode);
   /** Align the menu's start or end edge with the trigger. Default end. */
   align?: FloatingAlign;
-  /** Accessible name of the menu. */
+  /** Accessible name of the menu (and of a wrapped trigger). */
   label?: string;
   className?: string;
 }
@@ -64,7 +93,56 @@ export interface MenuProps {
  * Action menu anchored to a trigger. Arrow keys / Home / End / typeahead move
  * focus, Enter or Space activates, Esc closes and returns focus, Tab closes.
  */
-export function Menu({ trigger, items, align = 'end', label, className }: MenuProps) {
+export function Menu({ content, ...props }: MenuProps) {
+  if (content != null) {
+    const { trigger, items = [], align = 'end', label, className } = props;
+    return (
+      <Popover trigger={trigger} label={label ?? 'Nabídka'} align={align} flush closeOnSubmit className={className}>
+        {(close) => (
+          <>
+            {items.length > 0 && <MenuItems items={items} onDone={close} />}
+            {typeof content === 'function' ? content(close) : content}
+          </>
+        )}
+      </Popover>
+    );
+  }
+  return <ActionMenu {...props} />;
+}
+
+/** Plain action list used inside a content popover. */
+function MenuItems({ items, onDone }: { items: MenuEntry[]; onDone: () => void }) {
+  return (
+    <div className="menu" role="group">
+      {items.map((entry, i) =>
+        isAction(entry) ? (
+          <button
+            key={entry.id}
+            type="button"
+            disabled={entry.disabled}
+            className={cx('menu__item', entry.danger && 'menu__item--danger')}
+            onClick={() => {
+              onDone();
+              entry.onSelect?.();
+            }}
+          >
+            {entry.icon && <Icon name={entry.icon} size={16} />}
+            <span className="menu__item-label">{entry.label}</span>
+            {entry.hint && <span className="menu__item-hint">{entry.hint}</span>}
+          </button>
+        ) : entry.type === 'separator' ? (
+          <div key={entry.id ?? `sep-${i}`} role="separator" className="menu__separator" />
+        ) : (
+          <div key={entry.id ?? `label-${i}`} className="menu__label">
+            {entry.label}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
+function ActionMenu({ trigger, items = [], align = 'end', label, className }: Omit<MenuProps, 'content'>) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -147,9 +225,10 @@ export function Menu({ trigger, items, align = 'end', label, className }: MenuPr
     }
   };
 
-  const original = trigger.props as TriggerProps;
-  const triggerElement = cloneElement(trigger, {
-    ref: mergeRefs(anchorRef, triggerRefOf(trigger)),
+  const baseTrigger = toTriggerElement(trigger, label);
+  const original = baseTrigger.props as TriggerProps;
+  const triggerElement = cloneElement(baseTrigger, {
+    ref: mergeRefs(anchorRef, triggerRefOf(baseTrigger)),
     'aria-haspopup': 'menu',
     'aria-expanded': open,
     'aria-controls': open ? menuId : undefined,
@@ -229,7 +308,8 @@ export function Menu({ trigger, items, align = 'end', label, className }: MenuPr
 }
 
 export interface PopoverProps {
-  trigger: ReactElement;
+  /** Button / IconButton / <button>; any other node is wrapped in a <button> named by `label`. */
+  trigger: ReactNode;
   /** Content, or a render function receiving `close`. */
   children: ReactNode | ((close: () => void) => ReactNode);
   /** Accessible name of the popover panel. */
@@ -240,6 +320,10 @@ export interface PopoverProps {
   /** Controlled mode. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** No inner padding — the content brings its own. */
+  flush?: boolean;
+  /** Close after a form inside the panel is submitted. */
+  closeOnSubmit?: boolean;
   className?: string;
 }
 
@@ -252,6 +336,8 @@ export function Popover({
   width,
   open: controlledOpen,
   onOpenChange,
+  flush,
+  closeOnSubmit,
   className,
 }: PopoverProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -294,9 +380,10 @@ export function Popover({
     if (next && !panelRef.current?.contains(next) && !anchorRef.current?.contains(next)) close(false);
   };
 
-  const original = trigger.props as TriggerProps;
-  const triggerElement = cloneElement(trigger, {
-    ref: mergeRefs(anchorRef, triggerRefOf(trigger)),
+  const baseTrigger = toTriggerElement(trigger, label);
+  const original = baseTrigger.props as TriggerProps;
+  const triggerElement = cloneElement(baseTrigger, {
+    ref: mergeRefs(anchorRef, triggerRefOf(baseTrigger)),
     'aria-haspopup': 'dialog',
     'aria-expanded': open,
     'aria-controls': open ? panelId : undefined,
@@ -317,13 +404,14 @@ export function Popover({
             role="dialog"
             aria-label={label}
             tabIndex={-1}
-            className={cx('floating', 'popover', className)}
+            className={cx('floating', !flush && 'popover', className)}
             style={
               position
                 ? { top: position.top, left: position.left, maxHeight: position.maxHeight, width, minWidth: position.minWidth }
                 : { top: 0, left: 0, width, visibility: 'hidden' }
             }
             onBlur={onBlur}
+            onSubmit={closeOnSubmit ? () => window.setTimeout(() => close(true), 0) : undefined}
           >
             {typeof children === 'function' ? children(() => close(true)) : children}
           </div>

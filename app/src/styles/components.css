@@ -1330,6 +1330,20 @@
 
 .popover { padding: var(--space-3); }
 
+/* Plain button that wraps a non-button Menu/Popover trigger. */
+.menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-md);
+  color: inherit;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.menu-trigger:hover,
+.menu-trigger[aria-expanded="true"] { background: var(--surface-strong); }
+
 @media (pointer: coarse) {
   .menu__item { min-height: 44px; }
 }
@@ -1957,7 +1971,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
   width: 100%;
   min-width: 0;
   height: 100%;
@@ -2008,11 +2022,12 @@ button.event:hover { box-shadow: var(--shadow-sm); z-index: 3; }
   min-width: 0;
   overflow: hidden;
   font-size: var(--text-2xs);
-  line-height: var(--leading-2xs);
+  line-height: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-/* Density by duration: xs = 15 min, sm = 30 min, md = 45 min, lg = 60 min + */
+/* Density by block height (1 min = 1 px in the design grid):
+   xs 15 min (13 px) · sm 30 min (28 px) · md 45 min (43 px, default) · lg 60 min (58 px) · xl 90 min + */
 .event--xs {
   flex-direction: row;
   align-items: center;
@@ -2027,8 +2042,10 @@ button.event:hover { box-shadow: var(--shadow-sm); z-index: 3; }
 .event--sm { gap: 0; padding: 1px var(--space-1-5); }
 .event--sm .event__title { line-height: 13px; }
 .event--sm .event__meta { font-size: var(--text-2xs); line-height: 11px; }
-.event--md { padding: 3px var(--space-1-5); }
-.event--lg { gap: 2px; padding: var(--space-1) var(--space-1-5); }
+.event--lg { gap: 1px; padding: 3px var(--space-1-5); }
+.event--xl { gap: 2px; padding: var(--space-1) var(--space-1-5); }
+.event--lg .event__footer,
+.event--xl .event__footer { line-height: var(--leading-2xs); }
 
 /* Status variants */
 .event--active { --ev-border: var(--ev-fg); }

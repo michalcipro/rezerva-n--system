@@ -15,7 +15,7 @@ export interface BannerProps {
 /** Full-width strip for AppShell's `banner` slot, e.g. „Testovací režim · simulovaný čas …“. */
 export function Banner({ tone = 'warning', icon = 'alertCircle', children, actions, className }: BannerProps) {
   return (
-    <div role="status" className={cx('banner', tone !== 'warning' && `banner--${tone}`, className)}>
+    <div className={cx('banner', tone !== 'warning' && `banner--${tone}`, className)}>
       {icon && <Icon name={icon} size={16} className="banner__icon" />}
       <div className="banner__body">{children}</div>
       {actions != null && <div className="banner__actions">{actions}</div>}

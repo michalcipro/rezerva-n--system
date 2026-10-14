@@ -5,7 +5,7 @@ export type BarTone =
   | 'accent'
   /** Hatched accent — reserved / pending. */
   | 'accent-hatched'
-  /** #CBD3D5 grey — used / consumed. */
+  /** Mid grey — used / consumed. */
   | 'neutral'
   | 'neutral-strong'
   /** Hairline grey — empty slot. */
