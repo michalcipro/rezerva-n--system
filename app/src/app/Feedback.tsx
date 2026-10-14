@@ -216,6 +216,9 @@ function downloadText(text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** V prohlížeči artefaktů na claude.ai stránka nesmí nabízet stažení souboru. */
+const inClaudeViewer = (): boolean => typeof window !== 'undefined' && window.claude !== undefined;
+
 function useDevice(): 'mobil' | 'počítač' {
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720);
   useEffect(() => {
@@ -261,7 +264,6 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const notes = useFeedbackNotes();
   const session = useSession();
   const clinic = useStore((s) => s.clinic);
-  const storage = useStore((s) => s.storage);
   const now = useNow();
   const device = useDevice();
   const [text, setText] = useState('');
@@ -310,7 +312,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
       <Button variant="secondary" icon="copy" onClick={() => void copy()} disabled={!notes.length}>
         Zkopírovat
       </Button>
-      {storage !== 'artifact' && (
+      {!inClaudeViewer() && (
         <Button variant="secondary" icon="download" onClick={() => downloadText(body)} disabled={!notes.length}>
           Stáhnout
         </Button>
