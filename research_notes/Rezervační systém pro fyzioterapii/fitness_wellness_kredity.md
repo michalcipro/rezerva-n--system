@@ -1,6 +1,6 @@
 # Fitness, wellness, massage and studio booking platforms: credits, packages, memberships, cancellations, waitlists, marketing and analytics (2025–2026)
 
-Source note for the report writer: every fact below comes from vendor help-center, product or blog pages, as surfaced by web-search extracts in October 2026. Opening the pages in full was not possible in this session: the fetch tool could not resolve DNS, and the organization's egress proxy returned 403 for support.glofox.com and help.momence.com. The shared web-search budget for the session ran out partway through the research. The cancellation, no-show, waitlist and product-modelling questions are well covered. The marketing-automation, benchmark, analytics and branded-app questions are only partly covered, and the Gaps sections say where. Where help articles reported an age, it is noted. Many Mindbody articles are 2–5 years old, while most Glofox, Momence and Mariana Tek articles date from 2025–2026.
+Source note for the report writer: every fact below comes from vendor help-center, product or blog pages, as surfaced by web-search extracts in October 2026. Opening the pages in full was not possible in this session: the fetch tool could not resolve DNS, and the organization's egress proxy returned 403 for support.glofox.com and help.momence.com. The shared web-search budget for the session ran out partway through the research. The cancellation, no-show, waitlist and product-modelling questions are well covered. The marketing-automation, benchmark, analytics and branded-app questions are only partly covered, and the Gaps sections say where. Article ages reported in the search extracts were roughly 150–230 days for Glofox help articles, about 240 days for the TeamUp bulk-hold article, and 780–1,700 days for many Mindbody articles (the Mindbody course-waitlist article was about 966 days old). Confirm older Mindbody details against current documentation.
 
 ## 1. How do the platforms model class packs, credit wallets, memberships, intro offers, gift cards, expiry, freeze/hold, family sharing and prepaid hours?
 
@@ -113,14 +113,14 @@ Only Acuity explicitly supports a minutes-based balance, which is the "prepaid h
 **Arketa**
 - A class package is a prepaid credit bundle ("buy X credits"). A membership is recurring monthly or annual billing that renews automatically. A cancelled booking returns the credit to the pricing-option balance rather than refunding the card — [Arketa: Choosing a pricing option](https://help.arketa.com/pricing/which-option)
 - The setting "Allow purchasing multiple times without discount" hides an intro offer from members who have already used it. Guest passes can be attached to memberships, either as credits usable on guests or as a fixed number per billing cycle — [Arketa blog: 6 essential settings](https://www.arketa.com/blog/6-essential-settings-to-save-time-and-boost-productivity)
-- In the 2025–26 "Pro Dashboard", staff can charge clients to freeze or pause memberships from the client profile. Charging policies can be customised by membership status, package type or class type — [Arketa: New Pro Dashboard announcement](https://www.arketa.com/blog/announcing-the-new-pro-dashboard-a-fresh-dashboard-built-for-scale)
+- In the new "Pro Dashboard" (announcement undated in the extract), staff can charge clients to freeze or pause memberships from the client profile. Charging policies can be customised by membership status, package type or class type — [Arketa: New Pro Dashboard announcement](https://www.arketa.com/blog/announcing-the-new-pro-dashboard-a-fresh-dashboard-built-for-scale)
 
 **bsport**
 - bsport offers weekly, monthly and annual memberships, limited and unlimited plans, and credit-based passes. The studio sets commitment terms, cancellation policy and access rules for each — [bsport: Membership management](https://pro.bsport.io/features/membership-management)
 - Credits and passes "work across everything you sell": group class, workshop, 1:1 session or appointment. Members join, renew, upgrade or switch plans themselves online or in the app — [bsport: Membership management](https://pro.bsport.io/features/membership-management)
 - Vendor comparison copy says subscriptions can be edited, paused and given set durations, with future debits kept in sync, and that staff can restore credits in one click, for example after a late cancellation — [bsport vs Mindbody](https://pro.bsport.io/blog/bsport-the-best-mindbody-alternative)
 
-**Acuity Scheduling (Squarespace)** — the clearest "prepaid hours" model
+**Acuity Scheduling** — the clearest "prepaid hours" model
 - Packages, gift certificates and subscriptions can each be valued as a number of appointments, a **number of minutes**, a dollar amount, or unlimited. With minutes, a code cannot be used once less than one appointment's worth remains. Clients buy on a store page and receive unique codes, and staff can sell from the calendar or issue free codes — [Acuity: Buying packages, gift certificates, and subscriptions](https://help.acuityscheduling.com/hc/en-us/articles/16676923706253-Buying-packages-gift-certificates-and-subscriptions)
 - Subscriptions require Stripe or Square (not PayPal) and bill either indefinitely or for a fixed number of payments, up to 23 — [Acuity: Creating subscriptions](https://help.acuityscheduling.com/hc/en-us/articles/28615820183309-Creating-subscriptions)
 - Offers can carry expiration dates, and session usage is tracked automatically — [Acuity: Client loyalty tools](https://acuityscheduling.com/features/client-loyalty)
@@ -142,7 +142,7 @@ Only Acuity explicitly supports a minutes-based balance, which is the "prepaid h
 - Package expiration is set in months when selling online. A user-forum reply from February 2025 says expiration is set per sale, not per package type — [Vagaro: Online Shopping Cart](https://support.vagaro.com/hc/en-us/articles/204348270-Online-Shopping-Cart-How-to-Require-Customers-to-Pre-Pay-for-Services-Memberships-Packages-and-Gift-Certificates-with-the-Online-Shopping-Cart); [Vagaro: Packages report (comments)](https://support.vagaro.com/hc/en-us/articles/4406235637275-Manage-Customer-Packages-from-the-Packages-Report)
 - Example policy of a spa on Vagaro: 24 h notice, non-refundable packages, 12-month package expiry, and a late cancel costs one package session — [Escape Day Spa policy](https://mysite.vagaro.com/escapedayspa1/spa-policy)
 
-**SimplyBook.me** (widely used in Central Europe)
+**SimplyBook.me**
 - **Packages vs memberships:**
   - Packages bundle services and products under a general item limit, with validity of any length.
   - Package credits are not returned automatically when a client cancels. Staff must refund, which needs SBPay Pro on the Premium plan.
@@ -183,7 +183,7 @@ Only Acuity explicitly supports a minutes-based balance, which is the "prepaid h
 ### Takeaway
 Typical cancellation windows:
 - **12 h for classes**, cited by ClassPass as the industry standard;
-- **24 h for appointments**, the WellnessLiving default and the Vagaro example;
+- **24 h**, the WellnessLiving default early-cancel window and the cut-off in Vagaro's appointment example;
 - up to **48 h** in salon examples (Fresha).
 
 The penalty depends on how the booking was paid:
@@ -207,7 +207,7 @@ Waitlists auto-promote until a cut-off (Glofox 30 min, Momence configurable, e.g
   - 25 % of the price for cancelling inside it;
   - 50 % for a no-show.
   - Source: [Fresha blog: protect against no-shows](https://www.fresha.com/blog/how-to-protect-your-business-against-no-shows-and-late-cancellations)
-- A Fresha partner barber uses 50 % for a late cancel and 100 % for a no-show. The claims of up to 60 % and up to 90 % reductions in losses are vendor marketing — [Modern Barber on Fresha](https://modernbarber.co.uk/reduce-no-shows-and-late-cancellation-losses-by-up-to-60-with-fresha); [Fresha blog](https://www.fresha.com/blog/never-have-a-no-show-at-your-salon-or-spa-again-with-fresha)
+- A Fresha partner barber uses 50 % for a late cancel and 100 % for a no-show. The claims of up to 60 % and up to 90 % reductions in losses are vendor marketing; which Fresha blog page holds the 90 % claim was not confirmed — [Modern Barber on Fresha](https://modernbarber.co.uk/reduce-no-shows-and-late-cancellation-losses-by-up-to-60-with-fresha); [Fresha blog: never have a no-show](https://www.fresha.com/blog/never-have-a-no-show-at-your-salon-or-spa-again-with-fresha); [Fresha blog: protect against no-shows](https://www.fresha.com/blog/how-to-protect-your-business-against-no-shows-and-late-cancellations)
 - Momence's AI Inbox guidance gives an example policy that depends on the product: a late cancel inside 12 h forfeits the class credit for a class pack or drop-in, while membership holders pay a $10 fee — [Momence: Getting the most out of AI Inbox](https://help.momence.com/en/articles/11739857-getting-the-most-out-of-ai-inbox)
 - Studio policies seen on Momence-hosted pages:
   - credit forfeited for cancelling inside 12 h;
@@ -255,7 +255,7 @@ Waitlists auto-promote until a cut-off (Glofox 30 min, Momence configurable, e.g
 
 **Momence**
 - Late-cancel rules sit under Settings > Cancellation Policy. They can charge a **percentage of the service price** or a flat fee plus a percentage, and a "cancellation credit cut-off" decides when cancellations return credit — [Momence: % of service price rules](https://help.momence.com/en/articles/12558127-late-cancellation-no-show-rules-now-allow-you-to-charge-percentages-of-the-service-price)
-- Automated late-cancel and no-show charging was extended from classes to **appointments** (Settings > Cancellation Policy > Appointments), alongside "auto-retry" of failed cancellation-fee charges. The post text was only partly retrieved — [Momence feature updates (Substack)](https://momence.substack.com/p/feature-updates-easily-change-class); [Momence: Automate Appointment No-show & Late Cancellation Fees](https://help.momence.com/en/articles/10166934-automate-appointment-no-show-late-cancellation-fees)
+- Automated late-cancel and no-show charging was extended from classes to **appointments** (Settings > Cancellation Policy > Appointments), alongside "auto-retry" of cancellation-fee charges (per the post title). The post text was only partly retrieved — [Momence feature updates (Substack)](https://momence.substack.com/p/feature-updates-easily-change-class); [Momence: Automate Appointment No-show & Late Cancellation Fees](https://help.momence.com/en/articles/10166934-automate-appointment-no-show-late-cancellation-fees)
 - For limited-use subscriptions, cancelling outside the late window frees the usage count for that period instead of adding a credit — [Momence: Usage Limits, Rollover Credits & Overbooking](https://help.momence.com/en/articles/12030278-usage-limits-rollover-credits-overbooking-subscriptions)
 
 **TeamUp**
@@ -314,7 +314,7 @@ Waitlists auto-promote until a cut-off (Glofox 30 min, Momence configurable, e.g
   - Card capture requires clients to save a card and accept the policy before booking online; the fee is fixed or a percentage.
   - The docs conflict on combining deposits and fees. Where both apply, the fee is capped at the deposit.
   - By default, a cancelled appointment's deposit turns into customer credit, with an option to keep all or part of it as the fee.
-  - Online payments cost 2.80 % + 30¢.
+  - Online payments cost 2.80 % + 30¢, though another Timely page lists 2.90 % + 20¢ for international cards.
   - Sources: [Timely: Cancellation fees with TimelyPay](https://help.gettimely.com/hc/en-gb/articles/360060708994-Cancellation-Fees-with-TimelyPay); [Timely: Revenue Protection](https://help.gettimely.com/hc/en-gb/articles/360060709054-Revenue-Protection-with-TimelyPay); [Timely: use a deposit for cancellations](https://help.gettimely.com/hc/en-gb/articles/360060949334-Use-a-client-s-deposit-for-cancellations-or-no-shows); [Timely: Pricing](https://www.gettimely.com/pricing/)
 
 **Patterns from comparable platforms**
@@ -456,7 +456,7 @@ Acuity's revenue report books package, gift-certificate and subscription revenue
 ### Cited Findings
 - Mindbody's No-Shows report lists late cancels and no-shows and can be filtered by service type. Missed appointments appear only if a fee was applied — [Mindbody: No-Shows report](https://support.mindbodyonline.com/s/article/203256753-No-Shows-report?language=en_US)
 - Arketa has a "Late Cancels & No Shows" report, and fees can be charged directly from it — [Arketa: Cancellation policy](https://help.arketa.com/settings/booking/cancellation-policy)
-- Fresha offers a cancellations and no-show summary report for monitoring trends — [Fresha: Payments policies overview](https://www.fresha.com/help-center/knowledge-base/payments/613-payments-policies-overview)
+- Fresha offers a cancellations and no-show summary report for monitoring trends — [Fresha: Payments policies overview](https://www.fresha.com/help-center/knowledge-base/payments/613-payments-policies-overview); [Fresha: Set up payment policies](https://www.fresha.com/help-center/knowledge-base/payments/101660-set-up-payment-policies)
 - Mariana Tek's report catalogue includes:
   - Membership Details, which excludes intro-offer buyers because they are not classified as members; they appear in separate intro-offer reports;
   - Frozen Memberships – Current;
@@ -497,7 +497,7 @@ The evidenced standouts are:
 - client self-service for plans: join, renew, upgrade, switch (bsport); manage packages and memberships with autopay (Arketa);
 - spot selection (Mariana Tek, Glofox).
 
-Strong staff tools include bulk holds (TeamUp), a 24 h fee-review window (Glofox), permission-based waivers (WellnessLiving, Mariana Tek) and a staff mobile app (Glofox Pro). Details on branded apps were not retrieved.
+Strong staff tools include bulk holds (TeamUp), a 24 h fee-review window (Glofox), permission-based waivers (WellnessLiving, Mariana Tek) and a dedicated staff tool (Glofox Pro). Details on branded apps were not retrieved.
 
 ### Cited Findings
 - Glofox waitlist notifications go by email and push, and the next member can confirm a spot "with one tap" (reformer context) — [Glofox: How to set up a Waitlist](https://support.glofox.com/hc/en-us/articles/46477329605524-How-to-Set-up-a-Waitlist); [Glofox FAQ](https://www.glofox.com/faq/)
@@ -509,7 +509,7 @@ Strong staff tools include bulk holds (TeamUp), a 24 h fee-review window (Glofox
 - Arketa clients manage their own packages and memberships, with autopay — [Arketa: Choosing a pricing option](https://help.arketa.com/pricing/which-option)
 - Vagaro clients can cancel auto-renewing plans in the app only if the business allows it — [Vagaro: cancel auto-renewing plans](https://support.vagaro.com/hc/en-us/articles/15943839935131-Cancel-Auto-Renewing-Memberships-and-Packages-for-Customers-of-a-Vagaro-Business)
 - Staff tools:
-  - Glofox Pro, the staff mobile app, handles memberships, pauses and credit packs — [Glofox: Overview of Glofox Pro](https://support.glofox.com/hc/en-us/articles/46421658646292-An-Overview-of-Glofox-Pro)
+  - Glofox Pro is a staff tool for managing clients, memberships, pauses and credit packs, per its help-article titles — [Glofox: Overview of Glofox Pro](https://support.glofox.com/hc/en-us/articles/46421658646292-An-Overview-of-Glofox-Pro); [Glofox: Managing Memberships from Glofox Pro](https://support.glofox.com/hc/en-us/articles/46424071016212-Managing-Memberships-from-Glofox-Pro)
   - Glofox has role-based default permissions — [Glofox: Staff roles & permissions](https://support.glofox.com/hc/en-us/articles/52585050344852-Staff-Roles-and-Default-Permissions)
   - TeamUp bulk holds — [TeamUp blog](https://goteamup.com/blog/updated-bulk-holds)
 - Limitations to avoid:
