@@ -29,6 +29,14 @@ Co umí:
 - **Komunikace**: automatické e-maily a SMS (potvrzení, připomínka, omluvenka…), newslettery se segmentací
   a kontrolou souhlasů (odesílání je v testovací verzi simulované).
 - **Testovací režim**: přepínání rolí (majitelka, recepce, terapeut, klient) a posun času pro testování lhůt.
+- **Připomínky**: tlačítko v testovacím panelu – poznámka si nese obrazovku, roli a testovací čas a odešle se
+  e-mailem nebo zkopíruje.
+
+Veřejný náhled pro klienta: **https://michalcipro.github.io/rezerva-n--system/** (GitHub Pages z větve
+`gh-pages`; každý návštěvník má vlastní data uložená ve svém prohlížeči, stránka má `noindex`).
+Nový build se nasadí tak, že se `app/dist/index.html` po `npm run build` zkopíruje do kořene větve `gh-pages`
+a pushne. Adresu, na kterou se mají připomínky předvyplnit, lze doplnit do `app/index.html` jako
+`<meta name="feedback-to" content="…">`.
 
 Spuštění lokálně:
 
