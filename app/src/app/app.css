@@ -316,6 +316,143 @@
 .tb--compact .btn--sm {
   padding-inline: 6px;
 }
+.tb__feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--inverse-fg) 40%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--inverse-fg) 8%, transparent);
+  color: var(--inverse-fg);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tb__feedback:hover {
+  background: color-mix(in srgb, var(--inverse-fg) 18%, transparent);
+}
+.tb__feedback:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.tb__feedback--icon {
+  flex: none;
+  padding: 0 8px;
+}
+.tb__feedback-count {
+  font-variant-numeric: tabular-nums;
+}
+.tb__feedback-count--narrow {
+  display: none;
+}
+@media (max-width: 720px) {
+  .tb__feedback {
+    padding: 0 8px;
+  }
+  .tb__feedback-label {
+    display: none;
+  }
+  .tb__feedback-count--narrow {
+    display: inline;
+  }
+}
+.tb--collapsed .tb__feedback {
+  height: 24px;
+  font-size: var(--text-2xs);
+}
+
+/* ---------------- Připomínky ---------------- */
+.fb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.fb__add {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.fb__context {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.fb__context svg {
+  flex: none;
+  margin-top: 2px;
+}
+.fb__context-value {
+  color: var(--text-secondary);
+}
+.fb__list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.fb__list-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.fb__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 280px;
+  overflow: auto;
+}
+.fb__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.fb__item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fb__item-context {
+  margin: 0 0 2px;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.fb__item-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fb__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+a.btn--primary:hover {
+  color: var(--on-accent);
+}
+
 @media (max-width: 720px) {
   .tb__clock {
     margin-left: 0;

@@ -16,6 +16,7 @@ export function Onboarding(): JSX.Element {
         <h1 className="onb__title">Rezervační systém – testovací verze</h1>
         <p className="onb__lead">
           Vyberte, s jakými daty chcete systém vyzkoušet. Kdykoli později je můžete v testovacím panelu smazat a začít znovu.
+          Co by se mělo změnit, zapisujte tlačítkem <strong>Připomínka</strong> v tmavém testovacím panelu nahoře.
         </p>
         <div className="onb__choices">
           <section className="onb__card onb__card--primary" aria-labelledby="onb-demo">

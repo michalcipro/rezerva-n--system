@@ -8,6 +8,7 @@ import { useClinic, useCommand, useNow, useStore } from '../store/hooks';
 import { setSession, useSession } from '../store/session';
 import { loadDemoData, wipeAll } from '../store/store';
 import { Button, ConfirmDialog, Icon, IconButton, Menu, Segmented, Select } from '../ui';
+import { FeedbackButton } from './Feedback';
 
 const ROLES: { value: ActorRole; label: string }[] = [
   { value: 'owner', label: 'Majitelka' },
@@ -70,6 +71,7 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
   if (!session.testBarOpen) {
     return (
       <div className="tb tb--collapsed">
+        <FeedbackButton />
         <button type="button" className="tb__reopen" onClick={() => setSession({ testBarOpen: true })}>
           <Icon name="sliders" size={14} />
           Testovací režim
@@ -161,6 +163,7 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
 
   const dataControls = (
     <>
+      {compact ? null : <FeedbackButton />}
       <span className={'tb__sync tb__sync--' + sync} title={syncError ?? syncLabel}>
         <span className="tb__sync-dot" aria-hidden="true" />
         {compact ? <span className="visually-hidden">{syncLabel}</span> : syncLabel}
@@ -188,6 +191,7 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
             <span className="tb__badge">Test</span>
             {roleControl}
             {personControl}
+            <FeedbackButton iconOnly />
           </div>
           <div className="tb__row">
             {clockControls}
