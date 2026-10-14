@@ -1,1 +1,1 @@
-export { CommsScreen } from './placeholder';
+export { CommsScreen } from './CommsScreen';

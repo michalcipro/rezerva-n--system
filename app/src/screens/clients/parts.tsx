@@ -4,7 +4,7 @@ import { formatDate, formatNumber, formatSignedMoney, WEEKDAY_SHORT } from '../.
 import { weekdayOf } from '../../engine/time';
 import { useSession } from '../../store/session';
 import { Icon, IconButton, cx } from '../../ui';
-import type { StornoChip } from './model';
+import { zeZ, type StornoChip } from './model';
 import './clients.css';
 
 /* ------------------------------------------------------------------ */
@@ -91,12 +91,12 @@ export function Pagination({
   return (
     <nav className="cli-pager" aria-label={label}>
       <span className="cli-pager__info tnum">
-        {formatNumber(from)}–{formatNumber(to)} z {formatNumber(total)}
+        {formatNumber(from)}–{formatNumber(to)} {zeZ(total)} {formatNumber(total)}
       </span>
       <span className="cli-pager__controls">
         <IconButton icon="chevronLeft" label="Předchozí stránka" variant="secondary" size="sm" disabled={page <= 0} onClick={() => onChange(page - 1)} />
         <span className="cli-pager__page tnum" aria-live="polite">
-          Strana {page + 1} z {pageCount}
+          Strana {page + 1} {zeZ(pageCount)} {pageCount}
         </span>
         <IconButton icon="chevronRight" label="Další stránka" variant="secondary" size="sm" disabled={page >= pageCount - 1} onClick={() => onChange(page + 1)} />
       </span>
@@ -185,8 +185,10 @@ export function TagInput({
           autoComplete="off"
           onChange={(e) => {
             const v = e.target.value;
-            // výběr z nabídky prohlížeče vloží celý štítek najednou
-            if (free.includes(v)) add(v);
+            // Výběr z nabídky prohlížeče (ne psaní) vloží celý štítek najednou.
+            const inputType = (e.nativeEvent as InputEvent).inputType as string | undefined;
+            const picked = !inputType || inputType === 'insertReplacementText';
+            if (picked && free.includes(v)) add(v);
             else setDraft(v);
           }}
           onKeyDown={onKeyDown}

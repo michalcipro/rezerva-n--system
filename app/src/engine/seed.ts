@@ -525,7 +525,8 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
   runProcesses(d, {}, at(now, owner));
   const keepFrom = addDays(now, -7);
   d.messages = d.messages.filter((m) => m.at >= keepFrom && m.at <= now);
-  d.audit = d.audit.filter((a) => a.at <= now).slice(-500);
+  // historie změn: posledních 7 dní a celý příběh ukázkového klienta Martina Dvořáka
+  d.audit = d.audit.filter((a) => a.at <= now && (a.at >= keepFrom || a.clientId === martin)).slice(-900);
   d.ledger.sort((a, b) => (a.at < b.at ? -1 : 1));
   d.payments.sort((a, b) => (a.at < b.at ? -1 : 1));
   d.bookings.sort((a, b) => (a.start < b.start ? -1 : 1));

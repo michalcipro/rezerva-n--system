@@ -200,7 +200,7 @@ export function dayMinutes(work: readonly TimeRange[], breaks: readonly TimeRang
 }
 
 export function weekMinutes(t: Pick<Therapist, 'workingHours' | 'breaks'>): number {
-  return WEEKDAYS.reduce((sum, wd) => sum + dayMinutes(t.workingHours[wd] ?? [], t.breaks[wd] ?? []), 0);
+  return WEEKDAYS.reduce<number>((sum, wd) => sum + dayMinutes(t.workingHours[wd] ?? [], t.breaks[wd] ?? []), 0);
 }
 
 /** Pracovní úseky dne po odečtení pauz (pro mini náhled směny). */
@@ -944,4 +944,9 @@ export function validateService(svc: Service, categoryIds: readonly Id[]): Servi
   if (!(svc.bufferMin >= 0 && svc.bufferMin <= 60)) e.bufferMin = 'Rezerva musí být 0–60 minut.';
   if (svc.kind === 'group' && !(svc.capacity >= 2)) e.capacity = 'Skupinová lekce musí mít kapacitu alespoň 2 místa.';
   return e;
+}
+
+/** Spojení tříd (bez závislosti na interních utilitách designového systému). */
+export function cx(...parts: Array<string | false | null | undefined | 0>): string {
+  return parts.filter(Boolean).join(' ');
 }

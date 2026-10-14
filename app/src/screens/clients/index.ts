@@ -1,1 +1,2 @@
-export { ClientsScreen, ClientDetailScreen } from './placeholder';
+export { ClientsScreen } from './ClientsScreen';
+export { ClientDetailScreen } from './ClientDetailScreen';

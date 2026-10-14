@@ -58,49 +58,62 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
   else if (inProgress) variant = 'active';
 
   const parts: JSX.Element[] = [];
+  const hint = (key: string, text: string): JSX.Element => (
+    <span key={key} className="cal-ev__soft">
+      · {text}
+    </span>
+  );
   let statusText = '';
+  // Krátký stav do řádku s časem u 30minutových bloků (třetí řádek se nevejde).
+  let inlineStatus: JSX.Element | null = null;
   if (inProgress) {
     const left = diffMinutes(b.end, now);
     statusText = 'Probíhá';
     parts.push(
-      <EventStatus key="s">
-        Probíhá<span className="cal-ev__soft">· zbývá {formatSpan(left)}</span>
-      </EventStatus>,
+      <EventStatus key="s">Probíhá</EventStatus>,
+      hint('left', unpaidOnsite && density !== 'lg' ? 'čeká na platbu' : `zbývá ${formatSpan(left)}`),
     );
-    if (unpaidOnsite) parts.push(<EventChip key="pay" tone="warning">Čeká na platbu</EventChip>);
-    else if (density === 'lg')
+    if (density === 'lg')
       parts.push(
         <span key="p" className="cal-ev__progress">
           <EventProgress value={diffMinutes(now, b.start) / Math.max(1, minutes)} />
         </span>,
       );
+    inlineStatus = <EventStatus>Probíhá</EventStatus>;
   } else if (b.status === 'completed') {
     statusText = 'Proběhlo';
     parts.push(<EventStatus key="s" tone="muted">Proběhlo</EventStatus>);
     if (unpaidOnsite) parts.push(<EventChip key="pay" tone="warning">Čeká na platbu</EventChip>);
     else if (first) parts.push(<EventChip key="new">Nový klient</EventChip>);
-    else parts.push(<span key="h" className="cal-ev__soft">{paymentHint(clinic, b, today)}</span>);
+    else parts.push(hint('h', paymentHint(clinic, b, today)));
   } else if (b.status === 'no_show') {
     statusText = noShowLabel(client);
     parts.push(<EventStatus key="s" tone="danger">{statusText}</EventStatus>);
-    if (b.fee?.status === 'due') parts.push(<EventChip key="fee" tone="danger">Poplatek k úhradě</EventChip>);
+    if (b.fee?.status === 'due') parts.push(<EventChip key="fee" tone="danger">Poplatek</EventChip>);
+    inlineStatus = <EventStatus tone="danger">{statusText}</EventStatus>;
   } else if (pastUnmarked) {
     statusText = 'Doplnit docházku';
     parts.push(<EventChip key="att" tone="warning">Doplnit docházku</EventChip>);
   } else {
     statusText = 'Potvrzeno';
     if (first) parts.push(<EventChip key="new">Nový klient</EventChip>);
-    if (b.fromWaitlist) parts.push(<EventChip key="wl">Z čekací listiny</EventChip>);
-    parts.push(<span key="h" className="cal-ev__soft">{paymentHint(clinic, b, today)}</span>);
+    else if (b.fromWaitlist) parts.push(<EventChip key="wl">Z čekací listiny</EventChip>);
+    parts.push(first || b.fromWaitlist ? hint('h', paymentHint(clinic, b, today)) : <span key="h" className="cal-ev__soft">{paymentHint(clinic, b, today)}</span>);
   }
 
-  const meta = density === 'xs' ? (
-    <>
-      <strong className="cal-ev__time">{formatTime(b.start)}</strong> {serviceName}
-    </>
-  ) : (
-    `${formatTime(b.start)} ${serviceName}`
-  );
+  const meta =
+    density === 'xs' ? (
+      <>
+        <strong className="cal-ev__time">{formatTime(b.start)}</strong> {serviceName}
+      </>
+    ) : density === 'sm' && inlineStatus ? (
+      <span className="cal-ev__inline">
+        {inlineStatus}
+        <span className="cal-ev__soft">· {serviceName}</span>
+      </span>
+    ) : (
+      `${formatTime(b.start)} ${serviceName}`
+    );
 
   const label = [
     name,
@@ -120,7 +133,7 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
       density={density}
       title={density === 'xs' ? <>{meta} · {client?.lastName ?? name}</> : name}
       meta={density === 'xs' ? undefined : meta}
-      footer={parts.length ? parts : undefined}
+      footer={parts.length && (density === 'md' || density === 'lg') ? parts : undefined}
       icon={svc?.remote ? 'video' : undefined}
       selected={selected}
       style={style}
@@ -176,7 +189,7 @@ export function SessionBlock({ session: ses, style, ppm, now, selected, onOpen, 
       density={density}
       title={`„${ses.title}“`}
       meta={`${formatTime(ses.start)} Skupinová lekce`}
-      footer={footer}
+      footer={density === 'sm' ? undefined : footer}
       icon="users"
       selected={selected}
       style={style}
@@ -211,10 +224,12 @@ export function GhostBlock({ booking: b, offer, style, ppm, now, selected, onOpe
         title={`Uvolněno · ${formatTimeRange(offer.start, offer.end)}`}
         meta={`nabídnuto ${countLabel(offer.entries.length, ['čekajícímu', 'čekajícím', 'čekajícím'])}`}
         footer={
+          density === 'sm' ? undefined : (
           <span className="cal-ev__countdown">
             <Icon name="clock" size={11} />
             zbývá {formatSpan(left)}
           </span>
+          )
         }
         selected={selected}
         style={style}
@@ -235,10 +250,12 @@ export function GhostBlock({ booking: b, offer, style, ppm, now, selected, onOpe
       title={density === 'xs' ? `${formatTime(b.start)} ${client?.lastName ?? ''}` : clientName(client)}
       meta={density === 'xs' ? undefined : `${formatTime(b.start)} ${svc?.name ?? ''}`}
       footer={
-        <>
-          <span className="cal-ev__status-text">{status}</span>
-          {feeDue && <EventChip tone="warning">poplatek</EventChip>}
-        </>
+        density === 'sm' ? undefined : (
+          <>
+            <span className="cal-ev__status-text">{status}</span>
+            {feeDue && <EventChip tone="warning">poplatek</EventChip>}
+          </>
+        )
       }
       selected={selected}
       style={style}

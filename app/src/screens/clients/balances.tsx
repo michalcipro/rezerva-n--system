@@ -1,5 +1,5 @@
 import type { Client, ClientPackage, LocalDateTime, MakeupRight } from '../../domain/types';
-import { countLabel, formatDate, formatDayShort, formatMoney, plural } from '../../engine/format';
+import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, plural } from '../../engine/format';
 import { getBooking, getPackageTemplate, getService, type PackageUsage } from '../../engine/selectors';
 import { dateOf, daysBetween } from '../../engine/time';
 import { useClinic } from '../../store/hooks';
@@ -27,7 +27,7 @@ export function packageSegments(u: PackageUsage) {
   return [
     { value: u.used, tone: 'neutral' as const, label: plural(u.used, ['využitý', 'využité', 'využitých']) },
     ...(u.forfeited > 0 ? [{ value: u.forfeited, tone: 'warning' as const, label: plural(u.forfeited, ['propadlý', 'propadlé', 'propadlých']) }] : []),
-    { value: u.reserved, tone: 'accent-hatched' as const, label: plural(u.reserved, ['rezervovaný', 'rezervované', 'rezervovaných']) },
+    ...(u.reserved > 0 ? [{ value: u.reserved, tone: 'accent-hatched' as const, label: plural(u.reserved, ['rezervovaný', 'rezervované', 'rezervovaných']) }] : []),
     { value: u.free, tone: 'accent' as const, label: plural(u.free, ['volný', 'volné', 'volných']) },
   ];
 }
@@ -56,6 +56,8 @@ export function PackageBlock({
   const active = state === 'active';
   const days = daysBetween(today, u.validUntil);
   const ending = active && days <= 14;
+  // Prošlou permanentku s nevyčerpanými vstupy lze ještě prodloužit (např. po nemoci).
+  const canExtend = state === 'expired' && !pkg.cancelled && u.free > 0;
   return (
     <div className={cx('cli-pkg', !active && 'cli-pkg--inactive')}>
       <div className="cli-pkg__head">
@@ -89,21 +91,21 @@ export function PackageBlock({
         )}
         {pkg.extendedDays > 0 && ` · prodlouženo o ${countLabel(pkg.extendedDays, ['den', 'dny', 'dní'])}`}
       </p>
-      {(pkg.excusesAllowed > 0 || (active && (onExtend || onCancel))) && (
+      {(pkg.excusesAllowed > 0 || ((active || canExtend) && (onExtend || onCancel))) && (
         <div className="cli-pkg__meta">
           {pkg.excusesAllowed > 0 && (
             <span className="cli-pkg__excuses tnum">
               Omluvenky {u.excusesUsed} {zeZ(pkg.excusesAllowed)} {pkg.excusesAllowed}
             </span>
           )}
-          {active && (onExtend || onCancel) && (
+          {(active || canExtend) && (onExtend || onCancel) && (
             <span className="cli-pkg__actions">
               {onExtend && (
                 <Button size="sm" variant="ghost" icon="calendarPlus" onClick={() => onExtend(pkg)}>
                   Prodloužit
                 </Button>
               )}
-              {onCancel && (
+              {onCancel && active && (
                 <Button size="sm" variant="ghost" icon="xCircle" onClick={() => onCancel(pkg)}>
                   Zrušit
                 </Button>
@@ -165,7 +167,14 @@ export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { c
   const last = ledgerOfClient(clinic, client.id).slice(0, 5);
   return (
     <Card as="article" className="cli-balance" aria-label="Kredit">
-      <Eyebrow as="h3">Kredit (peněženka)</Eyebrow>
+      <div className="cli-balance__head">
+        <Eyebrow as="h3">Kredit (peněženka)</Eyebrow>
+        {last.length > 0 && (
+          <button type="button" className="link cli-balance__all" onClick={onShowAll}>
+            Pohyby
+          </button>
+        )}
+      </div>
       <span className="cli-big__num tnum">{formatMoney(credit)}</span>
       {last.length > 0 ? (
         <ul className="cli-ledger-mini">
@@ -183,16 +192,11 @@ export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { c
       )}
       <div className="cli-balance__actions">
         <Button size="sm" icon="plus" onClick={onTopUp}>
-          Dobít kredit
+          Dobít
         </Button>
         <Button size="sm" variant="ghost" onClick={onAdjust}>
           Upravit
         </Button>
-        {last.length > 0 && (
-          <button type="button" className="link cli-balance__all" onClick={onShowAll}>
-            Všechny pohyby
-          </button>
-        )}
       </div>
     </Card>
   );
@@ -311,7 +315,7 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
                 <span>{item.kind === 'fee' ? (item.booking.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek') : 'Neuhrazený termín'}</span>
                 <span className="cli-debt__sub tnum">
                   {svc?.name ?? 'Termín'} · {formatDayShort(item.booking.start)}
-                  {item.kind === 'fee' && item.booking.fee ? ` · ${item.booking.fee.pct} % z ceny` : ''}
+                  {item.kind === 'fee' && item.booking.fee ? ` · ${formatPercent(item.booking.fee.pct)} z ceny` : ''}
                 </span>
               </span>
               <strong className="cli-debt__amount tnum">{formatMoney(item.amount)}</strong>

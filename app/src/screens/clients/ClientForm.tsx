@@ -279,8 +279,7 @@ export function EditClientDialog({ client, open, onClose }: { client: Client; op
       setDraft(draftOf(client));
       setTried(false);
     }
-    // Při otevření převezmi aktuální údaje.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Při otevření převezmi aktuální údaje (záměrně jen při otevření).
   }, [open]);
 
   const errors = validate(draft, today);
@@ -348,7 +347,6 @@ export function TagsDialog({ client, open, onClose }: { client: Client; open: bo
 
   useEffect(() => {
     if (open) setTags(client.tags);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const save = (): void => {

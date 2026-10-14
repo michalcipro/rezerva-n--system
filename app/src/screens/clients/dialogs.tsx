@@ -13,7 +13,7 @@ import {
   updateClient,
   waiveFee,
 } from '../../engine/commands';
-import { countLabel, formatDate, formatMoney, formatNumber, formatSignedMoney } from '../../engine/format';
+import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '../../engine/format';
 import { clientCredit, getService, packageUsage } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -439,7 +439,7 @@ export function TopUpCreditDialog({ client, open, onClose }: { client: Client; o
         />
         {nextRule && (
           <p className="cli-hint">
-            Při dobití od {formatMoney(nextRule.minTopup)} získá klient bonus {nextRule.pct} %.
+            Při dobití od {formatMoney(nextRule.minTopup)} získá klient bonus {formatPercent(nextRule.pct)}.
           </p>
         )}
       </form>
