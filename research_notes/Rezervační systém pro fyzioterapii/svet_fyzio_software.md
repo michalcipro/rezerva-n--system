@@ -40,7 +40,8 @@ The rest of the field splits into:
 - Pricing (third-party; mid-tiers disagree): from $45/month for a single practitioner to $395/month for up to 200 practitioners, with the full feature set at every tier — [Pabau (competitor)](https://pabau.com/blog/cliniko-pricing/)
   - CostBench (Aug 2026) tiers: 1 practitioner $45; 2–5 $95; 6–8 $145; 9–12 $195; 13–25 $295; 26–200 $395 — [CostBench](https://costbench.com/software/scheduling/cliniko/)
   - SchedulingKit (Mar 2026) gives a conflicting structure: $49 solo, $99 for 2–5, $149 for 6–10, $249–$349 for 11–30+ — [SchedulingKit](https://www.schedulingkit.com/pricing-guides/cliniko-pricing)
-  - Same third-party guides: SMS reminders are charged at 10¢ each and emails are free; Stripe payment processing is billed separately; there is a 30-day free trial with no card required — [Pabau](https://pabau.com/blog/cliniko-pricing/); [CostBench](https://costbench.com/software/scheduling/cliniko/)
+  - SMS reminders are charged at 10¢ each and emails are free; Stripe payment processing is billed separately (which of these two guides gives this figure was not individually verified) — [Pabau](https://pabau.com/blog/cliniko-pricing/); [CostBench](https://costbench.com/software/scheduling/cliniko/)
+  - Pabau reports a 30-day free trial with no card required and full feature access — [Pabau](https://pabau.com/blog/cliniko-pricing/)
 - Data residency by account-creation country — [Cliniko Security](https://cliniko.com/security):
   - Australian accounts are stored in Australia.
   - UK accounts "stay in the UK".
@@ -70,11 +71,12 @@ The rest of the field splits into:
 
 **splose (Australia/New Zealand)**
 - Runs physiotherapist solution pages for AU and NZ — [splose physio](https://splose.com/solutions/physiotherapists); [splose NZ physio](https://splose.com/nz/solutions/physiotherapists)
-- Free trial with no up-front payment. A Capterra reviewer finds SMS "a little expensive". No plan prices were found — [Capterra UK](https://www.capterra.co.uk/software/1023072/splose)
+- Free trial with no up-front payment, cancellable at any time — [splose: online bookings glow-up](https://splose.com/resources/the-handover/online-bookings-just-had-a-major-glow-up)
+- A Capterra reviewer finds SMS "a little expensive". No plan prices were found — [Capterra UK](https://www.capterra.co.uk/software/1023072/splose)
 
 **Halaxy (Australia)**
 - Pricing model (accounts conflict):
-  - Free for solo practitioners, with transaction fees instead of a subscription — [Pabau (competitor)](https://pabau.com/blog/halaxy-vs-power-diary/)
+  - Free for solo practitioners, with transaction fees instead of a subscription. Attribution to Pabau is inferred from the search extract — [Pabau (competitor)](https://pabau.com/blog/halaxy-vs-power-diary/)
   - "Free + per claim pricing model" — [Whautomate (competitor)](https://whautomate.com/compare/whautomate-vs-halaxy)
   - Free plan for basic features plus a Pro plan at $12/user/month, rated 4.6/5 from 236 Capterra reviews — [Carepatron (competitor)](https://carepatron.com/blog/best-halaxy-alternatives-features-and-pricing)
   - Pabau says Halaxy has no verifiable Capterra/G2 rating — [Pabau](https://pabau.com/blog/halaxy-vs-power-diary/)
@@ -97,7 +99,7 @@ The rest of the field splits into:
   - Marketed as a replacement for legacy systems such as TM3; integrations with Microsoft Word, Stripe and Xero — [Semble MSK](https://www.semble.io/msk)
   - Capterra: 4.5/5 from 21 reviews (features 4.1/5). It is listed as "Flat Rate (Free Trial)", which conflicts with Pabau's "from ~£119 per user" — [Capterra UK](https://www.capterra.co.uk/software/181314/semble); [Pabau](https://pabau.com/blog/semble-pricing/)
   - Pabau (competitor) claims online booking, automated reminders and payments (Semble Pay) require higher-tier plans — [Pabau](https://pabau.com/blog/semble-pricing/)
-- TM3 (Blue Zinc), all promotional partner pages — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html); [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html):
+- TM3 (Blue Zinc), from promotional partner pages and a directory; which page carries each item was not individually verified — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html); [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html); [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3):
   - Released 2016, with a Physio First partnership giving members 10% off.
   - Tools include "Pronto, Online Bookings, 24/7 Reception"; TM3pay for online, in-person and phone payments.
   - Multi-site management from one login; reporting dashboards; waitlist management.
@@ -112,7 +114,7 @@ The rest of the field splits into:
 - Prompt Health: pricing on request — [Software Advice AU](https://www.softwareadvice.com.au/software/316328/prompt)
 
 **EU patient marketplaces + practice software: Doctolib, Docplanner/Doctoralia**
-- Doctolib France, kinésithérapeutes (French comparison sites; the exact source for each figure among these was not individually verified) — [Appines – Doctolib for kinés](https://appines.fr/guide/emploi/kinesitherapeutes/doctolib); [LonaSanté – Doctolib Pro prix 2026](https://www.lonasante.com/?p=11708); [Tool-Advisor – logiciels kiné 2026](https://tool-advisor.fr/metier/masseur-kinesitherapeute/):
+- Doctolib France, kinésithérapeutes (French comparison sites; which of these sites gives each figure was not individually verified) — [Appines – Doctolib for kinés](https://appines.fr/guide/emploi/kinesitherapeutes/doctolib); [LonaSanté – Doctolib Pro prix 2026](https://www.lonasante.com/?p=11708); [Tool-Advisor – logiciels kiné 2026](https://tool-advisor.fr/metier/masseur-kinesitherapeute/):
   - About €69 incl. VAT/month for billing and télétransmission only.
   - About €99/month for an all-in-one without marketplace visibility (agenda, private online booking, billing).
   - €139–189/month per practitioner with marketplace visibility (€139 without billing, €189 with billing).
