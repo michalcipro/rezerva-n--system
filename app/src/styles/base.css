@@ -1,0 +1,415 @@
+/*
+ * Base layer — reset, typography scale, focus, scrollbars, utilities.
+ * Only token references here; literal colours live in tokens.css.
+ */
+
+/* ---------- Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-regular);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, pre {
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-size: inherit;
+  font-weight: var(--weight-semibold);
+}
+
+:where(ul, ol)[class] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+img, video, canvas {
+  display: block;
+  max-width: 100%;
+}
+
+button, input, select, textarea {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+hr {
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--border);
+}
+
+a {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--accent-strong);
+}
+
+strong, b {
+  font-weight: var(--weight-semibold);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+/* ---------- Focus ---------- */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------- Scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* ---------- Typography scale ---------- */
+.eyebrow {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.title-xl {
+  font-size: var(--text-5xl);
+  line-height: var(--leading-5xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tighter);
+}
+
+.title-lg {
+  font-size: var(--text-3xl);
+  line-height: var(--leading-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.title-md {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-semibold);
+}
+
+.title-sm {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.text-body {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.text-small {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.text-note {
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+}
+
+.text-caption {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.text-micro {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.fw-medium { font-weight: var(--weight-medium); }
+.fw-semibold { font-weight: var(--weight-semibold); }
+
+/* ---------- Text colour utilities ---------- */
+.muted { color: var(--text-muted); }
+.secondary { color: var(--text-secondary); }
+.text-accent { color: var(--accent-fg); }
+.text-success { color: var(--success-fg); }
+.text-warning { color: var(--warning-fg); }
+.text-danger { color: var(--danger-fg); }
+.text-info { color: var(--info-fg); }
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.nowrap { white-space: nowrap; }
+
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ---------- Layout utilities ---------- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-3));
+  min-width: 0;
+}
+
+.stack-xs { --stack-gap: var(--space-1); }
+.stack-sm { --stack-gap: var(--space-2); }
+.stack-md { --stack-gap: var(--space-3); }
+.stack-lg { --stack-gap: var(--space-4); }
+.stack-xl { --stack-gap: var(--space-6); }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--row-gap, var(--space-2));
+  min-width: 0;
+}
+
+.row-xs { --row-gap: var(--space-1); }
+.row-sm { --row-gap: var(--space-1-5); }
+.row-md { --row-gap: var(--space-3); }
+.row-lg { --row-gap: var(--space-4); }
+.row--nowrap { flex-wrap: nowrap; }
+.row--between { justify-content: space-between; }
+.row--end { justify-content: flex-end; }
+.row--start { align-items: flex-start; }
+.row--baseline { align-items: baseline; }
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--grid-min, 240px), 100%), 1fr));
+  gap: var(--grid-gap, var(--space-4));
+  min-width: 0;
+}
+
+/* Main column + aside that wraps underneath on narrow screens (design pattern). */
+.split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.split__main {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.split__aside {
+  flex: 1 1 300px;
+  min-width: 0;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 959px) {
+  .split__aside {
+    max-width: none;
+  }
+}
+
+/* Standard page content padding inside AppShell. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6) var(--space-8);
+}
+
+.page--flush {
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+}
+
+.divider {
+  height: 1px;
+  border: 0;
+  background: var(--border);
+}
+
+.divider-v {
+  align-self: stretch;
+  width: 1px;
+  min-height: 16px;
+  background: var(--border);
+}
+
+/* Inline statistic line, e.g. "34 rezervací · obsazenost 76 %". */
+.statline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.statline strong {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+/* Text-style action (links that are buttons, "Otevřít v kalendáři"). */
+.link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link--muted {
+  color: var(--text-secondary);
+}
+
+/* ---------- Motion preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

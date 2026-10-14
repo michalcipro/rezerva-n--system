@@ -1,0 +1,438 @@
+/*
+ * Design tokens — Pohyb, varianta 1 „Klinik“.
+ * Generated from one source: light values on :root, dark values repeated for
+ * prefers-color-scheme (unless data-theme="light") and for data-theme="dark".
+ * Components must only ever reference these custom properties.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---------- Typography ---------- */
+  --font-sans: 'Instrument Sans', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+
+  --text-2xs: 10.5px;   --leading-2xs: 13px;   /* event micro text */
+  --text-xs: 11px;      --leading-xs: 16px;    /* eyebrow labels, axis ticks */
+  --text-sm: 12px;      --leading-sm: 16px;    /* captions, meta */
+  --text-note: 12.5px;  --leading-note: 17px;  /* notes, callouts */
+  --text-md: 13px;      --leading-md: 18px;    /* controls, dense body */
+  --text-base: 14px;    --leading-base: 20px;  /* body */
+  --text-lg: 16px;      --leading-lg: 20px;    /* card / person titles */
+  --text-xl: 17px;      --leading-xl: 22px;    /* mobile + dialog titles */
+  --text-2xl: 20px;     --leading-2xl: 26px;   /* time ranges */
+  --text-3xl: 22px;     --leading-3xl: 28px;   /* page titles */
+  --text-4xl: 26px;     --leading-4xl: 32px;   /* KPI values */
+  --text-5xl: 28px;     --leading-5xl: 32px;   /* big numbers */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-eyebrow: 0.06em;
+  --tracking-tight: -0.01em;
+  --tracking-tighter: -0.02em;
+  --tracking-brand: -0.04em;
+
+  /* ---------- Spacing (4px grid, 2px half-steps) ---------- */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- Radius ---------- */
+  --radius-xs: 2px;     /* entry cells */
+  --radius-sm: 4px;     /* kbd, 15-min events */
+  --radius-md: 6px;     /* event blocks, segmented items, menu items */
+  --radius-lg: 8px;     /* buttons, inputs, nav items, callouts */
+  --radius-xl: 10px;    /* cards, option cards, menus */
+  --radius-2xl: 14px;   /* dialogs, sheets */
+  --radius-full: 999px; /* pills, avatars, switches */
+
+  /* ---------- Sizes ---------- */
+  --control-h-sm: 32px;
+  --control-h-md: 36px;
+  --control-h-lg: 44px;
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --drawer-w-sm: 340px;
+  --drawer-w-md: 420px;
+  --drawer-w-lg: 560px;
+  --dialog-w-sm: 400px;
+  --dialog-w-md: 520px;
+  --dialog-w-lg: 720px;
+
+  /* ---------- Motion ---------- */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- Layers ---------- */
+  --z-sticky: 20;
+  --z-shell: 30;
+  --z-overlay: 100;
+  --z-popover: 200;
+  --z-toast: 300;
+
+  /* ---------- Colour — light ---------- */
+  /* Neutrals */
+  --bg: #F4F6F6;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-subtle: #FBFCFC;
+  --surface-muted: #F7F9F9;
+  --surface-sunken: #F4F6F6;
+  --surface-strong: #EEF2F2;
+  --surface-hover: #F4F6F6;
+  --border: #E1E6E7;
+  --border-subtle: #EEF2F2;
+  --border-strong: #CBD3D5;
+  --border-dashed: #A9B5B9;
+  --text: #0F1C20;
+  --text-secondary: #43535A;
+  --text-muted: #5F6F75;
+  --text-faint: #8A979C;
+  --inverse-bg: #0F1C20;
+  --inverse-fg: #FFFFFF;
+  --knob: #FFFFFF;
+  --switch-off: #CBD3D5;
+
+  /* Accent (teal, hue 180) */
+  --accent: #0B6E6E;
+  --accent-strong: #095656;
+  --accent-soft: #E7F1F1;
+  --accent-subtle: #EEF5F5;
+  --accent-border: #BBD6D6;
+  --accent-fg: #0B6E6E;
+  --on-accent: #FFFFFF;
+  --focus-ring: #0B6E6E;
+  --selection: #CFE4E4;
+
+  /* Semantic: base = fills, dots, icons; -fg = text on surface or -soft */
+  --success: #1E7A4C;
+  --success-soft: #E3F1E9;
+  --success-fg: #1E7A4C;
+  --success-border: #B9DFCB;
+  --success-muted: #B9DFCB;
+  --warning: #C27803;
+  --warning-soft: #FFF4E0;
+  --warning-fg: #9A5B00;
+  --warning-border: #F0D9B0;
+  --warning-muted: #E8B765;
+  --danger: #B42318;
+  --danger-strong: #8F1C13;
+  --danger-soft: #FDECEA;
+  --danger-fg: #B42318;
+  --danger-border: #F2C4BE;
+  --danger-muted: #EBA59C;
+  --on-danger: #FFFFFF;
+  --info: #2F5DBA;
+  --info-soft: #E8EFFC;
+  --info-fg: #24479A;
+  --info-border: #C3D3F3;
+  --info-muted: #A9BFEE;
+
+  /* Category tones: bg / border / fg (text on bg) / solid (dots, legends, bars) */
+  --tone-teal-bg: #E1F2EF;
+  --tone-teal-border: #9FD3CA;
+  --tone-teal-fg: #0B5550;
+  --tone-teal-solid: #5FA89D;
+  --tone-sand-bg: #FBEBDD;
+  --tone-sand-border: #EFC39C;
+  --tone-sand-fg: #7A4316;
+  --tone-sand-solid: #D9955C;
+  --tone-blue-bg: #E3EBFB;
+  --tone-blue-border: #A9BFEE;
+  --tone-blue-fg: #24479A;
+  --tone-blue-solid: #6F8FD6;
+  --tone-violet-bg: #EEE7FA;
+  --tone-violet-border: #C7B3EE;
+  --tone-violet-fg: #563A9E;
+  --tone-violet-solid: #9C82D9;
+  --tone-slate-bg: #EEF1F2;
+  --tone-slate-border: #C9D1D4;
+  --tone-slate-fg: #3A4A50;
+  --tone-slate-solid: #8A979C;
+  --tone-rose-bg: #FBE7EC;
+  --tone-rose-border: #EFB5C3;
+  --tone-rose-fg: #8C2846;
+  --tone-rose-solid: #D2708A;
+  --tone-olive-bg: #EEF1DD;
+  --tone-olive-border: #CAD39A;
+  --tone-olive-fg: #4C5716;
+  --tone-olive-solid: #98A24C;
+
+  /* Data visualisation */
+  --chart-grid: #EEF2F2;
+  --chart-axis: #CBD3D5;
+  --chart-target: #0F1C20;
+  --chart-secondary: #7C8B90;
+  --chart-tertiary: #CBD3D5;
+
+  /* Calendar */
+  --grid-line: #DCE2E3;
+  --grid-line-minor: #D3DADC;
+  --offhours: #F4F6F6;
+  --hatch-a: #F4F6F6;
+  --hatch-b: #EAEEEF;
+
+  /* Effects */
+  --shadow-xs: 0 1px 2px rgba(15, 28, 32, 0.06);
+  --shadow-sm: 0 2px 8px -2px rgba(15, 28, 32, 0.12), 0 1px 2px rgba(15, 28, 32, 0.05);
+  --shadow-md: 0 12px 32px -8px rgba(15, 28, 32, 0.18), 0 2px 6px -1px rgba(15, 28, 32, 0.06);
+  --shadow-lg: 0 24px 56px -12px rgba(15, 28, 32, 0.24), 0 4px 12px -2px rgba(15, 28, 32, 0.08);
+  --backdrop: rgba(15, 28, 32, 0.36);
+  --scrollbar-thumb: #CBD3D5;
+  --scrollbar-thumb-hover: #A9B5B9;
+
+  /* Derived (theme-aware because they resolve against the active tokens) */
+  --heat-0: var(--surface-sunken);
+  --heat-1: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --heat-2: color-mix(in srgb, var(--accent) 31%, var(--surface));
+  --heat-3: color-mix(in srgb, var(--accent) 48%, var(--surface));
+  --heat-4: color-mix(in srgb, var(--accent) 65%, var(--surface));
+  --heat-5: color-mix(in srgb, var(--accent) 82%, var(--surface));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* Neutrals */
+    --bg: #0B1416;
+    --surface: #111D20;
+    --surface-raised: #1A2A2E;
+    --surface-subtle: #132225;
+    --surface-muted: #152427;
+    --surface-sunken: #0D181B;
+    --surface-strong: #192A2E;
+    --surface-hover: #172629;
+    --border: #25373B;
+    --border-subtle: #1C2C30;
+    --border-strong: #354A4F;
+    --border-dashed: #50676D;
+    --text: #E4ECED;
+    --text-secondary: #B3C2C5;
+    --text-muted: #8D9FA3;
+    --text-faint: #64787D;
+    --inverse-bg: #E4ECED;
+    --inverse-fg: #0B1416;
+    --knob: #E9F0F1;
+    --switch-off: #3A5055;
+
+    /* Accent (teal, hue 180) */
+    --accent: #4DB3B3;
+    --accent-strong: #6CC6C6;
+    --accent-soft: #193235;
+    --accent-subtle: #152A2C;
+    --accent-border: #285456;
+    --accent-fg: #66C4C4;
+    --on-accent: #052021;
+    --focus-ring: #66C4C4;
+    --selection: #20484A;
+
+    /* Semantic: base = fills, dots, icons; -fg = text on surface or -soft */
+    --success: #4CB884;
+    --success-soft: #16302A;
+    --success-fg: #74D3A5;
+    --success-border: #2A5545;
+    --success-muted: #2F6B52;
+    --warning: #E0A43F;
+    --warning-soft: #33281A;
+    --warning-fg: #F0C064;
+    --warning-border: #5C4520;
+    --warning-muted: #8F6A2C;
+    --danger: #CC4033;
+    --danger-strong: #B33427;
+    --danger-soft: #3A1C1A;
+    --danger-fg: #FF8A7D;
+    --danger-border: #6B2E28;
+    --danger-muted: #8A3A31;
+    --on-danger: #FFFFFF;
+    --info: #6E98E8;
+    --info-soft: #172644;
+    --info-fg: #A6C0F5;
+    --info-border: #2E4A7A;
+    --info-muted: #3A5A94;
+
+    /* Category tones: bg / border / fg (text on bg) / solid (dots, legends, bars) */
+    --tone-teal-bg: #11302C;
+    --tone-teal-border: #23564F;
+    --tone-teal-fg: #8FD5C9;
+    --tone-teal-solid: #4FA597;
+    --tone-sand-bg: #33241A;
+    --tone-sand-border: #5E4029;
+    --tone-sand-fg: #F1BE92;
+    --tone-sand-solid: #C98B57;
+    --tone-blue-bg: #162644;
+    --tone-blue-border: #2D4775;
+    --tone-blue-fg: #A8C0F2;
+    --tone-blue-solid: #6C8EDB;
+    --tone-violet-bg: #241C3C;
+    --tone-violet-border: #46386F;
+    --tone-violet-fg: #C6B3F0;
+    --tone-violet-solid: #9479D6;
+    --tone-slate-bg: #1B292D;
+    --tone-slate-border: #374A4F;
+    --tone-slate-fg: #B8C6CA;
+    --tone-slate-solid: #7F9297;
+    --tone-rose-bg: #33191F;
+    --tone-rose-border: #64303D;
+    --tone-rose-fg: #F2AEBF;
+    --tone-rose-solid: #D06C84;
+    --tone-olive-bg: #23280F;
+    --tone-olive-border: #4A5224;
+    --tone-olive-fg: #CFD78E;
+    --tone-olive-solid: #98A24E;
+
+    /* Data visualisation */
+    --chart-grid: #1C2C30;
+    --chart-axis: #354A4F;
+    --chart-target: #E4ECED;
+    --chart-secondary: #7F9297;
+    --chart-tertiary: #354A4F;
+
+    /* Calendar */
+    --grid-line: #24363A;
+    --grid-line-minor: #2B3E42;
+    --offhours: #0E191C;
+    --hatch-a: #111D20;
+    --hatch-b: #1A2B2F;
+
+    /* Effects */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.55);
+    --shadow-md: 0 16px 36px -8px rgba(0, 0, 0, 0.62);
+    --shadow-lg: 0 28px 64px -12px rgba(0, 0, 0, 0.72);
+    --backdrop: rgba(2, 8, 10, 0.64);
+    --scrollbar-thumb: #354A4F;
+    --scrollbar-thumb-hover: #50676D;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Neutrals */
+  --bg: #0B1416;
+  --surface: #111D20;
+  --surface-raised: #1A2A2E;
+  --surface-subtle: #132225;
+  --surface-muted: #152427;
+  --surface-sunken: #0D181B;
+  --surface-strong: #192A2E;
+  --surface-hover: #172629;
+  --border: #25373B;
+  --border-subtle: #1C2C30;
+  --border-strong: #354A4F;
+  --border-dashed: #50676D;
+  --text: #E4ECED;
+  --text-secondary: #B3C2C5;
+  --text-muted: #8D9FA3;
+  --text-faint: #64787D;
+  --inverse-bg: #E4ECED;
+  --inverse-fg: #0B1416;
+  --knob: #E9F0F1;
+  --switch-off: #3A5055;
+
+  /* Accent (teal, hue 180) */
+  --accent: #4DB3B3;
+  --accent-strong: #6CC6C6;
+  --accent-soft: #193235;
+  --accent-subtle: #152A2C;
+  --accent-border: #285456;
+  --accent-fg: #66C4C4;
+  --on-accent: #052021;
+  --focus-ring: #66C4C4;
+  --selection: #20484A;
+
+  /* Semantic: base = fills, dots, icons; -fg = text on surface or -soft */
+  --success: #4CB884;
+  --success-soft: #16302A;
+  --success-fg: #74D3A5;
+  --success-border: #2A5545;
+  --success-muted: #2F6B52;
+  --warning: #E0A43F;
+  --warning-soft: #33281A;
+  --warning-fg: #F0C064;
+  --warning-border: #5C4520;
+  --warning-muted: #8F6A2C;
+  --danger: #CC4033;
+  --danger-strong: #B33427;
+  --danger-soft: #3A1C1A;
+  --danger-fg: #FF8A7D;
+  --danger-border: #6B2E28;
+  --danger-muted: #8A3A31;
+  --on-danger: #FFFFFF;
+  --info: #6E98E8;
+  --info-soft: #172644;
+  --info-fg: #A6C0F5;
+  --info-border: #2E4A7A;
+  --info-muted: #3A5A94;
+
+  /* Category tones: bg / border / fg (text on bg) / solid (dots, legends, bars) */
+  --tone-teal-bg: #11302C;
+  --tone-teal-border: #23564F;
+  --tone-teal-fg: #8FD5C9;
+  --tone-teal-solid: #4FA597;
+  --tone-sand-bg: #33241A;
+  --tone-sand-border: #5E4029;
+  --tone-sand-fg: #F1BE92;
+  --tone-sand-solid: #C98B57;
+  --tone-blue-bg: #162644;
+  --tone-blue-border: #2D4775;
+  --tone-blue-fg: #A8C0F2;
+  --tone-blue-solid: #6C8EDB;
+  --tone-violet-bg: #241C3C;
+  --tone-violet-border: #46386F;
+  --tone-violet-fg: #C6B3F0;
+  --tone-violet-solid: #9479D6;
+  --tone-slate-bg: #1B292D;
+  --tone-slate-border: #374A4F;
+  --tone-slate-fg: #B8C6CA;
+  --tone-slate-solid: #7F9297;
+  --tone-rose-bg: #33191F;
+  --tone-rose-border: #64303D;
+  --tone-rose-fg: #F2AEBF;
+  --tone-rose-solid: #D06C84;
+  --tone-olive-bg: #23280F;
+  --tone-olive-border: #4A5224;
+  --tone-olive-fg: #CFD78E;
+  --tone-olive-solid: #98A24E;
+
+  /* Data visualisation */
+  --chart-grid: #1C2C30;
+  --chart-axis: #354A4F;
+  --chart-target: #E4ECED;
+  --chart-secondary: #7F9297;
+  --chart-tertiary: #354A4F;
+
+  /* Calendar */
+  --grid-line: #24363A;
+  --grid-line-minor: #2B3E42;
+  --offhours: #0E191C;
+  --hatch-a: #111D20;
+  --hatch-b: #1A2B2F;
+
+  /* Effects */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 16px 36px -8px rgba(0, 0, 0, 0.62);
+  --shadow-lg: 0 28px 64px -12px rgba(0, 0, 0, 0.72);
+  --backdrop: rgba(2, 8, 10, 0.64);
+  --scrollbar-thumb: #354A4F;
+  --scrollbar-thumb-hover: #50676D;
+}
