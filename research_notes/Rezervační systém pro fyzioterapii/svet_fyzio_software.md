@@ -118,7 +118,7 @@ The rest of the field splits into:
   - About €69 incl. VAT/month for billing and télétransmission only.
   - About €99/month for an all-in-one without marketplace visibility (agenda, private online booking, billing).
   - €139–189/month per practitioner with marketplace visibility (€139 without billing, €189 with billing).
-- One French guide considers the subscription "a significant investment" for a physio practice and "above average" in price — [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine)
+- One French guide considers the subscription "a significant investment" for a physio practice and "above average" in price. Which Appines page says this was not individually verified — [Appines – Doctolib](https://appines.fr/guide/emploi/kinesitherapeutes/doctolib); [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine)
 - Doctolib Germany:
   - "Patientenmanagement Light" costs €129/month for physiotherapists (€139 for physician practices) — [trusted.de](https://trusted.de/doctolib-pro)
   - April 2026 price table — [GIGA](https://www.giga.de/tech/was-kostet-doctolib-diese-preise-und-tarife-gibt-es-aktuell--01KPN5Y6VMKWGMSGVS4BDCZ046):
@@ -241,11 +241,11 @@ Cliniko deliberately derives slots from just four inputs: availability, default 
   - Each appointment type can be limited to selected businesses (locations) and has its own online lead time.
   - "Any patient (new or existing) can then book." The booking page collects basic details and matches them to an existing record or creates a new one. No new-vs-existing restriction was documented.
 - A third-party Cliniko add-on (BookedSolid changelog, May 2026) adds AI booking for appointment types not enabled online. It also offers an option to "disable new bookings and only allow reschedules or cancellations" — [BookedSolid changelog](https://bookedsolid.featurebase.app/changelog/cliniko-offline-bookings)
-- splose (Dec 2025) supports unlimited booking pages, e.g., separate pages per location, service or practitioner. They are configured through Design, Builder, Settings and Share tabs — [splose: online bookings glow-up](https://splose.com/resources/the-handover/online-bookings-just-had-a-major-glow-up)
+- splose (Dec 2025) supports unlimited booking pages, e.g., separate pages per location, service or practitioner. They are configured through Design, Builder, Settings and Share tabs. Existing users must update their pages to get the changes, and old pages stay live until then — [splose: online bookings glow-up](https://splose.com/resources/the-handover/online-bookings-just-had-a-major-glow-up); [splose support: set up online bookings](https://support.splose.com/en/articles/11742846-set-up-online-bookings)
 - Prompt Health's online scheduling targets existing patients booking follow-ups and "tak[es] into account their unique scheduling requirements" — [Prompt blog](https://www.prompthealth.com/blog/physical-therapy-online-scheduling)
 - WebPT's scheduler is described as a multi-location calendar with drag-and-drop rescheduling and a managed waitlist (third-party summary) — [IntuitionLabs on WebPT Scheduling](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
 - WebPT online-booking requests appear in the schedule and can be confirmed "in less than one minute", i.e., a request → confirm model — [WebPT scheduling](https://webpt.com/scheduling)
-- TM3 offers multi-site management from a single login — [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html)
+- TM3 offers multi-site management from a single login — [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html); [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3)
 
 **Group classes (relevant to small-group conditioning training)**
 - Jane — [Jane guide: class booking](https://jane.app/guide/class-booking); [Jane blog: introducing classes & group bookings](https://jane.app/blog/introducing-classes-group-bookings); [Jane guide: telehealth groups/classes](https://jane.app/guide/how-to-schedule-a-telehealth-groups-classes-appointment):
@@ -263,7 +263,7 @@ Cliniko deliberately derives slots from just four inputs: availability, default 
 - Prompt pairs online scheduling with "Plan of care compliance automation" and "Fill cancellations with waitlists" — [Prompt blog](https://www.prompthealth.com/blog/physical-therapy-online-scheduling)
 - Practice Better Starter supports a public booking page and widgets, customizable availability, packages, and booking several sessions at once — [Practice Better plans comparison](https://help.practicebetter.io/hc/en-us/articles/41860197371291-Practice-Better-Pricing-Plans-and-Features-Comparison)
 - Halaxy: recurring appointments, multi-practitioner views and client self-booking "all work smoothly" — [Pabau (competitor)](https://pabau.com/blog/halaxy-vs-power-diary/)
-- Doctolib's French kiné tooling includes creating treatment plans ("plans de traitement") and automatic session check-in ("pointage automatique des séances") — [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine); [Tool-Advisor](https://tool-advisor.fr/metier/masseur-kinesitherapeute/)
+- Doctolib's French kiné tooling includes creating treatment plans ("plans de traitement") and automatic session check-in ("pointage automatique des séances"). Which of these French sources says this was not individually verified — [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine); [Tool-Advisor](https://tool-advisor.fr/metier/masseur-kinesitherapeute/)
 
 **Waitlists**
 - Jane automatic wait-list notifications — [Jane guide: using automatic wait list notifications](https://jane.app/guide/using-automatic-wait-list-notifications); [Jane AU guide: client experience](https://janeapp.com.au/guide/wait-list-notifications-client-experience); [Jane guide: setting up wait list notifications](https://jane.app/guide/setting-up-your-wait-list-notifications); [Jane AU guide: setting up](https://janeapp.com.au/guide/setting-up-your-wait-list-notifications); [Jane guide: mobile app joining wait list](https://jane.app/guide/jane-for-clients-mobile-app-joining-the-wait-list):
@@ -278,10 +278,11 @@ Cliniko deliberately derives slots from just four inputs: availability, default 
   - Fields: patient, removal date, appointment type, preferred weekday, business, practitioners, urgency, notes.
   - Clients are added either while booking or from the calendar menu, which auto-sets the removal date to the date of their next appointment.
   - The expiry period is configurable in settings — [Cliniko help: using the wait list](https://help.cliniko.com/en/articles/1402450-using-the-wait-list); [Cliniko blog: wait list in 60 seconds](https://cliniko.com/blog/how-to/create-a-wait-list-in-60-seconds)
-- splose: patients who cannot find a suitable slot can join a waitlist from the booking page. It is enabled with a Waitlist toggle in Settings, supports tags and confirmation emails, and physio practices get a map view of where waitlisted patients live — [splose online bookings](https://splose.com/features/practice-management/online-bookings); [splose physio](https://splose.com/solutions/physiotherapists)
+- splose: patients who cannot find a suitable slot can join a waitlist from the booking page. It is enabled with a Waitlist toggle in Settings and supports tags and confirmation emails — [splose support: set up online bookings](https://support.splose.com/en/articles/11742846-set-up-online-bookings); [splose online bookings](https://splose.com/features/practice-management/online-bookings)
+- Physio practices on splose get a map view of where waitlisted patients are located — [splose physio](https://splose.com/solutions/physiotherapists)
 - Waitlists are also listed by:
   - Pabau — [Pabau physio blog](https://pabau.com/blog/physiotherapy-clinic-management-software/)
-  - TM3 — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html)
+  - TM3 — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html); [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3)
   - WebPT, per a third-party summary — [IntuitionLabs](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
   - Prompt Plus ("waitlist fills") — [Prompt Plus](https://www.prompthealth.com/products/plus)
   - Doctolib DE, where patients of high-demand therapists can join waitlists for freed slots (German comparison sources; exact attribution not individually verified) — [trusted.de](https://trusted.de/doctolib-pro); [GetApp DE](https://www.getapp.de/software/117267/doctolib)
@@ -407,12 +408,12 @@ Clinical depth varies widely. Physio-first platforms (Nookal, Zanda, TM3, Corepl
 - Zanda: configurable note templates, "BizzyAI assist for note taking", telehealth — [Capterra](https://www.capterra.com/p/180530/Power-Diary/). Telehealth Pro add-on $9/month per practitioner — [Pabau](https://pabau.com/blog/zanda-pricing/)
 - Nookal reviewers single out custom letters and outcome measures ("elite") — [Capterra CA reviews](https://www.capterra.ca/reviews/190479/nookal)
 - Coreplus: telehealth, letter writer, secure messaging, client records, Medicare/DVA claiming — [Capterra](https://www.capterra.com/p/111553/coreplus/)
-- TM3: customisable clinical note templates for going paperless — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html). A directory also cites a secure patient portal — [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3)
+- TM3: customisable clinical note templates for going paperless — [Physio First – TM3](https://www.physiofirst.org.uk/resources/commercial/tm3.html); [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3). The directory also cites a secure patient portal — [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3)
 - Semble: patient records, telehealth, bookings and billing for MSK clinics — [Semble MSK](https://www.semble.io/msk)
 - Pabau: a library of about 1,400 post-care exercise videos and insurance billing (vendor-written) — [Pabau US physio page](https://pabau.com/industry/lp/physiotherapy-software-us/); [Pabau physio blog](https://pabau.com/blog/physiotherapy-clinic-management-software/)
 - Physitrack / PhysiApp:
   - PhysiApp gives patients exercises, progress tracking, discomfort reporting and messaging. Clinicians can upload custom exercises, design templates and get alerts on patient discomfort.
-  - The library size is cited inconsistently as 15,000+ or 18,000+ exercise videos — [Capterra AU](https://www.capterra.com.au/software/1095092/Physitrack); [GetApp](https://www.getapp.com/all-software/a/physitrack/)
+  - The library size is cited inconsistently as 15,000+ or 18,000+ exercise videos. Which listing gives which figure was not individually verified — [Capterra AU](https://www.capterra.com.au/software/1095092/Physitrack); [GetApp](https://www.getapp.com/all-software/a/physitrack/); [Physitrack × Jane blog](https://www.physitrack.com/insights/physitrack-jane-app-integration)
   - Each licence includes 60 minutes of free telehealth, after which "Telehealth Pro" is required. Telehealth is one client at a time — [Physitrack Telehealth en-GB](https://www.physitrack.com/en-gb/telehealth)
   - Cliniko integration imports client contact details from Cliniko into Physitrack, with a partner discount. Write-back of programs to Cliniko was not confirmed — [Physitrack × Cliniko](https://www.physitrack.com/partners/cliniko)
   - Jane integration (vendor blog): Jane handles scheduling, records and billing; Physitrack handles exercise prescription, video demonstrations and adherence tracking — [Physitrack × Jane](https://www.physitrack.com/insights/physitrack-jane-app-integration)
@@ -421,8 +422,8 @@ Clinical depth varies widely. Physio-first platforms (Nookal, Zanda, TM3, Corepl
   - Prompt Plus: "Keep care plans on track with reminders, waitlist fills, and automated follow-ups" — [Prompt Plus](https://www.prompthealth.com/products/plus)
 - WebPT: online scheduling requests flow into the WebPT EMR — [WebPT Online Scheduling](https://webpt.com/products/online-scheduling). Telehealth booking runs through WebPT Virtual Visits (third-party summary) — [IntuitionLabs](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
 - Doctolib:
-  - France (kiné): physiotherapy assessments ("bilans kinésithérapiques"), treatment plans, automatic session check-in, secure messaging between professionals, mobile billing with a Bluetooth card reader, télétransmission — [Tool-Advisor](https://tool-advisor.fr/metier/masseur-kinesitherapeute/); [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine)
-  - Germany: the base scope includes patient intake ("Patientenaufnahme"), reminders, video consultation and an online profile. A digital patient record arrives only in the €299 tier (German comparison sources; attribution not individually verified) — [GIGA](https://www.giga.de/tech/was-kostet-doctolib-diese-preise-und-tarife-gibt-es-aktuell--01KPN5Y6VMKWGMSGVS4BDCZ046); [KI-Syndikat](https://www.ki-syndikat.de/tools/doctolib/)
+  - France (kiné): physiotherapy assessments ("bilans kinésithérapiques"), treatment plans, automatic session check-in, secure messaging between professionals, mobile billing with a Bluetooth card reader, télétransmission. Which French source gives each item was not individually verified — [Tool-Advisor](https://tool-advisor.fr/metier/masseur-kinesitherapeute/); [Appines – logiciel kiné](https://appines.fr/guide/emploi/kinesitherapeutes/liberal/logiciel-kine)
+  - Germany: the base scope includes patient intake ("Patientenaufnahme"), reminders, video consultation and an online profile. A digital patient record (plus EBM/GOÄ billing) is included from the €299 "Behandlungs- & Abrechnungsmanagement" tier upward (German comparison sources; attribution not individually verified) — [GIGA](https://www.giga.de/tech/was-kostet-doctolib-diese-preise-und-tarife-gibt-es-aktuell--01KPN5Y6VMKWGMSGVS4BDCZ046); [KI-Syndikat](https://www.ki-syndikat.de/tools/doctolib/)
 - Practice Better: programs and online courses are excluded from the Starter tier — [Practice Better plan comparison](https://help.practicebetter.io/hc/en-us/articles/41860197371291-Practice-Better-Pricing-Plans-and-Features-Comparison)
 
 ### Inferences
@@ -466,14 +467,14 @@ Step-by-step flow details and calendar-sync behaviour for Jane and Cliniko could
   - The booking page collects basic details and matches the patient to an existing record or creates a new one, so new and existing patients use one flow — [Cliniko help: overview of online bookings](https://help.cliniko.com/en/articles/1023955-a-quick-overview-of-online-bookings)
   - Cancellation links can be embedded in confirmation and reminder templates, email or SMS — [Cliniko help: let patients cancel](https://help.cliniko.com/en/articles/1023945-let-patients-cancel-their-appointments)
   - SMS reminders cost 10¢ each and emails are free (third-party pricing guides) — [Pabau](https://pabau.com/blog/cliniko-pricing/); [CostBench](https://costbench.com/software/scheduling/cliniko/)
-- splose (Dec 2025): the booking flow was rebuilt with "fewer steps and a better mobile experience", with unlimited branded booking pages (Design/Builder/Settings/Share) — [splose: online bookings glow-up](https://splose.com/resources/the-handover/online-bookings-just-had-a-major-glow-up)
+- splose (Dec 2025): the booking flow was rebuilt with "fewer steps and a better mobile experience", with unlimited branded booking pages (Design/Builder/Settings/Share) — [splose: online bookings glow-up](https://splose.com/resources/the-handover/online-bookings-just-had-a-major-glow-up); [splose support: set up online bookings](https://support.splose.com/en/articles/11742846-set-up-online-bookings)
 - Zanda: the client portal offers 24/7 self-booking and can be embedded in and branded to the clinic's website — [Medesk review](https://www.medesk.net/en/blog/zanda-review)
 - Doctoralia: a website booking widget, 24/7 real availability, and automatic email/SMS reminders — [SoftwareDoIt](https://www.softwaredoit.es/doctoralia/doctoralia.html)
 - WebPT: patient self-scheduling with real-time availability — [WebPT](https://webpt.com/products/online-scheduling). A third party describes reminders by text, email and phone, and claims no-shows drop by up to 30% — [IntuitionLabs](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
 - Prompt: a customer quote says patients could "book multiple visits at the same time" — [Prompt customer story](https://www.prompthealth.com/customers/achieve-physical-therapy)
 - Halaxy: practitioners get searchable directory profiles that can be embedded on their website — [Reckon marketplace](https://www.reckon.com/marketplace/?p=1041). Pabau describes its UI as an "older design generation" — [Pabau](https://pabau.com/blog/halaxy-vs-power-diary/)
 - Nookal's reviewed weakness: inbound SMS replies are not recognised to change appointment status, i.e., no two-way confirm by SMS — [Capterra CA reviews](https://www.capterra.ca/reviews/190479/nookal)
-- Doctolib DE claims an average 40% no-show reduction (vendor claim) — [trusted.de](https://trusted.de/doctolib-pro)
+- Doctolib DE claims an average 40% no-show reduction (vendor claim relayed by German comparison sources; attribution among them not individually verified) — [trusted.de](https://trusted.de/doctolib-pro); [GetApp DE](https://www.getapp.de/software/117267/doctolib)
 - Doctolib's appointment display was found partly misleading by the Berlin Regional Court, a caution for availability-display design — [t3n](https://t3n.de/news/?p=1376385)
 
 ### Inferences
@@ -507,10 +508,10 @@ Evidence on report catalogues was not retrievable before the search budget ran o
 ### Cited Findings
 - Prompt: case-study KPIs are "providers have consistently been operating well above 85% capacity utilization" and "over 40% of their visits" booked online — [Prompt customer story](https://www.prompthealth.com/customers/achieve-physical-therapy). It automates plan-of-care compliance — [Prompt blog](https://www.prompthealth.com/blog/physical-therapy-online-scheduling)
 - WebPT Reach is positioned to "convert prospects into new patients, keep current patients engaged, and reactivate patients who've abandoned treatment", i.e., drop-out and retention tracking — [WebPT patient acquisition & retention](https://WEBPT.COM/patient-acquisition-retention)
-- TM3: reporting dashboards with multi-site management — [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html)
+- TM3: reporting dashboards with multi-site management — [Physio First – Blue Zinc](https://www.physiofirst.org.uk/benefits/software-to-support-and-streamline-your-business/blue-zinc.html); [SaaSBrowser](https://saasbrowser.com/uk/saas/105538/tm3)
 - Coreplus: reports module — [Capterra](https://www.capterra.com/p/111553/coreplus/)
 - Halaxy: financial reporting — [Xero App Store AU](https://apps.xero.com/au/function/payments/app/halaxy)
-- No-show reduction claims: Doctolib about 40% on average (vendor) — [trusted.de](https://trusted.de/doctolib-pro); WebPT reminders "up to 30%" (third-party summary) — [IntuitionLabs](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
+- No-show reduction claims: Doctolib about 40% on average (vendor claim; attribution among German sources not individually verified) — [trusted.de](https://trusted.de/doctolib-pro); [GetApp DE](https://www.getapp.de/software/117267/doctolib); WebPT reminders "up to 30%" (third-party summary) — [IntuitionLabs](https://intuitionlabs.ai/software/physical-occupational-therapy/therapy-scheduling-and-patient-flow/webpt-scheduling)
 - Nookal outcome measures, a clinical KPI source, are praised by reviewers — [Capterra CA reviews](https://www.capterra.ca/reviews/190479/nookal)
 
 ### Inferences
@@ -540,7 +541,7 @@ Only US platforms had verifiable patient-engagement/marketing modules in the ret
 - Transactional messaging in the leaders:
   - Jane waitlist e-mails with booking links — [Jane AU guide](https://janeapp.com.au/guide/wait-list-notifications-client-experience)
   - Cliniko confirmations/reminders with a cancellation link (SMS 10¢, email free) — [Cliniko help](https://help.cliniko.com/en/articles/1023945-let-patients-cancel-their-appointments); [Pabau](https://pabau.com/blog/cliniko-pricing/)
-  - splose waitlist confirmation e-mails — [splose online bookings](https://splose.com/features/practice-management/online-bookings)
+  - splose waitlist confirmation e-mails — [splose support: set up online bookings](https://support.splose.com/en/articles/11742846-set-up-online-bookings)
   - Zanda automated SMS and e-mail reminders — [Capterra](https://www.capterra.com/p/180530/Power-Diary/)
 - Competitor claim: Halaxy lacks WhatsApp/social messaging channels and has "limited patient engagement beyond appointment reminders" — [Whautomate](https://whautomate.com/compare/whautomate-vs-halaxy)
 - Doctolib DE's free tier includes the "Doctolib Connect" messenger (German comparison sources; attribution not individually verified) — [trusted.de](https://trusted.de/doctolib-pro); [KI-Syndikat](https://www.ki-syndikat.de/tools/doctolib/)
