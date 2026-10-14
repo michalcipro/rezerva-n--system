@@ -396,7 +396,9 @@ export function ColumnChart({ data, series, label, pointsLabel, totalText, heigh
                 />
               ) : null,
             )}
-            {active && <rect className="st-hover" x={M.left + band * active.index} y={M.top - 6} width={band} height={plotH + 6} rx={4} />}
+            {active && active.index < n && (
+              <rect className="st-hover" x={M.left + band * active.index} y={M.top - 6} width={band} height={plotH + 6} rx={4} />
+            )}
             {scale.ticks.map((t) =>
               t === 0 ? null : (
                 <line key={'g' + t} className="st-gridline" x1={M.left} x2={width - M.right} y1={crisp(yOf(t))} y2={crisp(yOf(t))} />
@@ -547,10 +549,10 @@ export function BarList({
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const roving = useRoving(rows.length, {
     anchor: (i, el) => {
-      const track = el.querySelector<HTMLElement>('.st-bars__track');
-      if (!track) return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop };
-      const frac = max > 0 ? clamp(rows[i].value / max, 0, 1) : 0;
-      return { x: track.offsetLeft + track.offsetWidth * frac, y: track.offsetTop - 2 };
+      const trackEl = el.querySelector<HTMLElement>('.st-bars__track');
+      if (!trackEl) return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop };
+      const share = max > 0 && rows[i] ? clamp(rows[i].value / max, 0, 1) : 0;
+      return { x: trackEl.offsetLeft + trackEl.offsetWidth * share, y: trackEl.offsetTop - 2 };
     },
   });
   const active = roving.active;
@@ -671,8 +673,8 @@ export function Heatmap({ cells, label }: { cells: HeatCell[]; label: string }):
           rows={cell.available > 0 ? [{ key: 'p', value: `${formatNumber(Math.round(cell.pct * 100))} %`, label: 'obsazeno' }] : undefined}
           note={
             cell.available > 0
-              ? `${formatDuration(Math.round(cell.booked))} z ${formatDuration(Math.round(cell.available))} pracovní doby`
-              : 'Zavřeno – nikdo z týmu nepracuje'
+              ? `${formatDuration(Math.round(cell.booked))} z ${formatDuration(Math.round(cell.available))} pracovní doby (součet za období)`
+              : 'Mimo pracovní dobu'
           }
         />
       )}
