@@ -37,6 +37,9 @@ let adapter: PersistenceAdapter | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saving: Promise<void> | null = null;
 let pendingSave = false;
+/** Lokální změny, které ještě nejsou uložené (cizí změny se pak aplikují až po uložení). */
+let localDirty = false;
+let remoteWaiting = false;
 
 function set(patch: Partial<StoreState>): void {
   state = { ...state, ...patch };
@@ -71,7 +74,10 @@ async function flush(): Promise<void> {
   set({ sync: 'saving' });
   saving = adapter
     .save(snapshot)
-    .then(() => set({ sync: 'saved', error: null }))
+    .then(() => {
+      if (state.clinic === snapshot) localDirty = false;
+      set({ sync: 'saved', error: null });
+    })
     .catch((e: unknown) => {
       const code = (e as { code?: string })?.code;
       const msg =
@@ -87,6 +93,9 @@ async function flush(): Promise<void> {
       if (pendingSave) {
         pendingSave = false;
         void flush();
+      } else if (!localDirty && remoteWaiting && adapter?.refresh) {
+        remoteWaiting = false;
+        void adapter.refresh().catch(() => undefined);
       }
     });
   await saving;
@@ -110,6 +119,11 @@ export async function saveNow(): Promise<void> {
 
 function applyRemote(change: RemoteChange): void {
   if (!state.clinic) return;
+  if (localDirty || saving || saveTimer) {
+    // nejdřív uložit vlastní změny, potom se dorovnat se serverem
+    remoteWaiting = true;
+    return;
+  }
   const next = produce(state.clinic, (d) => {
     if (change.kind === 'meta') {
       Object.assign(d, JSON.parse(JSON.stringify(change.meta)));
@@ -160,6 +174,7 @@ export async function loadDemoData(): Promise<void> {
   try {
     const clinic = generateDemoState(nowLocal());
     clearSelectorCaches();
+    localDirty = true;
     set({ clinic, status: 'ready' });
     set({ busy: 'Ukládám data…' });
     await saveNow();
@@ -173,6 +188,7 @@ export async function startEmpty(): Promise<void> {
   set({ busy: 'Připravuji prázdnou kliniku…' });
   try {
     const clinic = createBaseState(dateOf(nowLocal()));
+    localDirty = true;
     set({ clinic, status: 'ready' });
     await saveNow();
   } finally {
@@ -219,6 +235,7 @@ export function dispatch<I, R>(cmd: Command<I, R>, input: I, opts: DispatchOptio
   }
   if (!result.ok) return result;
   if (next !== clinic) {
+    localDirty = true;
     set({ clinic: next });
     scheduleSave();
   }

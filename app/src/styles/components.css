@@ -2215,8 +2215,8 @@ button.event:hover { box-shadow: var(--shadow-sm); z-index: 3; }
 .shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  /* výška z html/body/#root (respektuje bezpečné okraje telefonu v artefaktu) */
+  height: 100%;
   overflow: hidden;
   background: var(--bg);
 }

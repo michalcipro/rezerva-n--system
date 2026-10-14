@@ -21,6 +21,8 @@ export interface PersistenceAdapter {
   clear(): Promise<void>;
   /** Odběr změn od ostatních (jen sdílené úložiště). */
   subscribe?(onChange: (change: RemoteChange) => void): () => void;
+  /** Načte aktuální stav ze serveru a nahlásí rozdíly odběrateli. */
+  refresh?(): Promise<void>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -211,12 +213,63 @@ async function inBatches<T>(items: T[], size: number, fn: (x: T) => Promise<void
 }
 
 export function createArtifactAdapter(db: Db): PersistenceAdapter {
-  /** Poslední uložený / přijatý obsah dokumentů (cesta → JSON). */
+  /** Obsah dokumentů tak, jak ho naposledy známe ze serveru (cesta → JSON). */
   const known = new Map<string, string>();
   let lastSavedRefs: Partial<Record<string, unknown>> = {};
+  /** Probíhá vlastní zápis – snímky změn mezitím ignorujeme a po zápisu se dorovnáme. */
+  let busy = 0;
+  let deferred = false;
+  let listener: ((change: RemoteChange) => void) | null = null;
 
   const collectionDocs = (state: ClinicState, c: CollectionName): Map<string, unknown[]> =>
     chunkCollection(c, (state as unknown as Record<string, unknown[]>)[c]);
+
+  /** Porovná dokumenty kolekce se známým stavem; při rozdílu vrátí změnu. */
+  const processCollection = (c: CollectionName, docs: DbDocSnap[]): RemoteChange | null => {
+    let changed = false;
+    const present = new Set<string>();
+    const items: unknown[] = [];
+    for (const doc of docs) {
+      const path = `${c}/${doc.id}`;
+      present.add(path);
+      const json = JSON.stringify((doc.data()?.items as unknown[]) ?? []);
+      if (known.get(path) !== json) {
+        changed = true;
+        known.set(path, json);
+      }
+      items.push(...(JSON.parse(json) as unknown[]));
+    }
+    for (const path of [...known.keys()]) {
+      if (path.startsWith(c + '/') && !present.has(path)) {
+        known.delete(path);
+        changed = true;
+      }
+    }
+    if (!changed) return null;
+    lastSavedRefs[c] = undefined;
+    return { kind: 'collection', collection: c, items };
+  };
+
+  const processMeta = (doc: DbDocSnap | undefined): RemoteChange | null => {
+    const meta = doc?.data()?.data as Record<string, unknown> | undefined;
+    if (!meta) return null;
+    const json = JSON.stringify(meta);
+    if (known.get('clinic/meta') === json) return null;
+    known.set('clinic/meta', json);
+    return { kind: 'meta', meta: JSON.parse(json) as Partial<ClinicState> };
+  };
+
+  const refresh = async (): Promise<void> => {
+    if (!listener) return;
+    const metaSnap = await withRetry(() => db.doc('clinic/meta').get());
+    const metaChange = processMeta(metaSnap.exists ? metaSnap : undefined);
+    if (metaChange) listener(metaChange);
+    for (const c of COLLECTIONS) {
+      const snap = await withRetry(() => db.collection(c).get());
+      const change = processCollection(c, snap.docs);
+      if (change) listener(change);
+    }
+  };
 
   return {
     kind: 'artifact',
@@ -234,8 +287,7 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
           const snap = await withRetry(() => db.collection(c).get());
           const items: unknown[] = [];
           for (const doc of snap.docs) {
-            const body = doc.data();
-            const json = JSON.stringify((body?.items as unknown[]) ?? []);
+            const json = JSON.stringify((doc.data()?.items as unknown[]) ?? []);
             known.set(`${c}/${doc.id}`, json);
             // data ze snapshotu jsou zmrazená – pracujeme s kopií
             items.push(...(JSON.parse(json) as unknown[]));
@@ -243,96 +295,102 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
           collections[c] = items;
         }),
       );
-      const state = assembleState(meta, collections);
-      if (state) {
-        lastSavedRefs = {};
-        for (const c of COLLECTIONS) lastSavedRefs[c] = undefined; // vynutí kontrolu při prvním uložení
-      }
-      return state;
+      lastSavedRefs = {};
+      return assembleState(meta, collections);
     },
     async save(state) {
-      const writes: { path: string; body: Record<string, unknown> | null; json: string | null }[] = [];
-      const meta = metaOf(state);
-      const metaJson = JSON.stringify(meta);
-      if (known.get('clinic/meta') !== metaJson) writes.push({ path: 'clinic/meta', body: { data: meta }, json: metaJson });
-      for (const c of COLLECTIONS) {
-        const arr = (state as unknown as Record<string, unknown>)[c];
-        if (lastSavedRefs[c] === arr) continue;
-        const docs = collectionDocs(state, c);
-        for (const [path, items] of docs) {
-          const json = JSON.stringify(items);
-          if (known.get(path) !== json) writes.push({ path, body: { items }, json });
+      busy++;
+      try {
+        const writes: { path: string; body: Record<string, unknown> | null; json: string | null }[] = [];
+        const meta = metaOf(state);
+        const metaJson = JSON.stringify(meta);
+        if (known.get('clinic/meta') !== metaJson) writes.push({ path: 'clinic/meta', body: { data: meta }, json: metaJson });
+        for (const c of COLLECTIONS) {
+          const arr = (state as unknown as Record<string, unknown>)[c];
+          if (lastSavedRefs[c] === arr) continue;
+          const docs = collectionDocs(state, c);
+          for (const [path, items] of docs) {
+            const json = JSON.stringify(items);
+            if (known.get(path) !== json) writes.push({ path, body: { items }, json });
+          }
+          for (const path of [...known.keys()]) {
+            if (path.startsWith(c + '/') && !docs.has(path)) writes.push({ path, body: null, json: null });
+          }
         }
-        for (const path of [...known.keys()]) {
-          if (path.startsWith(c + '/') && !docs.has(path)) writes.push({ path, body: null, json: null });
-        }
+        await inBatches(writes, 4, async (w) => {
+          const prev = known.get(w.path);
+          // známý stav aktualizujeme před zápisem, aby se vlastní změna nevracela jako „cizí"
+          if (w.json === null) known.delete(w.path);
+          else known.set(w.path, w.json);
+          try {
+            if (w.body) await withRetry(() => db.doc(w.path).set(w.body as Record<string, unknown>));
+            else await withRetry(() => db.doc(w.path).delete());
+          } catch (e) {
+            if (prev === undefined) known.delete(w.path);
+            else known.set(w.path, prev);
+            throw e;
+          }
+        });
+        for (const c of COLLECTIONS) lastSavedRefs[c] = (state as unknown as Record<string, unknown>)[c];
+      } finally {
+        busy--;
       }
-      await inBatches(writes, 4, async (w) => {
-        if (w.body) await withRetry(() => db.doc(w.path).set(w.body as Record<string, unknown>));
-        else await withRetry(() => db.doc(w.path).delete());
-        if (w.json === null) known.delete(w.path);
-        else known.set(w.path, w.json);
-      });
-      for (const c of COLLECTIONS) lastSavedRefs[c] = (state as unknown as Record<string, unknown>)[c];
+      if (busy === 0 && deferred) {
+        deferred = false;
+        await refresh();
+      }
     },
     async clear() {
-      const paths = [...known.keys()];
-      await inBatches(paths, 4, async (p) => {
-        await withRetry(() => db.doc(p).delete());
-        known.delete(p);
-      });
-      lastSavedRefs = {};
+      busy++;
+      try {
+        const paths = [...known.keys()];
+        await inBatches(paths, 4, async (p) => {
+          await withRetry(() => db.doc(p).delete());
+          known.delete(p);
+        });
+        lastSavedRefs = {};
+      } finally {
+        busy--;
+      }
     },
+    refresh,
     subscribe(onChange) {
+      listener = onChange;
       const unsubs: (() => void)[] = [];
-      const metaUnsub = db.collection('clinic').onSnapshot(
-        (snap) => {
-          if (snap.metadata.hasPendingWrites) return;
-          const doc = snap.docs.find((x) => x.id === 'meta');
-          const meta = doc?.data()?.data as Record<string, unknown> | undefined;
-          if (!meta) return;
-          const json = JSON.stringify(meta);
-          if (known.get('clinic/meta') === json) return;
-          known.set('clinic/meta', json);
-          onChange({ kind: 'meta', meta: meta as Partial<ClinicState> });
-        },
-        () => undefined,
-      );
-      unsubs.push(metaUnsub);
-      for (const c of COLLECTIONS) {
-        const unsub = db.collection(c).onSnapshot(
+      unsubs.push(
+        db.collection('clinic').onSnapshot(
           (snap) => {
-            if (snap.metadata.hasPendingWrites) return;
-            let changed = false;
-            const present = new Set<string>();
-            const items: unknown[] = [];
-            for (const doc of snap.docs) {
-              const path = `${c}/${doc.id}`;
-              present.add(path);
-              const list = (doc.data()?.items as unknown[]) ?? [];
-              const json = JSON.stringify(list);
-              if (known.get(path) !== json) {
-                changed = true;
-                known.set(path, json);
-              }
-              items.push(...list);
+            if (snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
+            if (busy > 0) {
+              deferred = true;
+              return;
             }
-            for (const path of [...known.keys()]) {
-              if (path.startsWith(c + '/') && !present.has(path)) {
-                known.delete(path);
-                changed = true;
-              }
-            }
-            if (changed) {
-              lastSavedRefs[c] = undefined;
-              onChange({ kind: 'collection', collection: c, items });
-            }
+            const change = processMeta(snap.docs.find((x) => x.id === 'meta'));
+            if (change) onChange(change);
           },
           () => undefined,
+        ),
+      );
+      for (const c of COLLECTIONS) {
+        unsubs.push(
+          db.collection(c).onSnapshot(
+            (snap) => {
+              if (snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
+              if (busy > 0) {
+                deferred = true;
+                return;
+              }
+              const change = processCollection(c, snap.docs);
+              if (change) onChange(change);
+            },
+            () => undefined,
+          ),
         );
-        unsubs.push(unsub);
       }
-      return () => unsubs.forEach((u) => u());
+      return () => {
+        listener = null;
+        unsubs.forEach((u) => u());
+      };
     },
   };
 }
