@@ -1660,6 +1660,7 @@
   background: var(--progress-track);
 }
 .progress__fill {
+  display: block;
   height: 100%;
   border-radius: var(--progress-radius);
   background: var(--progress-fill);

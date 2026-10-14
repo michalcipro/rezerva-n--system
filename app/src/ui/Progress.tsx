@@ -55,7 +55,7 @@ export function Progress({
         </span>
       ) : (
         <span className="progress__track" aria-hidden="true">
-          <span className="progress__fill" style={{ width: `${ratio * 100}%`, display: 'block' }} />
+          <span className="progress__fill" style={{ width: `${ratio * 100}%` }} />
           {target != null && max > 0 && (
             <span className="progress__target" style={{ left: `${Math.min(100, Math.max(0, (target / max) * 100))}%` }} />
           )}
