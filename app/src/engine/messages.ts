@@ -170,7 +170,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email'],
     enabled: false,
     subject: 'Všechno nejlepší, [jméno]',
-    body: 'Dobrý den, [jméno],\n\npřejeme vám k narozeninám hodně zdraví a pohybu.\n\n[klinika]',
+    body: 'Dobrý den, [jméno],\n\npřejeme vám k narozeninám hodně zdraví a úspěchů.\n\n[klinika]',
     smsBody: '',
   },
 ];

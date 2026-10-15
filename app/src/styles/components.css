@@ -2255,6 +2255,8 @@ button.event:hover { box-shadow: var(--shadow-sm); z-index: 3; }
 }
 .wordmark__dot { color: var(--accent); }
 .wordmark--sm { font-size: 20px; line-height: 24px; }
+.wordmark-logo { display: block; height: 32px; width: auto; max-width: 180px; object-fit: contain; }
+.wordmark-logo--sm { height: 26px; max-width: 140px; }
 .shell__tagline {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);

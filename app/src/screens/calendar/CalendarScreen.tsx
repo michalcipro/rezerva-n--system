@@ -20,7 +20,7 @@ import './calendar.css';
 
 type Selection = { kind: 'booking' | 'session'; id: Id } | null;
 
-const CANCELLED_KEY = 'pohyb.cal.showCancelled';
+const CANCELLED_KEY = 'winningminds.cal.showCancelled';
 
 function loadShowCancelled(): boolean {
   try {

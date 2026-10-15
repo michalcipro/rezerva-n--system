@@ -10,7 +10,7 @@ import './comms.css';
 
 type CommsTab = 'kampane' | 'automaticke' | 'odeslane';
 
-const TAB_KEY = 'pohyb.comms.tab';
+const TAB_KEY = 'winningminds.comms.tab';
 const TABS: readonly CommsTab[] = ['kampane', 'automaticke', 'odeslane'];
 
 function readTab(): CommsTab {

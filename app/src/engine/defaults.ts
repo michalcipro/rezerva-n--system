@@ -234,9 +234,9 @@ export const DEFAULT_PACKAGE_TEMPLATES: PackageTemplate[] = [
 
 export function defaultSettings(): Settings {
   return {
-    clinicName: 'pohyb',
-    clinicTagline: 'fyzioterapie · trénink · masáže',
-    senderName: 'Klinika pohyb',
+    clinicName: 'Winning Minds',
+    clinicTagline: 'rezervace',
+    senderName: 'Winning Minds',
     senderEmail: 'rezervace@example.com',
     bookingRules: {
       slotStepMin: 15,

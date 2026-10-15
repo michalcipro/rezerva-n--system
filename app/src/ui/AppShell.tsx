@@ -10,6 +10,7 @@ import {
 import { Avatar, type AvatarTone } from './Avatar';
 import { Icon, type IconName } from './Icon';
 import { IconButton } from './IconButton';
+import { BRAND } from './brand';
 import { Portal, useModal } from './overlay';
 import { cx, formatNumber } from './utils';
 
@@ -33,25 +34,24 @@ export interface AppShellProps {
   sidebarFooter?: ReactNode;
   /** Full-width strip above everything, e.g. <Banner>Testovací režim…</Banner>. */
   banner?: ReactNode;
-  /** Replaces the default „pohyb.“ wordmark + descriptor. */
+  /** Replaces the default brand (logo or wordmark + descriptor). */
   brand?: ReactNode;
   children: ReactNode;
 }
 
-/** The „pohyb.“ wordmark with the accent full stop. */
+/** Logo značky, nebo textový wordmark, dokud logo není nastavené (viz brand.ts). */
 export function Wordmark({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  return (
-    <span className={cx('wordmark', size === 'sm' && 'wordmark--sm')}>
-      pohyb<span className="wordmark__dot">.</span>
-    </span>
-  );
+  if (BRAND.logo) {
+    return <img className={cx('wordmark-logo', size === 'sm' && 'wordmark-logo--sm')} src={BRAND.logo} alt={BRAND.name} />;
+  }
+  return <span className={cx('wordmark', size === 'sm' && 'wordmark--sm')}>{BRAND.name}</span>;
 }
 
 function DefaultBrand() {
   return (
     <div className="shell__brand">
       <Wordmark />
-      <span className="shell__tagline">fyzioterapie · trénink · masáže</span>
+      <span className="shell__tagline">{BRAND.tagline}</span>
     </div>
   );
 }

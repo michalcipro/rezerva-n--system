@@ -1,4 +1,5 @@
 import { Button, Icon } from '../ui';
+import { BRAND } from '../ui/brand';
 import { useStore } from '../store/hooks';
 import { loadDemoData, startEmpty } from '../store/store';
 
@@ -10,8 +11,12 @@ export function Onboarding(): JSX.Element {
     <main className="onb">
       <div className="onb__inner">
         <div className="onb__brand">
-          <span className="onb__wordmark">pohyb</span>
-          <span className="onb__tagline">fyzioterapie · trénink · masáže</span>
+          {BRAND.logo ? (
+            <img className="onb__logo" src={BRAND.logo} alt={BRAND.name} />
+          ) : (
+            <span className="onb__wordmark">{BRAND.name}</span>
+          )}
+          <span className="onb__tagline">{BRAND.tagline}</span>
         </div>
         <h1 className="onb__title">Rezervační systém – testovací verze</h1>
         <p className="onb__lead">

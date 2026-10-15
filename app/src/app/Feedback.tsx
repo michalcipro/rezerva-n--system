@@ -20,8 +20,8 @@ export interface FeedbackNote {
   text: string;
 }
 
-const NOTES_KEY = 'pohyb.feedback.v1';
-const NAME_KEY = 'pohyb.feedback.name';
+const NOTES_KEY = 'winningminds.feedback.v1';
+const NAME_KEY = 'winningminds.feedback.name';
 
 /* ------------------------------------------------------------------ */
 /* Úložiště poznámek (sdílené mezi tlačítkem a dialogem)               */

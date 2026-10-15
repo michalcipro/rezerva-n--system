@@ -39,7 +39,7 @@ export interface Session {
   testBarOpen: boolean;
 }
 
-const KEY = 'pohyb.session.v1';
+const KEY = 'winningminds.session.v1';
 
 const DEFAULT_SESSION: Session = {
   role: 'owner',

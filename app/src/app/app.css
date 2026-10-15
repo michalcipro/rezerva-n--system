@@ -594,3 +594,10 @@ a.btn--primary:hover {
   flex-direction: column;
   background: var(--bg);
 }
+.onb__logo {
+  display: block;
+  height: 44px;
+  width: auto;
+  max-width: 240px;
+  object-fit: contain;
+}

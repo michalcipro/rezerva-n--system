@@ -24,7 +24,7 @@ page.on('console', (m) => {
 });
 
 const setSession = async (session) => {
-  await page.evaluate((s) => localStorage.setItem('pohyb.session.v1', JSON.stringify(s)), session);
+  await page.evaluate((s) => localStorage.setItem('winningminds.session.v1', JSON.stringify(s)), session);
 };
 const base = {
   role: 'owner', clientId: null, therapistId: 't_mala', route: { name: 'kalendar' }, portalRoute: { name: 'domu' },
@@ -41,7 +41,7 @@ if (await demo.count()) {
 const martinId = await page.evaluate(async () => {
   // najde id Martina Dvořáka přes globální hledání v DOM není spolehlivé – vezmeme ho z IndexedDB
   const db = await new Promise((res) => {
-    const r = indexedDB.open('pohyb-rezervace', 1);
+    const r = indexedDB.open('winningminds-rezervace', 1);
     r.onsuccess = () => res(r.result);
     r.onerror = () => res(null);
   });

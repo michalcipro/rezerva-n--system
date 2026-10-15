@@ -505,12 +505,12 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     if (c && sentDaysAgo !== null) deliverCampaign(d, at(combine(addDays(today, -sentDaysAgo), '08:30'), owner), c);
   };
   const everyone = { match: 'all' as const, rules: [], exclude: [] };
-  campaign('cmp_leto', 'Letní provoz kliniky', 'Letní provoz kliniky pohyb', 100, [
+  campaign('cmp_leto', 'Letní provoz kliniky', 'Letní provoz Winning Minds', 100, [
     { type: 'heading', text: 'Letní provoz' },
     { type: 'text', text: 'Dobrý den, [jméno], v červenci a srpnu ordinujeme s mírně upravenou pracovní dobou. Termíny najdete v aplikaci.' },
   ], everyone);
-  campaign('cmp_zari', 'Zářijový newsletter', 'Září v klinice pohyb', 40, [
-    { type: 'heading', text: 'Zpátky do pohybu po létě' },
+  campaign('cmp_zari', 'Zářijový newsletter', 'Září ve Winning Minds', 40, [
+    { type: 'heading', text: 'Zpátky po létě' },
     { type: 'text', text: 'Dobrý den, [jméno], po prázdninách se tělu hodí postupný návrat k zátěži. Přinášíme tři tipy od našich fyzioterapeutů.' },
   ], everyone);
   campaign('cmp_skupiny', 'Nové skupinové lekce Zdravá záda', 'Nové lekce Zdravá záda – pondělí a středa ve 12:00', 12, [

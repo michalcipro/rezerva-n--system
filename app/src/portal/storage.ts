@@ -2,7 +2,7 @@
  * Drobné pohodlí jednoho prohlížeče (localStorage) – např. kdy klient naposledy
  * otevřel zprávy. Nic důležitého; když úložiště nejde, portál funguje dál.
  */
-const PREFIX = 'pohyb.portal.';
+const PREFIX = 'winningminds.portal.';
 
 function read(key: string): string | null {
   try {

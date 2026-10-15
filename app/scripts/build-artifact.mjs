@@ -9,7 +9,7 @@ const html = readFileSync(join(root, 'dist/index.html'), 'utf8');
 
 const pick = (re) => [...html.matchAll(re)].map((m) => m[0]);
 
-const title = pick(/<title>[\s\S]*?<\/title>/g)[0] ?? '<title>Rezervační systém Pohyb</title>';
+const title = pick(/<title>[\s\S]*?<\/title>/g)[0] ?? '<title>Rezervace Winning Minds</title>';
 const fitMeta = pick(/<meta name="claude:viewport-fit-sides"[^>]*>/g)[0] ?? '<meta name="claude:viewport-fit-sides" content="cover">';
 const fontLinks = pick(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/g);
 const styles = pick(/<style[^>]*>[\s\S]*?<\/style>/g);

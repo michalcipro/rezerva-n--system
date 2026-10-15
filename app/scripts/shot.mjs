@@ -48,7 +48,7 @@ page.on('console', (m) => {
 });
 await page.addInitScript((s) => {
   try {
-    localStorage.setItem('pohyb.session.v1', JSON.stringify(s));
+    localStorage.setItem('winningminds.session.v1', JSON.stringify(s));
   } catch {}
 }, session);
 await page.goto(url, { waitUntil: 'networkidle' });

@@ -399,7 +399,7 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
 /* Lokální úložiště (IndexedDB)                                        */
 /* ------------------------------------------------------------------ */
 
-const IDB_NAME = 'pohyb-rezervace';
+const IDB_NAME = 'winningminds-rezervace';
 const IDB_STORE = 'state';
 const IDB_KEY = 'clinic';
 

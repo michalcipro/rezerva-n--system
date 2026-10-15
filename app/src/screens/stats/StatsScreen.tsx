@@ -113,7 +113,7 @@ function buildModel(s: ClinicState, p: ResolvedPeriod, f: StatsFilters, compare:
 /* Uložené volby (jen pohodlí v tomto prohlížeči)                       */
 /* ------------------------------------------------------------------ */
 
-const PREFS_KEY = 'pohyb.stats.v1';
+const PREFS_KEY = 'winningminds.stats.v1';
 
 interface Prefs {
   period: PeriodState;
