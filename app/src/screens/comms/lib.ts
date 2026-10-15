@@ -1,4 +1,5 @@
 import type {
+  ActorRole,
   Campaign,
   CampaignBlock,
   ClinicState,
@@ -10,11 +11,22 @@ import type {
   TemplateKey,
 } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, formatTime, plural } from '../../engine/format';
-import { bookingVars, TEMPLATE_VARIABLES, type TemplateVars } from '../../engine/messages';
+import { bookingVars, DEFAULT_TEMPLATES, TEMPLATE_VARIABLES, type TemplateVars } from '../../engine/messages';
 import { isGroupBooking } from '../../engine/policy';
 import { evaluateSegment, segmentFunnel } from '../../engine/segments';
 import { therapistName } from '../../engine/selectors';
 import { addDays, addHours, addMinutes, combine, dateOf } from '../../engine/time';
+
+/**
+ * Smí role číst text zprávy? Zápis ze sezení (`session_notes`) obsahuje celou poznámku, a ta je jen pro majitelku
+ * a terapeuty (perms.clinical, docs/CRM.md) – ostatní vidí jen předmět a typ zprávy.
+ */
+export function canReadMessageBody(m: Pick<Message, 'kind'>, role: ActorRole): boolean {
+  return m.kind !== 'session_notes' || role === 'owner' || role === 'therapist';
+}
+
+/** Místo textu zápisu ze sezení pro role bez přístupu k poznámkám. */
+export const SESSION_NOTES_LOCKED = 'Obsah zápisu vidí jen kouči a terapeuti.';
 
 /*
  * Čisté pomocné funkce obrazovky Komunikace (bez Reactu).
@@ -395,7 +407,7 @@ export const CAMPAIGN_PRESETS: CampaignPreset[] = [
         { type: 'heading', text: 'Jak se vám daří?' },
         {
           type: 'text',
-          text: 'Dobrý den, [jméno],\n\nje to už nějaký čas od vaší poslední návštěvy. Pokud se potíže vracejí nebo chcete navázat na cvičení, rádi vás zase uvidíme.',
+          text: 'Dobrý den, [jméno],\n\nje to už nějaký čas od našeho posledního sezení. Pokud chcete navázat na to, na čem jsme spolu pracovali, rádi vás zase uvidíme.',
         },
         { type: 'button', label: 'Rezervovat termín', url: '' },
       ],
@@ -430,10 +442,19 @@ export const TEMPLATE_GROUPS: { id: string; label: string; keys: TemplateKey[] }
   { id: 'cancel', label: 'Storna a omluvenky', keys: ['cancellation', 'excuse', 'late_cancel', 'no_show', 'clinic_cancel'] },
   { id: 'offers', label: 'Čekací listina, náhrady a permanentky', keys: ['waitlist_offer', 'makeup_reminder', 'package_low', 'package_expiring'] },
   { id: 'marketing', label: 'Obchodní sdělení', keys: ['reactivation', 'birthday'] },
+  { id: 'crm', label: 'Klienti a sezení', keys: ['session_notes'] },
 ];
 
-/** Šablony, které engine automaticky neodesílá (všechny se už odesílají). */
+/** Šablony, které engine zatím automaticky neodesílá (v prototypu se už odesílají všechny automatické). */
 export const NOT_AUTOMATED: readonly TemplateKey[] = [];
+
+/**
+ * Šablony, které se posílají ručně (ne automaticky) – jen e-mailem a bez vypínače:
+ * zápis ze sezení odesílá kouč z karty klienta nebo z detailu schůzky (příkaz sendSessionNotes).
+ */
+export const MANUAL_TEMPLATES: readonly TemplateKey[] = ['session_notes'];
+
+export const isManualTemplate = (key: TemplateKey): boolean => MANUAL_TEMPLATES.includes(key);
 
 const PERSON = ['jméno', 'příjmení', 'klinika'];
 const BOOKING = ['jméno', 'příjmení', 'služba', 'datum', 'čas', 'konec', 'terapeut', 'místnost', 'platba', 'klinika'];
@@ -462,6 +483,8 @@ export function templateVariableKeys(key: TemplateKey): string[] {
     case 'package_low':
     case 'package_expiring':
       return [...PERSON, 'permanentka', 'zbývá', 'platnost_do'];
+    case 'session_notes':
+      return [...PERSON, 'datum', 'poznámky', 'terapeut'];
     default:
       return PERSON;
   }
@@ -472,8 +495,22 @@ const EXTRA_VARIABLE_LABELS: Record<string, string> = {
   náhrada_text: 'Informace o náhradním termínu',
 };
 
-export function variableLabel(key: string): string {
-  return TEMPLATE_VARIABLES.find((v) => v.key === key)?.label ?? EXTRA_VARIABLE_LABELS[key] ?? key;
+/** Popisky proměnných, které u konkrétní šablony znamenají něco jiného než u rezervací. */
+const TEMPLATE_VARIABLE_LABELS: Partial<Record<TemplateKey, Record<string, string>>> = {
+  session_notes: {
+    datum: 'Datum sezení',
+    terapeut: 'Kdo zápis napsal',
+    poznámky: 'Text zápisu ze sezení (jak je uložený v poznámce)',
+  },
+};
+
+export function variableLabel(key: string, template?: TemplateKey): string {
+  return (
+    (template && TEMPLATE_VARIABLE_LABELS[template]?.[key]) ??
+    TEMPLATE_VARIABLES.find((v) => v.key === key)?.label ??
+    EXTRA_VARIABLE_LABELS[key] ??
+    key
+  );
 }
 
 export function channelsLabel(channels: readonly string[]): string {
@@ -514,6 +551,8 @@ export function templateTiming(t: MessageTemplate, s: ClinicState): string {
       return 'po 90 dnech bez návštěvy';
     case 'birthday':
       return 'v den narozenin';
+    case 'session_notes':
+      return 'po sezení z karty klienta nebo z kalendáře';
     default:
       return t.description;
   }
@@ -547,19 +586,20 @@ export function templateIssues(key: TemplateKey, d: Pick<MessageTemplate, 'subje
 /** Ukázkové hodnoty proměnných – z nejbližší skutečné rezervace, jinak smyšlené. */
 export function sampleVars(s: ClinicState, now: LocalDateTime): TemplateVars {
   const booking = s.bookings.find((b) => b.status === 'confirmed' && b.start > now && !b.sessionId);
-  const service = s.services.find((x) => x.active) ?? s.services[0];
+  // ukázka s placenou službou (Freetalk je zdarma a částky v náhledu by nic neukázaly)
+  const service = s.services.find((x) => x.active && x.priceCzk > 0) ?? s.services.find((x) => x.active) ?? s.services[0];
   const start = booking?.start ?? combine(addDays(dateOf(now), 1), '09:00');
   const base: TemplateVars = booking
     ? bookingVars(s, booking)
     : {
         jméno: 'Jana',
         příjmení: 'Nováková',
-        služba: service?.name ?? 'Fyzioterapie',
+        služba: service?.name ?? 'Mentální koučink',
         datum: formatDayShort(start),
         čas: formatTime(start),
         konec: formatTime(addMinutes(start, service?.durationMin ?? 50)),
         terapeut: therapistName(s.therapists.find((t) => t.active) ?? s.therapists[0]),
-        místnost: s.rooms[0]?.name ?? 'Sál 1',
+        místnost: s.rooms[0]?.name ?? 'Koučovna 1',
         platba: `na místě (${formatMoney(service?.priceCzk ?? 900)})`,
         klinika: s.settings.clinicName,
       };
@@ -578,12 +618,26 @@ export function sampleVars(s: ClinicState, now: LocalDateTime): TemplateVars {
     platba_vratka: `Platba ${formatMoney(price)} se vrátila na váš kredit.`,
     náhrada_do: formatDayShort(makeupUntil),
     náhrada_text: `Náhradní termín si vyberte do ${formatDayShort(makeupUntil)}.`,
-    permanentka: pkg?.name ?? 'Fyzio 10',
+    permanentka: pkg?.name ?? 'Koučink 10×',
     zbývá: countLabel(2, ['vstup', 'vstupy', 'vstupů']),
     platnost_do: formatDate(addDays(dateOf(now), 14)),
     nabídka_do: `${formatDayShort(offerUntil)} ${formatTime(offerUntil)}`,
+    poznámky: SAMPLE_SESSION_NOTES,
     klinika: s.settings.clinicName,
   };
+}
+
+const SAMPLE_SESSION_NOTES =
+  'Dnes jsme mluvili o tom, jak zvládat nervozitu před důležitým výkonem.\n\nDo příštího sezení:\n– každý večer 5 minut vizualizace\n– zapisovat si, co se během dne podařilo';
+
+/**
+ * Ukázkové hodnoty pro náhled konkrétní šablony – ve stejném tvaru, jaký dosadí skutečná zpráva.
+ * Zápis ze sezení: [datum] je celé datum sezení (jako v engine/crm.ts sessionNotesVars), [poznámky] ukázkový zápis.
+ */
+export function templateSampleVars(s: ClinicState, now: LocalDateTime, key: TemplateKey): TemplateVars {
+  const vars = sampleVars(s, now);
+  if (key === 'session_notes') return { ...vars, datum: formatDate(dateOf(now)), poznámky: SAMPLE_SESSION_NOTES };
+  return vars;
 }
 
 /* ------------------------------------------------------------------ */
@@ -627,7 +681,7 @@ export function smsInfo(text: string): SmsInfo {
 export function kindLabel(kind: Message['kind'], templates: readonly MessageTemplate[]): string {
   if (kind === 'campaign') return 'Kampaň';
   if (kind === 'manual') return 'Ruční zpráva';
-  return templates.find((t) => t.key === kind)?.name ?? kind;
+  return templates.find((t) => t.key === kind)?.name ?? DEFAULT_TEMPLATES.find((t) => t.key === kind)?.name ?? kind;
 }
 
 /** Rada, jak napravit neodeslanou zprávu. */

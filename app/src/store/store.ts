@@ -10,11 +10,15 @@ import {
   createArtifactAdapter,
   createLocalAdapter,
   getArtifactDb,
+  migrateClients,
+  migrateMeta,
   sortCollection,
+  takeMigrationFlag,
   type PersistenceAdapter,
   type RemoteChange,
   type StorageKind,
 } from './persistence';
+import { clearLocalFiles } from './files';
 import { actorFor, getSession } from './session';
 
 export type StoreStatus = 'loading' | 'empty' | 'ready' | 'error';
@@ -127,8 +131,11 @@ function applyRemote(change: RemoteChange): void {
   const next = produce(state.clinic, (d) => {
     if (change.kind === 'meta') {
       Object.assign(d, JSON.parse(JSON.stringify(change.meta)));
+      // změna od zařízení se starší verzí aplikace
+      migrateMeta(d);
     } else {
       (d as unknown as Record<string, unknown>)[change.collection] = sortCollection(change.collection, change.items);
+      if (change.collection === 'clients') migrateClients(d as ClinicState, clinicNow(d as ClinicState));
     }
   });
   clearSelectorCaches();
@@ -151,10 +158,16 @@ export async function initStore(): Promise<void> {
   set({ storage: adapter.kind });
   try {
     const loaded = await adapter.load();
+    const migrated = takeMigrationFlag();
     if (!loaded) {
       set({ status: 'empty' });
     } else {
       set({ status: 'ready', clinic: loaded, sync: 'saved' });
+      if (migrated) {
+        // data ze starší verze (např. bez fází spolupráce) – uložit převedenou podobu
+        localDirty = true;
+        scheduleSave();
+      }
       runSystemProcesses();
     }
     if (adapter.subscribe) unsubscribeRemote = adapter.subscribe(applyRemote);
@@ -173,6 +186,8 @@ export async function loadDemoData(): Promise<void> {
   await new Promise((r) => setTimeout(r, 30));
   try {
     const clinic = generateDemoState(nowLocal());
+    // nová data nahrazují všechny záznamy souborů – obsah starých souborů v prohlížeči by zůstal bez záznamu
+    await clearLocalFiles();
     clearSelectorCaches();
     localDirty = true;
     set({ clinic, status: 'ready' });

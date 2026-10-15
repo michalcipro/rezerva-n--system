@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, ReminderSettings, WaitlistSettings } from '../../domain/types';
+import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, ReminderSettings, Stage, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
-import { updateSettings } from '../../engine/commands';
+import { saveStages, updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
 import { therapistName } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
@@ -40,11 +40,13 @@ import {
 } from './helpers';
 import { PolicyClientText, PolicyPreview } from './PolicyPreview';
 import { SettingRow, useSyncedDraft } from './shared';
+import { StagesEditor } from './StagesEditor';
 import './set-settings.css';
 
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
 const SECTIONS: { id: SectionId; label: string; icon: IconName }[] = [
+  { id: 'stages', label: 'Fáze spolupráce', icon: 'layers' },
   { id: 'booking', label: 'Rezervace online', icon: 'calendarPlus' },
   { id: 'policy', label: 'Storno podmínky', icon: 'shield' },
   { id: 'excuses', label: 'Omluvenky a náhrady', icon: 'refresh' },
@@ -54,6 +56,7 @@ const SECTIONS: { id: SectionId; label: string; icon: IconName }[] = [
 ];
 
 const SECTION_OF_ERROR = (key: string): SectionId => {
+  if (key.startsWith('stages.')) return 'stages';
   if (key.startsWith('booking.')) return 'booking';
   if (key.startsWith('excuses.')) return 'excuses';
   if (key.startsWith('clinic.')) return 'clinic';
@@ -100,14 +103,16 @@ export function SettingsScreen(): JSX.Element {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
-  const [active, setActive] = useState<SectionId>('booking');
+  const [active, setActive] = useState<SectionId>(SECTIONS[0].id);
   const [showErrors, setShowErrors] = useState(false);
 
   const errors = validateSettings(draft);
   const errorKeys = Object.keys(errors);
   const changed = dirtySections(draft, base);
-  // údaje kliniky kontrolujeme až při pokusu o uložení, ostatní pravidla hned
-  const visibleErrors: SettingsErrors = showErrors ? errors : Object.fromEntries(Object.entries(errors).filter(([k]) => !k.startsWith('clinic.')));
+  // údaje kliniky a prázdné názvy fází kontrolujeme až při pokusu o uložení, ostatní pravidla hned
+  const visibleErrors: SettingsErrors = showErrors
+    ? errors
+    : Object.fromEntries(Object.entries(errors).filter(([k]) => !k.startsWith('clinic.') && !(k.startsWith('stages.') && k.endsWith('.empty'))));
 
   /* ---- sledování aktivní sekce (scroll spy) ---- */
   const visibleRef = useRef(new Set<string>());
@@ -148,6 +153,7 @@ export function SettingsScreen(): JSX.Element {
   const setReminders = (patch: Partial<ReminderSettings>): void => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }));
   const setText = (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string): void =>
     setDraft((d) => ({ ...d, [key]: value }));
+  const setStages = (stages: Stage[]): void => setDraft((d) => ({ ...d, stages }));
 
   const save = (): void => {
     if (errorKeys.length) {
@@ -158,6 +164,14 @@ export function SettingsScreen(): JSX.Element {
       return;
     }
     const n = normalizeDraft(draft);
+    // fáze mají vlastní příkaz (kontroluje, že mazaná fáze je bez klientů) – ukládají se první
+    if (changed.includes('stages')) {
+      const r = run(saveStages, { stages: n.stages }, { quiet: true });
+      if (!r.ok) {
+        goTo('stages');
+        return;
+      }
+    }
     const patch: SettingsPatch = {};
     if (changed.includes('booking')) patch.bookingRules = n.bookingRules;
     if (changed.includes('policy') || changed.includes('excuses')) patch.policy = n.policy;
@@ -169,7 +183,8 @@ export function SettingsScreen(): JSX.Element {
       patch.senderName = n.senderName;
       patch.senderEmail = n.senderEmail;
     }
-    const r = run(updateSettings, patch, { quiet: true });
+    const r = Object.keys(patch).length ? run(updateSettings, patch, { quiet: true }) : { ok: true as const };
+    if (!r.ok && changed.includes('stages')) setDraft((d) => ({ ...d, stages: n.stages }));
     if (r.ok) {
       setDraft(n);
       setShowErrors(false);
@@ -179,7 +194,7 @@ export function SettingsScreen(): JSX.Element {
 
   return (
     <div className="page set-page set-settings-page">
-      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky a údaje kliniky" />
+      <PageHeader title="Nastavení" subtitle="Fáze spolupráce s klienty, pravidla online rezervací, storno podmínky, omluvenky a údaje kliniky" />
       {restored && dirty && (
         <Callout tone="info" title="Rozpracované změny">
           Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(sectionLabel).join(', ')}). Uložte je, nebo je zahoďte.
@@ -214,6 +229,14 @@ export function SettingsScreen(): JSX.Element {
         </nav>
 
         <div className="set-settings__body">
+          <Section
+            id="stages"
+            title="Fáze spolupráce"
+            subtitle="Kudy klient prochází od prvního kontaktu po konec spolupráce. Fázi uvidíte na kartě klienta, v Pipeline i ve statistikách. Klienti v ukončené fázi se nepočítají mezi otevřené a v Pipeline je lze skrýt."
+          >
+            <StagesEditor stages={draft.stages} onChange={setStages} errors={visibleErrors} />
+          </Section>
+
           <Section id="booking" title="Rezervace online" subtitle="Kdy a jak daleko dopředu si klienti mohou sami rezervovat.">
             <BookingSection rules={draft.bookingRules} onChange={setRules} errors={visibleErrors} />
           </Section>

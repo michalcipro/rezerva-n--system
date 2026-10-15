@@ -1,9 +1,10 @@
 import { useId, useMemo, useState } from 'react';
 import type { Client, ClinicState, SegmentDefinition, SegmentRule } from '../../domain/types';
 import { countLabel, formatNumber, plural } from '../../engine/format';
+import { clientStage, stagesSorted } from '../../engine/crm';
 import { defaultRule, describeRule, RULE_TYPES } from '../../engine/segments';
 import { getClient } from '../../engine/selectors';
-import { Avatar, Button, Card, CardHeader, cssVars, cx, Field, Icon, IconButton, Menu, NumberInput, Segmented, Select } from '../../ui';
+import { Avatar, Button, Card, CardHeader, Checkbox, cssVars, cx, Field, Icon, IconButton, Menu, NumberInput, Segmented, Select } from '../../ui';
 import { tagStats, type SegmentInsight } from './lib';
 
 type RuleList = 'rules' | 'exclude';
@@ -21,11 +22,14 @@ function RuleFields({
   rule,
   onChange,
   tags,
+  stageCounts,
 }: {
   clinic: ClinicState;
   rule: SegmentRule;
   onChange: (rule: SegmentRule) => void;
   tags: { tag: string; count: number }[];
+  /** Počet klientů v jednotlivých fázích spolupráce. */
+  stageCounts: Map<string, number>;
 }): JSX.Element {
   const typeField = (
     <Field label="Podmínka">
@@ -113,6 +117,48 @@ function RuleFields({
         </Field>
       );
       break;
+    case 'stage': {
+      const stages = stagesSorted(clinic);
+      // pořadí podle fází; id smazaných fází (např. z jiného zařízení) se při úpravě vypustí
+      const toggle = (id: string, on: boolean): void => {
+        const next = new Set(rule.stageIds);
+        if (on) next.add(id);
+        else next.delete(id);
+        onChange({ ...rule, stageIds: stages.filter((st) => next.has(st.id)).map((st) => st.id) });
+      };
+      const selected = stages.filter((st) => rule.stageIds.includes(st.id)).length;
+      params = (
+        <fieldset className="com-rule__stages">
+          <legend className="field__label">Klienti ve fázi spolupráce</legend>
+          {stages.map((st) => (
+            <Checkbox
+              key={st.id}
+              className="com-rule__stage"
+              label={
+                <span className="com-rule__stage-label">
+                  <span className={cx('com-rule__stage-dot', st.closed && 'is-closed')} style={cssVars({ '--dot': `var(--tone-${st.tone}-solid)` })} aria-hidden="true" />
+                  <span className="com-rule__stage-name">{st.name}</span>
+                  <span className="com-rule__stage-count">
+                    {formatNumber(stageCounts.get(st.id) ?? 0)}
+                    <span className="visually-hidden"> {plural(stageCounts.get(st.id) ?? 0, ['klient', 'klienti', 'klientů'])}</span>
+                  </span>
+                </span>
+              }
+              checked={rule.stageIds.includes(st.id)}
+              onChange={(on) => toggle(st.id, on)}
+            />
+          ))}
+          {stages.length === 0 ? (
+            <p className="com-rule__stages-hint">Fáze spolupráce zatím nejsou nastavené (Nastavení → Fáze spolupráce).</p>
+          ) : selected === 0 ? (
+            <p className="com-rule__stages-hint com-rule__stages-hint--warn">Vyberte aspoň jednu fázi – jinak podmínce nikdo neodpovídá.</p>
+          ) : (
+            <p className="com-rule__stages-hint">Počty jsou všichni klienti ve fázi, i bez souhlasu s obchodními sděleními.</p>
+          )}
+        </fieldset>
+      );
+      break;
+    }
     default:
       params = null;
   }
@@ -132,12 +178,13 @@ interface RuleRowProps {
   editing: boolean;
   editable: boolean;
   tags: { tag: string; count: number }[];
+  stageCounts: Map<string, number>;
   onToggle: () => void;
   onChange: (rule: SegmentRule) => void;
   onRemove: () => void;
 }
 
-function RuleRow({ clinic, rule, count, list, editing, editable, tags, onToggle, onChange, onRemove }: RuleRowProps): JSX.Element {
+function RuleRow({ clinic, rule, count, list, editing, editable, tags, stageCounts, onToggle, onChange, onRemove }: RuleRowProps): JSX.Element {
   const text = ruleText(clinic, rule);
   const exclude = list === 'exclude';
   const fieldsId = useId();
@@ -177,7 +224,7 @@ function RuleRow({ clinic, rule, count, list, editing, editable, tags, onToggle,
       </div>
       {editing && (
         <div id={fieldsId}>
-          <RuleFields clinic={clinic} rule={rule} onChange={onChange} tags={tags} />
+          <RuleFields clinic={clinic} rule={rule} onChange={onChange} tags={tags} stageCounts={stageCounts} />
         </div>
       )}
     </li>
@@ -213,6 +260,15 @@ export function SegmentBuilder({ clinic, segment, onChange, insight, onShowRecip
   const editable = !!onChange;
   const [editing, setEditing] = useState<{ list: RuleList; index: number } | null>(null);
   const tags = useMemo(() => tagStats(clinic), [clinic]);
+  // stejně jako pravidlo v engine/segments.ts: klient patří do fáze podle clientStage (neznámá fáze = první)
+  const stageCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of clinic.clients) {
+      const id = clientStage(clinic, c).id;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [clinic]);
   const { funnel } = insight;
 
   const setList = (list: RuleList, rules: SegmentRule[]): void => onChange?.({ ...segment, [list]: rules });
@@ -246,6 +302,7 @@ export function SegmentBuilder({ clinic, segment, onChange, insight, onShowRecip
             editable={editable}
             editing={editing?.list === list && editing.index === index}
             tags={tags}
+            stageCounts={stageCounts}
             onToggle={() => setEditing((e) => (e?.list === list && e.index === index ? null : { list, index }))}
             onChange={(r) => update(list, index, r)}
             onRemove={() => remove(list, index)}

@@ -90,7 +90,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
             <Input
               id="set-svc-name"
               value={draft.name}
-              placeholder="např. Fyzioterapie 45 min"
+              placeholder="např. Mentální koučink"
               onValueChange={(v) => set('name', v)}
               onBlur={touch('name')}
               data-autofocus=""
@@ -235,7 +235,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
               checked={draft.newClientsOnly}
               onChange={(v) => set('newClientsOnly', v)}
               label="Jen pro nové klienty"
-              description="Např. vstupní vyšetření – stávajícím klientům se online nenabízí."
+              description="Např. Freetalk – stávajícím klientům se online nenabízí."
             />
             <Switch
               checked={draft.remote}

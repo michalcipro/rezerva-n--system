@@ -18,7 +18,7 @@ export function Onboarding(): JSX.Element {
           )}
           <span className="onb__tagline">{BRAND.tagline}</span>
         </div>
-        <h1 className="onb__title">Rezervační systém – testovací verze</h1>
+        <h1 className="onb__title">Kalendář a CRM – testovací verze</h1>
         <p className="onb__lead">
           Vyberte, s jakými daty chcete systém vyzkoušet. Kdykoli později je můžete v testovacím panelu smazat a začít znovu.
           Co by se mělo změnit, zapisujte tlačítkem <strong>Připomínka</strong> v tmavém testovacím panelu nahoře.
@@ -30,9 +30,9 @@ export function Onboarding(): JSX.Element {
             </div>
             <h2 id="onb-demo" className="onb__card-title">Ukázkový provoz</h2>
             <p className="onb__card-text">
-              Vymyšlená klinika s pěti terapeuty, 600 ukázkovými klienty a zhruba jedenácti týdny rezervací – včetně
-              permanentek, kreditů, omluvenek, náhrad, pozdních storen a čekací listiny. Statistiky tak hned ukazují
-              realistická čísla.
+              Vymyšlená koučovací firma s pětičlenným týmem, 600 klienty v různých fázích spolupráce a zhruba
+              jedenácti týdny schůzek – včetně zápisů ze sezení, follow-upů, permanentek a omluvenek. Pipeline
+              i statistiky tak hned ukazují realistická čísla.
             </p>
             <Button variant="primary" size="lg" icon="play" onClick={() => void loadDemoData()} loading={!!busy}>
               Načíst ukázková data
@@ -42,12 +42,13 @@ export function Onboarding(): JSX.Element {
             <div className="onb__card-icon" aria-hidden="true">
               <Icon name="plus" size={22} />
             </div>
-            <h2 id="onb-empty" className="onb__card-title">Prázdná klinika</h2>
+            <h2 id="onb-empty" className="onb__card-title">Bez ukázkových dat</h2>
             <p className="onb__card-text">
-              Jen výchozí služby, terapeuti, permanentky a storno podmínky. Klienty a rezervace si založíte sami.
+              Jen výchozí služby, tým, fáze spolupráce, permanentky a storno podmínky. Klienty a schůzky si založíte
+              sami.
             </p>
             <Button variant="secondary" size="lg" onClick={() => void startEmpty()} disabled={!!busy}>
-              Začít s prázdnou klinikou
+              Začít naprázdno
             </Button>
           </section>
         </div>

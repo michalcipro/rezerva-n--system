@@ -272,7 +272,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
           {client.blocked
             ? 'Přesun vám teď domluví recepce.'
             : svc?.newClientsOnly
-              ? 'Vstupní vyšetření přesune recepce.'
+              ? 'Úvodní schůzku přesune recepce.'
               : b.payment.method === 'makeup'
                 ? 'Náhradní termín už nelze přesunout – můžete ho jen zrušit.'
                 : 'Bezplatná lhůta uplynula a omluvenku už uplatnit nejde, proto termín nelze přesunout.'}

@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { Client, Id } from '../../domain/types';
 import { createClient, updateClient } from '../../engine/commands';
+import { stagesSorted } from '../../engine/crm';
 import { clientName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -50,12 +51,15 @@ function ContactFields({
   errors,
   tagSuggestions,
   today,
+  extra,
 }: {
   draft: ContactDraft;
   set: (patch: Partial<ContactDraft>) => void;
   errors: Errors;
   tagSuggestions: string[];
   today: string;
+  /** Další pole v mřížce (např. fáze spolupráce u nového klienta). */
+  extra?: ReactNode;
 }): JSX.Element {
   return (
     <>
@@ -90,6 +94,7 @@ function ContactFields({
             options={(Object.keys(SOURCE_LABEL) as Client['source'][]).map((k) => ({ value: k, label: SOURCE_LABEL[k] }))}
           />
         </Field>
+        {extra}
       </div>
       <Field label="Štítky" optional hint="Zaměření, preference nebo omezení – Enter přidá štítek.">
         <TagInput value={draft.tags} onChange={(tags) => set({ tags })} suggestions={tagSuggestions} />
@@ -114,11 +119,14 @@ export function NewClientDialog({ open, onClose, onCreated }: { open: boolean; o
   const [consents, setConsents] = useState({ gdpr: false, health: false, marketingEmail: false, sms: false });
   const [tried, setTried] = useState(false);
   const tagSuggestions = useMemo(() => allTags(clinic), [clinic]);
+  const stages = stagesSorted(clinic);
+  const [stageId, setStageId] = useState<string>(stages[0]?.id ?? '');
 
   useEffect(() => {
     if (open) {
       setDraft(EMPTY);
       setConsents({ gdpr: false, health: false, marketingEmail: false, sms: false });
+      setStageId(stagesSorted(clinic)[0]?.id ?? '');
       setTried(false);
     }
   }, [open]);
@@ -160,6 +168,7 @@ export function NewClientDialog({ open, onClose, onCreated }: { open: boolean; o
         source: draft.source,
         consents,
         internalNote: draft.internalNote.trim(),
+        stageId: stages.some((st) => st.id === stageId) ? stageId : undefined,
       },
       { success: `Založena karta klienta ${name}` },
     );
@@ -188,7 +197,20 @@ export function NewClientDialog({ open, onClose, onCreated }: { open: boolean; o
       }
     >
       <form id={formId} className="cli-form" onSubmit={submit} noValidate>
-        <ContactFields draft={draft} set={(p) => setDraft((d) => ({ ...d, ...p }))} errors={shown} tagSuggestions={tagSuggestions} today={today} />
+        <ContactFields
+          draft={draft}
+          set={(p) => setDraft((d) => ({ ...d, ...p }))}
+          errors={shown}
+          tagSuggestions={tagSuggestions}
+          today={today}
+          extra={
+            stages.length > 0 ? (
+              <Field label="Fáze spolupráce" hint="Kde ve spolupráci klient právě je – později ji změníte v kartě klienta.">
+                <Select value={stageId} onValueChange={setStageId} options={stages.map((st) => ({ value: st.id, label: st.name }))} />
+              </Field>
+            ) : undefined
+          }
+        />
 
         {dupes.length > 0 && (
           <Callout tone="warning" title="Možná duplicita" icon="users">

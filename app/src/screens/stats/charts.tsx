@@ -238,9 +238,11 @@ interface ChartCardProps {
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Úroveň nadpisu karty (3 uvnitř sekce s vlastním nadpisem h2). */
+  headingLevel?: 2 | 3 | 4;
 }
 
-export function ChartCard({ title, subtitle, meta, legend, table, footer, children, className }: ChartCardProps): JSX.Element {
+export function ChartCard({ title, subtitle, meta, legend, table, footer, children, className, headingLevel }: ChartCardProps): JSX.Element {
   const [asTable, setAsTable] = useState(false);
   return (
     <Card as="section" aria-label={title} className={cx('st-card', className)}>
@@ -248,6 +250,7 @@ export function ChartCard({ title, subtitle, meta, legend, table, footer, childr
         title={title}
         subtitle={subtitle}
         meta={meta}
+        headingLevel={headingLevel}
         actions={
           table ? (
             <IconButton
@@ -517,6 +520,8 @@ export interface BarRow {
   tipRows?: TipRow[];
   tipNote?: ReactNode;
   muted?: boolean;
+  /** Barva pruhu jen pro tento řádek (např. barva fáze spolupráce); jinak `colorClass` celého seznamu. */
+  colorClass?: string;
 }
 
 interface BarListProps {
@@ -595,7 +600,7 @@ export function BarList({
           >
             <span className="st-bars__label">{r.label}</span>
             <span className="st-bars__track">
-              {r.value > 0 && <span className={cx('st-bars__fill', colorClass)} style={{ width: frac(r.value) }} />}
+              {r.value > 0 && <span className={cx('st-bars__fill', r.colorClass ?? colorClass)} style={{ width: frac(r.value) }} />}
               {target && <span className="st-bars__target" style={{ left: frac(target.value) }} />}
             </span>
             {r.cells.map((c, ci) => (

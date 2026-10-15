@@ -18,6 +18,7 @@ import type {
   PackageTemplate,
   Service,
   Settings,
+  Stage,
   Therapist,
   TimeRange,
   Tone,
@@ -36,6 +37,7 @@ import {
   formatTime,
   plural,
 } from '../../engine/format';
+import { STAGE_NAME_MAX } from '../../engine/crm';
 import type { CancellationEvaluation } from '../../engine/policy';
 import {
   getService,
@@ -555,8 +557,32 @@ export function validateBonusRules(rules: readonly CreditBonusRule[]): BonusRowI
 
 export type SettingsDraft = Pick<
   Settings,
-  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders'
+  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'stages'
 >;
+
+/**
+ * Fáze v konceptu: seřazené, `order` = pozice v seznamu, `closed` jen když platí
+ * (stejný tvar, jaký uloží příkaz saveStages – po uložení se koncept shoduje s uloženým stavem).
+ */
+export function stageDraftsOf(stages: readonly Stage[] | undefined): Stage[] {
+  return [...(stages ?? [])]
+    .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((st, i) => withStageOrder(st, i));
+}
+
+function withStageOrder(st: Stage, order: number): Stage {
+  const out: Stage = { id: st.id, name: st.name, tone: st.tone, order };
+  if (st.closed) out.closed = true;
+  return out;
+}
+
+/** Přečísluje pořadí podle pozice v seznamu. */
+export function reorderStages(stages: readonly Stage[]): Stage[] {
+  return stages.map((st, i) => (st.order === i ? st : { ...st, order: i }));
+}
+
+/** Nejvyšší počet fází (víc sloupců by Pipeline nepřehledně roztáhlo). */
+export const STAGES_MAX = 12;
 
 export function settingsDraftOf(s: Settings): SettingsDraft {
   return clone({
@@ -568,13 +594,15 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
     policy: s.policy,
     waitlist: s.waitlist,
     reminders: s.reminders,
+    stages: stageDraftsOf(s.stages),
   });
 }
 
-export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'clinic';
+export type SectionId = 'stages' | 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'clinic';
 
 export function dirtySections(draft: SettingsDraft, base: SettingsDraft): SectionId[] {
   const out: SectionId[] = [];
+  if (!deepEqual(draft.stages, base.stages)) out.push('stages');
   if (!deepEqual(draft.bookingRules, base.bookingRules)) out.push('booking');
   const { excuses: dEx, ...dPol } = draft.policy;
   const { excuses: bEx, ...bPol } = base.policy;
@@ -603,6 +631,7 @@ export function normalizeDraft(d: SettingsDraft): SettingsDraft {
   n.clinicTagline = n.clinicTagline.trim();
   n.senderName = n.senderName.trim();
   n.senderEmail = n.senderEmail.trim();
+  n.stages = n.stages.map((st, i) => withStageOrder({ ...st, name: st.name.trim() }, i));
   return n;
 }
 
@@ -655,6 +684,29 @@ export function validateSettings(d: SettingsDraft): SettingsErrors {
   if (!d.clinicName.trim()) e['clinic.clinicName'] = 'Zadejte název kliniky.';
   if (!d.senderName.trim()) e['clinic.senderName'] = 'Zadejte jméno odesílatele.';
   if (!isEmail(d.senderEmail)) e['clinic.senderEmail'] = 'Zadejte platný e-mail, např. rezervace@klinika.cz.';
+  Object.assign(e, validateStages(d.stages));
+  return e;
+}
+
+/**
+ * Kontrola fází (stejná pravidla jako příkaz saveStages). Klíče: `stages.<i>.empty` (prázdný název –
+ * ukazuje se až po pokusu o uložení), `stages.<i>.name` (duplicitní nebo dlouhý název), `stages.list`.
+ */
+export function validateStages(stages: readonly Stage[]): SettingsErrors {
+  const e: SettingsErrors = {};
+  if (!stages.length) e['stages.list'] = 'Musí zůstat aspoň jedna fáze spolupráce.';
+  const seen = new Set<string>();
+  stages.forEach((st, i) => {
+    const name = st.name.trim();
+    if (!name) {
+      e[`stages.${i}.empty`] = 'Zadejte název fáze.';
+      return;
+    }
+    if (name.length > STAGE_NAME_MAX) e[`stages.${i}.name`] = `Název fáze může mít nejvýše ${formatNumber(STAGE_NAME_MAX)} znaků.`;
+    const key = name.toLocaleLowerCase('cs');
+    if (seen.has(key)) e[`stages.${i}.name`] = 'Fáze se stejným názvem už v seznamu je.';
+    seen.add(key);
+  });
   return e;
 }
 

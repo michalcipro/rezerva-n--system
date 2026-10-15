@@ -255,14 +255,14 @@ const CONSENTS: { key: Exclude<keyof ClientConsents, 'gdpr'>; label: string; on:
   {
     key: 'health',
     label: 'Zdravotní dokumentace',
-    on: 'Terapeut si vede poznámky o průběhu terapie.',
-    off: 'Bez souhlasu si terapeut nemůže vést poznámky o vašem zdravotním stavu.',
+    on: 'Kouč nebo terapeut si vede poznámky ze sezení.',
+    off: 'Bez souhlasu si o vás nemůžeme vést poznámky ze sezení.',
   },
   { key: 'sms', label: 'SMS zprávy', on: 'Připomínky termínů a nabídky uvolněných termínů.', off: 'Připomínky a nabídky dostanete jen e-mailem.' },
   {
     key: 'marketingEmail',
     label: 'Novinky a nabídky e-mailem',
-    on: 'Občas pošleme tipy na cvičení a akce kliniky.',
+    on: 'Občas pošleme tipy, pozvánky na workshopy a novinky.',
     off: 'Nebudeme vám posílat obchodní sdělení.',
   },
 ];
@@ -735,6 +735,7 @@ const KIND_LABEL: Partial<Record<Message['kind'], string>> = {
   after_visit: 'Po návštěvě',
   reactivation: 'Novinky',
   birthday: 'Přání',
+  session_notes: 'Zápis ze sezení',
   campaign: 'Novinky',
   manual: 'Zpráva od kliniky',
 };

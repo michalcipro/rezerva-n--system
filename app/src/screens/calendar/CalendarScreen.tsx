@@ -8,13 +8,13 @@ import { addDays, dateOf } from '../../engine/time';
 import { TherapistAvatar } from '../../components/domain';
 import { useActor, useClinic, useNow } from '../../store/hooks';
 import { navigate, setSession, useSession } from '../../store/session';
-import { Badge, Button, EmptyState, IconButton, Input, PageHeader, Progress, Segmented, Select, Swatch, Switch, cx, toast } from '../../ui';
+import { Badge, Button, EmptyState, Icon, IconButton, Input, PageHeader, Progress, Segmented, Select, Swatch, Switch, cx, toast } from '../../ui';
 import { BookingDrawer, SessionDrawer } from './BookingDrawer';
 import { MoveDialog, type MoveRequest } from './MoveDialog';
 import { NewBookingDialog, type NewBookingInitial } from './NewBookingDialog';
 import { SidePanel } from './SidePanel';
 import { TimeGrid, type GridColumn } from './TimeGrid';
-import { PHONE_QUERY, useMediaQuery } from './hooks';
+import { PHONE_QUERY, useClinicalAccess, useMediaQuery } from './hooks';
 import { relativeDayLabel, scheduleSummary, weekDates, weekRangeLabel, type ScheduleSummary } from './model';
 import './calendar.css';
 
@@ -37,6 +37,7 @@ export function CalendarScreen(): JSX.Element {
   const session = useSession();
   const actor = useActor();
   const isPhone = useMediaQuery(PHONE_QUERY);
+  const clinical = useClinicalAccess();
   const today = dateOf(now);
   const date: LocalDate = session.calendarDate ?? today;
   const view: 'day' | 'week' = session.calendarView === 'week' ? 'week' : 'day';
@@ -166,6 +167,12 @@ export function CalendarScreen(): JSX.Element {
           ))}
         <Swatch tone="break">Pauza</Swatch>
         <Swatch tone="free">Volné okno</Swatch>
+        {clinical && (
+          <span className="cal-legend__mark">
+            <Icon name="clipboard" size={12} />
+            Zápis ze sezení
+          </span>
+        )}
       </div>
       <span className="spacer" />
       <Switch checked={showCancelled} onChange={setShowCancelled} label="Zrušené termíny" labelPosition="end" className="cal-legend__switch" />

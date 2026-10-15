@@ -139,7 +139,7 @@ export function PackageTemplateEditor({ initial, onClose }: { initial: PackageTe
         </div>
 
         <Field label="Název" error={err('name')}>
-          <Input value={d.name} maxLength={40} placeholder="např. Fyzio 10" onValueChange={(v) => setD((c) => ({ ...c, name: v }))} data-autofocus="" />
+          <Input value={d.name} maxLength={40} placeholder="např. Koučink 10×" onValueChange={(v) => setD((c) => ({ ...c, name: v }))} data-autofocus="" />
         </Field>
         <Field
           label="Popis pro klienty"
@@ -155,7 +155,7 @@ export function PackageTemplateEditor({ initial, onClose }: { initial: PackageTe
             ) : undefined
           }
         >
-          <Input value={d.description} maxLength={80} placeholder="např. 10× fyzioterapie 45 min" onValueChange={(v) => setD((c) => ({ ...c, description: v }))} />
+          <Input value={d.description} maxLength={80} placeholder="např. 10 sezení mentálního koučinku" onValueChange={(v) => setD((c) => ({ ...c, description: v }))} />
         </Field>
 
         <section className="set-form__section" aria-labelledby="set-pkg-h-svc">

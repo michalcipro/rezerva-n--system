@@ -7,11 +7,16 @@ import { clientName, getClient, getTherapist, therapistName } from '../engine/se
  * Ukládá se do localStorage – je to jen pohodlí jednoho uživatele, ne data kliniky.
  */
 
+/** Karty v detailu klienta (pro odkaz rovnou na konkrétní kartu). */
+export type ClientTab = 'prehled' | 'poznamky' | 'rezervace' | 'followupy' | 'soubory' | 'finance' | 'komunikace' | 'souhlasy' | 'historie';
+
 export type AdminRoute =
   | { name: 'prehled' }
   | { name: 'kalendar' }
   | { name: 'klienti' }
-  | { name: 'klient'; clientId: Id }
+  | { name: 'klient'; clientId: Id; tab?: ClientTab }
+  | { name: 'pipeline' }
+  | { name: 'followupy' }
   | { name: 'permanentky' }
   | { name: 'sluzby' }
   | { name: 'tym' }
@@ -59,7 +64,7 @@ function initialRoleFromHash(s: Session): Session {
     const hash = typeof location !== 'undefined' ? location.hash.replace('#', '') : '';
     if (hash === 'klient') return { ...s, role: 'client' };
     if (hash === 'recepce') return { ...s, role: 'reception' };
-    const adminRoutes = ['prehled', 'kalendar', 'klienti', 'permanentky', 'sluzby', 'tym', 'komunikace', 'statistiky', 'nastaveni'];
+    const adminRoutes = ['prehled', 'kalendar', 'klienti', 'pipeline', 'followupy', 'permanentky', 'sluzby', 'tym', 'komunikace', 'statistiky', 'nastaveni'];
     if (adminRoutes.includes(hash)) return { ...s, role: s.role === 'client' ? 'owner' : s.role, route: { name: hash } as AdminRoute };
   } catch {
     /* ignore */

@@ -233,7 +233,7 @@ export function SignedMoney({ amount, className }: { amount: number; className?:
 
 export const CONSENT_META: { key: keyof ClientConsents; label: string; description: string }[] = [
   { key: 'gdpr', label: 'Zpracování osobních údajů', description: 'Nutné pro vedení klienta, rezervace a vyúčtování. Nelze odebrat – výmaz řeší klinika na žádost klienta.' },
-  { key: 'health', label: 'Zdravotní dokumentace', description: 'Vedení klinických poznámek, anamnézy a průběhu terapie.' },
+  { key: 'health', label: 'Zdravotní dokumentace', description: 'Vedení poznámek ze sezení, anamnézy a průběhu terapie nebo koučinku.' },
   { key: 'marketingEmail', label: 'Obchodní sdělení e-mailem', description: 'Novinky, nabídky a kampaně kliniky. Lze kdykoli odvolat.' },
   { key: 'sms', label: 'SMS připomínky a zprávy', description: 'Připomínky termínů a provozní zprávy přes SMS.' },
 ];

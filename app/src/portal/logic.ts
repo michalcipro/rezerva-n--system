@@ -162,7 +162,7 @@ export function activeTherapistsFor(s: ClinicState, service: Service): Therapist
     .sort((a, b) => a.order - b.order);
 }
 
-/** Služby, které si klient může sám rezervovat (vstupní vyšetření jen noví klienti). */
+/** Služby, které si klient může sám rezervovat (Freetalk jen noví klienti). */
 export function bookableServices(s: ClinicState, clientId: Id): Service[] {
   const fresh = isNewClient(s, clientId);
   const catOrder = (svc: Service): number => getCategory(s, svc.categoryId)?.order ?? 99;
@@ -295,7 +295,7 @@ export interface PayOption {
   disabled: boolean;
   /** Kolik klient zaplatí teď (online / z kreditu) nebo na místě. */
   amount: number;
-  /** Krátký popis do souhrnu („z permanentky Fyzio 10 · zbývá 4 vstupy“). */
+  /** Krátký popis do souhrnu („z permanentky Koučink 10× · zbývá 5 vstupů“). */
   summary: string;
   /** Řádek k úhradě v posledním kroku („Zaplatíte na místě 1 190 Kč“). */
   total: string;
@@ -309,6 +309,23 @@ export function paymentOptions(
   const service = getService(s, q.serviceId);
   if (!service) return [];
   const price = service.priceCzk;
+  // služba zdarma (Freetalk): nic neplatí a nepoužije se ani permanentka, kredit nebo náhrada
+  if (price <= 0) {
+    return [
+      {
+        key: 'free',
+        payment: { method: 'free' },
+        title: 'Zdarma',
+        description: 'Tato schůzka se neplatí.',
+        aside: 'zdarma',
+        disabled: false,
+        amount: 0,
+        summary: 'zdarma',
+        total: 'Schůzka je zdarma',
+        icon: 'gift',
+      },
+    ];
+  }
   const today = dateOf(q.now);
   const out: PayOption[] = [];
 

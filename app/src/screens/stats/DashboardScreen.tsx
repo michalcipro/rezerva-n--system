@@ -56,6 +56,7 @@ import {
 } from '../../ui';
 import { BookingDrawer, NewBookingDialog } from '../calendar';
 import { HourlyChart, LegendItem } from './charts';
+import { FollowUpsCard, StagesCard } from './DashboardCrm';
 import { hourlyOccupancy, pct } from './model';
 import { NewClientDialog } from './NewClientDialog';
 import {
@@ -692,6 +693,8 @@ export function DashboardScreen(): JSX.Element {
             {lists.later && nextCount > 0 && <p className="st-footnote">Potom: {whoNext(lists.later)}</p>}
           </Card>
 
+          <FollowUpsCard assigneeId={scope} />
+
           <Card as="section" aria-label="Obsazenost dnes po hodinách" className="st-card">
             <CardHeader
               title="Obsazenost dnes"
@@ -728,7 +731,7 @@ export function DashboardScreen(): JSX.Element {
           </Card>
         </div>
 
-        <aside className="split__aside" aria-label="Upozornění">
+        <aside className="split__aside" aria-label="Upozornění a fáze spolupráce">
           <Card as="section" aria-label="Upozornění" className="st-card">
             <CardHeader
               title="Upozornění"
@@ -745,6 +748,7 @@ export function DashboardScreen(): JSX.Element {
               <div className="st-alerts">{groups}</div>
             )}
           </Card>
+          <StagesCard onNewClient={() => setNewClient(true)} />
         </aside>
       </div>
 

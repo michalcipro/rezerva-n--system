@@ -1,7 +1,9 @@
-# Rezervační systém pro kliniku „pohyb"
+# Winning Minds
 
-Vlastní rezervační platforma pro soukromou kliniku zaměřenou primárně na fyzioterapii, která nabízí také
-kondiční tréninky (1:1 i skupinové), masáže a další služby, které si majitel sám definuje.
+Kalendář, CRM a rezervační systém pro Winning Minds – firmu, která se věnuje mentálnímu koučinku, terapii,
+neurovizuálnímu tréninku, strategickému koučinku a mentoringu. Systém slouží hlavně jako kalendář a CRM
+(později i fakturace); online rezervace a klientský portál zůstávají k dispozici. Vznikl úpravou rezervační
+platformy pro kliniku „pohyb", pro kterou je i výzkumná zpráva v `reports/`.
 
 ## Obsah repozitáře
 
@@ -15,10 +17,17 @@ kondiční tréninky (1:1 i skupinové), masáže a další služby, které si m
 
 Co umí:
 
+- **CRM**: u každého klienta je vidět **fáze spolupráce** (Potenciální klient → Freetalk → Diagnostika →
+  Vyhodnocení → Aktivní spolupráce → Pozastaveno → Konec spolupráce; fáze lze v Nastavení upravit),
+  **poznámky** a zápisy ze sezení s odesláním klientovi e-mailem, **audio nahrávky**, **import z Plaud AI**
+  (shrnutí a přepis), **soubory a fotky** a **follow-upy** (úkoly s termínem). Tabule **Pipeline** ukazuje
+  klienty po fázích a přesouvá je tažením i z menu, obrazovka **Follow-upy** a widget na Přehledu hlídají úkoly
+  po termínu a na dnes, Statistiky mají sekci „Klienti a fáze" (přechody, konverze Freetalk → Aktivní
+  spolupráce, doba ve fázi). Specifikace: [`app/docs/CRM.md`](app/docs/CRM.md).
 - **Kalendář** po 15 minutách s různými délkami služeb, sloupce terapeutů, týdenní pohled, přetahování termínů,
   rezervy po službách, pauzy, nepřítomnosti, skupinové lekce s kapacitou.
 - **Klienti**: permanentky (vstupy absolvované / rezervované / volné, platnost, prodloužení), kredit (peněženka
-  s bonusem za dobití), omluvenky a náhradní termíny, poplatky, souhlasy GDPR, klinické poznámky, historie.
+  s bonusem za dobití), omluvenky a náhradní termíny, poplatky, souhlasy GDPR, historie.
 - **Storno a omluvenky**: bezplatná lhůta, stupně poplatků (např. 24–12 h 50 %, méně než 12 h 100 %),
   nedostavení, omluvenky na permanentku nebo za období, lhůta pro náhradu, první pozdní storno zdarma,
   blokace po opakovaném nedostavení – vše nastavitelné, se živým náhledem.
@@ -49,6 +58,9 @@ npm run build    # produkční build + dist/artifact.html
 ```
 
 Architektura a pravidla vývoje: [`app/docs/ARCHITECTURE.md`](app/docs/ARCHITECTURE.md), specifikace obrazovek:
-[`app/docs/SCREENS.md`](app/docs/SCREENS.md).
+[`app/docs/SCREENS.md`](app/docs/SCREENS.md), CRM vrstva: [`app/docs/CRM.md`](app/docs/CRM.md).
+
+Publikace jako claude.ai artefakt (`dist/artifact.html`) musí deklarovat `capabilities: { db: {}, assets: {},
+downloads: true }` – sdílená databáze, úložiště souborů klientů a stahování souborů.
 
 Všechna jména, kontakty a čísla v ukázkových datech jsou smyšlená.

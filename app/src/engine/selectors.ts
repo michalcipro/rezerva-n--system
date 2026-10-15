@@ -40,9 +40,17 @@ export function indexById<T extends { id: string }>(arr: readonly T[]): Map<stri
 
 let groupCache = new WeakMap<object, { len: number; byKind: Map<string, Map<string, Booking[]>> }>();
 
+const extraCacheClearers: (() => void)[] = [];
+
+/** Další moduly selektorů (např. engine/crm.ts) si sem registrují vlastní cache. */
+export function registerSelectorCache(clear: () => void): void {
+  extraCacheClearers.push(clear);
+}
+
 export function clearSelectorCaches(): void {
   idIndexCache = new WeakMap();
   groupCache = new WeakMap();
+  for (const clear of extraCacheClearers) clear();
 }
 
 function groupBookings(bookings: readonly Booking[], kind: 'client' | 'therapistDate' | 'date' | 'session'): Map<string, Booking[]> {

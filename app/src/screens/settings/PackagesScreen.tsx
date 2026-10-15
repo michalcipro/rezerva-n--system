@@ -184,7 +184,7 @@ function TemplateGrid({
         <EmptyState
           icon="ticket"
           title="Zatím nenabízíte žádné permanentky"
-          text="Permanentka je balíček vstupů za zvýhodněnou cenu (např. 10× fyzioterapie). Klienti ji koupí na recepci nebo online."
+          text="Permanentka je balíček vstupů za zvýhodněnou cenu (např. 10 sezení koučinku). Klienti ji koupí na recepci nebo online."
           action={
             <Button variant="primary" icon="plus" onClick={onNew}>
               Vytvořit první permanentku

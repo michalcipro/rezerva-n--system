@@ -19,7 +19,7 @@ export function ClientAvatar({ client, size = 'sm' }: { client: Pick<Client, 'fi
   return <Avatar initials={initials} tone="slate" size={size} />;
 }
 
-/** Štítek kategorie služby (např. Fyzioterapie). */
+/** Štítek kategorie služby (např. Koučink). */
 export function CategoryBadge({ clinic, serviceId }: { clinic: ClinicState; serviceId: Id }): JSX.Element | null {
   const svc = getService(clinic, serviceId);
   const cat = svc ? getCategory(clinic, svc.categoryId) : undefined;

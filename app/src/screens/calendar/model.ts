@@ -547,7 +547,7 @@ export function relativeDayLabel(date: LocalDate, today: LocalDate): string {
   return 'Před ' + a + ' ' + (a === 1 ? 'dnem' : 'dny');
 }
 
-/** Popis služby do výběru: „Fyzioterapie 45 min · 45 min · 1 190 Kč“ (bez opakování délky). */
+/** Popis služby do výběru: „Mentální koučink · 60 min · 1 900 Kč“ (délku nepřidá, když už je v názvu). */
 export function serviceOptionLabel(svc: Service, price: string): string {
   const dur = formatDuration(svc.durationMin);
   const name = svc.name.includes(String(svc.durationMin) + ' min') ? svc.name : `${svc.name} · ${dur}`;

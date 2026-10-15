@@ -19,6 +19,7 @@ import type {
   MoneyMethod,
   PaymentPurpose,
 } from '../../domain/types';
+import { clientStage } from '../../engine/crm';
 import { countLabel, formatDayShort, formatMoney, formatPercent, formatTime } from '../../engine/format';
 import { evaluateCancellation } from '../../engine/policy';
 import {
@@ -70,6 +71,8 @@ export interface PackageInfo {
 export interface ClientRow {
   client: Client;
   name: string;
+  /** Fáze spolupráce (clientStage – klient s neznámou fází spadne do první fáze jako v Pipeline). */
+  stageId: Id;
   /** Normalizovaný text pro hledání (jméno v obou pořadích, e-mail, telefon). */
   haystack: string;
   visits: number;
@@ -101,6 +104,7 @@ export function buildClientRows(s: ClinicState, now: LocalDateTime): ClientRow[]
     rows.set(c.id, {
       client: c,
       name,
+      stageId: clientStage(s, c).id,
       haystack: normalize(`${name} ${c.lastName} ${c.firstName} ${c.email}`) + ' ' + digitsOf(c.phone),
       visits: 0,
       lastVisit: null,

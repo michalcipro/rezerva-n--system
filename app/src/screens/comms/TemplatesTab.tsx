@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Channel, MessageTemplate, TemplateKey } from '../../domain/types';
 import { updateTemplate } from '../../engine/commands';
 import { countLabel, formatNumber } from '../../engine/format';
@@ -10,11 +10,12 @@ import { Badge, Button, Callout, Card, Checkbox, cx, Field, Icon, Input, Switch,
 import {
   channelsLabel,
   insertAt,
+  isManualTemplate,
   NOT_AUTOMATED,
-  sampleVars,
   smsInfo,
   TEMPLATE_GROUPS,
   templateIssues,
+  templateSampleVars,
   templateTiming,
   templateVariableKeys,
   variableLabel,
@@ -51,7 +52,7 @@ function TemplateList({
   const clinic = useClinic();
   const run = useCommand();
   return (
-    <Card padding="none" as="section" className="com-tlist" aria-label="Šablony automatických zpráv">
+    <Card padding="none" as="section" className="com-tlist" aria-label="Šablony zpráv">
       {TEMPLATE_GROUPS.map((g) => {
         const items = g.keys.map((k) => clinic.templates.find((t) => t.key === k)).filter((t): t is MessageTemplate => !!t);
         if (!items.length) return null;
@@ -74,12 +75,18 @@ function TemplateList({
                       {channelsLabel(t.channels)} · {templateTiming(t, clinic)}
                     </span>
                   </button>
-                  <Switch
-                    className="com-tlist__switch"
-                    checked={t.enabled}
-                    aria-label={t.name}
-                    onChange={(value) => run(updateTemplate, { key: t.key, patch: { enabled: value } }, { success: `${t.name}: ${value ? 'zapnuto' : 'vypnuto'}` })}
-                  />
+                  {isManualTemplate(t.key) ? (
+                    <Badge className="com-tlist__manual" icon="send" title="Neposílá se automaticky – odesílá se ručně">
+                      Ručně
+                    </Badge>
+                  ) : (
+                    <Switch
+                      className="com-tlist__switch"
+                      checked={t.enabled}
+                      aria-label={t.name}
+                      onChange={(value) => run(updateTemplate, { key: t.key, patch: { enabled: value } }, { success: `${t.name}: ${value ? 'zapnuto' : 'vypnuto'}` })}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -93,6 +100,22 @@ function TemplateList({
 /* ------------------------------------------------------------------ */
 /* Editor šablony                                                      */
 /* ------------------------------------------------------------------ */
+
+/** Krátká ukázková hodnota proměnné do nápovědy (na jeden řádek). */
+function sampleText(value: string | undefined): string {
+  const flat = (value ?? '').replace(/\s+/g, ' ').trim();
+  return flat.length > 60 ? `${flat.slice(0, 57).trimEnd()}…` : flat;
+}
+
+/** Pole textu zprávy: u šablon s jedním kanálem bez karet, jinak panel karty kanálu. */
+function ChannelPanel({ manual, idPrefix, channel, children }: { manual: boolean; idPrefix: string; channel: Channel; children: ReactNode }): JSX.Element {
+  if (manual) return <div className="com-tedit__panel">{children}</div>;
+  return (
+    <TabPanel idPrefix={idPrefix} id={channel} className="com-tedit__panel">
+      {children}
+    </TabPanel>
+  );
+}
 
 interface TemplateEditorProps {
   tpl: MessageTemplate;
@@ -115,11 +138,14 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const smsRef = useRef<HTMLTextAreaElement>(null);
   const lastField = useRef<FieldName | null>(null);
 
-  const vars = useMemo(() => sampleVars(clinic, now), [clinic, now]);
+  const vars = useMemo(() => templateSampleVars(clinic, now, tpl.key), [clinic, now, tpl.key]);
   const allowed = templateVariableKeys(tpl.key);
   const issues = templateIssues(tpl.key, value);
   const marketing = MARKETING_TEMPLATES.includes(tpl.key);
-  const automated = !NOT_AUTOMATED.includes(tpl.key);
+  /** Posílá se ručně (zápis ze sezení): jen e-mail, bez vypínače. */
+  const manual = isManualTemplate(tpl.key);
+  const automated = !manual && !NOT_AUTOMATED.includes(tpl.key);
+  const activeChannel: Channel = manual ? 'email' : channel;
   const weekAgo = addDays(now, -7);
   const stats = useMemo(() => {
     let sent = 0;
@@ -143,7 +169,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
     name === 'subject' ? subjectRef.current : name === 'body' ? bodyRef.current : smsRef.current;
 
   const insertVariable = (key: string): void => {
-    const target: FieldName = channel === 'sms' ? 'smsBody' : lastField.current === 'subject' ? 'subject' : 'body';
+    const target: FieldName = activeChannel === 'sms' ? 'smsBody' : lastField.current === 'subject' ? 'subject' : 'body';
     const el = refFor(target);
     const current = value[target];
     const useCaret = lastField.current === target && el !== null;
@@ -192,12 +218,18 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
           <h2 className="com-tedit__title">{tpl.name}</h2>
           <p className="com-tedit__desc">{tpl.description}</p>
         </div>
-        <Switch
-          className="com-tedit__switch"
-          checked={tpl.enabled}
-          label={tpl.enabled ? 'Zapnuto' : 'Vypnuto'}
-          onChange={(v) => run(updateTemplate, { key: tpl.key, patch: { enabled: v } }, { success: `${tpl.name}: ${v ? 'zapnuto' : 'vypnuto'}` })}
-        />
+        {manual ? (
+          <Badge className="com-tedit__switch" icon="send" size="md">
+            Posílá se ručně
+          </Badge>
+        ) : (
+          <Switch
+            className="com-tedit__switch"
+            checked={tpl.enabled}
+            label={tpl.enabled ? 'Zapnuto' : 'Vypnuto'}
+            onChange={(v) => run(updateTemplate, { key: tpl.key, patch: { enabled: v } }, { success: `${tpl.name}: ${v ? 'zapnuto' : 'vypnuto'}` })}
+          />
+        )}
       </div>
 
       <div className="com-tedit__facts">
@@ -233,7 +265,16 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
         )}
       </div>
 
-      {!automated && (
+      {manual && (
+        <div className="com-tedit__notice">
+          <Callout tone="info" icon="send" title="Odesílá kouč ručně">
+            Zápis ze sezení pošlete klientovi z karty klienta (Poznámky) nebo z detailu schůzky v kalendáři. Před odesláním
+            uvidíte náhled a text můžete ještě upravit – tady nastavujete jen výchozí předmět a text e-mailu. Proměnná [poznámky]
+            vloží text zápisu, [datum] datum sezení.
+          </Callout>
+        </div>
+      )}
+      {!automated && !manual && (
         <div className="com-tedit__notice">
           <Callout tone="warning" title="Zatím bez automatického odeslání">
             V prototypu se tato zpráva sama neodesílá.{' '}
@@ -253,30 +294,39 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
 
       <div className="com-tedit__grid">
         <div className="com-tedit__form">
-          <fieldset className="com-tedit__channels">
-            <legend className="field__label">Kanály</legend>
-            <Checkbox label="E-mail" checked={value.channels.includes('email')} onChange={(on) => toggleChannel('email', on)} />
-            <Checkbox
-              label="SMS"
-              description={`Jen klientům se souhlasem se SMS (${formatNumber(smsConsent)} z ${formatNumber(clinic.clients.length)})`}
-              checked={value.channels.includes('sms')}
-              onChange={(on) => toggleChannel('sms', on)}
-            />
-          </fieldset>
+          {manual ? (
+            <p className="com-tedit__only">
+              <Icon name="mail" size={16} />
+              <span>Posílá se jen e-mailem.</span>
+            </p>
+          ) : (
+            <fieldset className="com-tedit__channels">
+              <legend className="field__label">Kanály</legend>
+              <Checkbox label="E-mail" checked={value.channels.includes('email')} onChange={(on) => toggleChannel('email', on)} />
+              <Checkbox
+                label="SMS"
+                description={`Jen klientům se souhlasem se SMS (${formatNumber(smsConsent)} z ${formatNumber(clinic.clients.length)})`}
+                checked={value.channels.includes('sms')}
+                onChange={(on) => toggleChannel('sms', on)}
+              />
+            </fieldset>
+          )}
 
-          <Tabs
-            idPrefix={`com-tch-${tpl.key}`}
-            bordered
-            aria-label="Text zprávy podle kanálu"
-            value={channel}
-            onChange={setChannel}
-            items={[
-              { id: 'email', label: value.channels.includes('email') ? 'E-mail' : 'E-mail (vypnuto)' },
-              { id: 'sms', label: value.channels.includes('sms') ? 'SMS' : 'SMS (vypnuto)' },
-            ]}
-          />
-          <TabPanel idPrefix={`com-tch-${tpl.key}`} id={channel} className="com-tedit__panel">
-            {channel === 'email' ? (
+          {!manual && (
+            <Tabs
+              idPrefix={`com-tch-${tpl.key}`}
+              bordered
+              aria-label="Text zprávy podle kanálu"
+              value={channel}
+              onChange={setChannel}
+              items={[
+                { id: 'email', label: value.channels.includes('email') ? 'E-mail' : 'E-mail (vypnuto)' },
+                { id: 'sms', label: value.channels.includes('sms') ? 'SMS' : 'SMS (vypnuto)' },
+              ]}
+            />
+          )}
+          <ChannelPanel manual={manual} idPrefix={`com-tch-${tpl.key}`} channel={activeChannel}>
+            {activeChannel === 'email' ? (
               <>
                 <Field label="Předmět">
                   <Input
@@ -286,7 +336,10 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                     onValueChange={(subject) => set({ subject })}
                   />
                 </Field>
-                <Field label="Text e-mailu" hint="Prázdný řádek začne nový odstavec.">
+                <Field
+                  label="Text e-mailu"
+                  hint={manual ? 'Prázdný řádek začne nový odstavec. Text zápisu vloží proměnná [poznámky].' : 'Prázdný řádek začne nový odstavec.'}
+                >
                   <Textarea
                     ref={bodyRef}
                     rows={10}
@@ -320,7 +373,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                 />
               </Field>
             )}
-          </TabPanel>
+          </ChannelPanel>
 
           <div className="com-vars">
             <span className="com-vars__label" id={`com-vars-${tpl.key}`}>
@@ -332,8 +385,8 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                   key={key}
                   type="button"
                   className="com-var-chip"
-                  title={variableLabel(key)}
-                  aria-label={`Vložit ${variableLabel(key)}`}
+                  title={variableLabel(key, tpl.key)}
+                  aria-label={`Vložit ${variableLabel(key, tpl.key)}`}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => insertVariable(key)}
                 >
@@ -341,6 +394,20 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                 </button>
               ))}
             </div>
+            <details className="com-vars__help" open={manual || undefined}>
+              <summary>Co proměnné znamenají</summary>
+              <dl className="com-vars__defs">
+                {allowed.map((key) => (
+                  <div key={key} className="com-vars__def">
+                    <dt>[{key}]</dt>
+                    <dd>
+                      {variableLabel(key, tpl.key)}
+                      {sampleText(vars[key]) && <span className="com-vars__sample"> – např. {sampleText(vars[key])}</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
           </div>
 
           {issues.length > 0 && (
@@ -356,7 +423,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
 
         <div className="com-tedit__preview">
           <span className="com-tedit__eyebrow">Náhled s ukázkovými údaji</span>
-          {channel === 'email' ? (
+          {activeChannel === 'email' ? (
             <div className="com-stage com-stage--compact">
               <div className="com-tsubject">
                 <span className="com-tsubject__label">Předmět</span>
@@ -392,7 +459,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                 , {vars['služba']} {vars['datum']} v {vars['čas']}
               </>
             )}
-            . Zvýrazněné části doplní systém.
+            {manual && <>, sezení {vars['datum']}, ukázkový text zápisu</>}. Zvýrazněné části doplní systém.
           </p>
         </div>
       </div>

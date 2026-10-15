@@ -4,6 +4,7 @@ import { clientName } from '../engine/selectors';
 import { CalendarScreen, NewBookingDialog } from '../screens/calendar';
 import { ClientDetailScreen, ClientsScreen } from '../screens/clients';
 import { CommsScreen } from '../screens/comms';
+import { FollowUpsScreen, PipelineScreen } from '../screens/pipeline';
 import { PackagesScreen, ServicesScreen, SettingsScreen, TeamScreen } from '../screens/settings';
 import { DashboardScreen, StatsScreen } from '../screens/stats';
 import { useClinic } from '../store/hooks';
@@ -17,6 +18,8 @@ const NAV: { id: NavId; label: string; icon: IconName }[] = [
   { id: 'prehled', label: 'Přehled', icon: 'home' },
   { id: 'kalendar', label: 'Kalendář', icon: 'calendar' },
   { id: 'klienti', label: 'Klienti', icon: 'users' },
+  { id: 'pipeline', label: 'Pipeline', icon: 'layers' },
+  { id: 'followupy', label: 'Follow-upy', icon: 'checkCircle' },
   { id: 'permanentky', label: 'Permanentky a kredity', icon: 'ticket' },
   { id: 'sluzby', label: 'Služby a ceník', icon: 'briefcase' },
   { id: 'tym', label: 'Tým a směny', icon: 'clock' },
@@ -27,8 +30,8 @@ const NAV: { id: NavId; label: string; icon: IconName }[] = [
 
 const ACCESS: Record<ActorRole, NavId[]> = {
   owner: NAV.map((n) => n.id),
-  reception: ['prehled', 'kalendar', 'klienti', 'permanentky', 'sluzby', 'tym', 'komunikace'],
-  therapist: ['prehled', 'kalendar', 'klienti'],
+  reception: ['prehled', 'kalendar', 'klienti', 'pipeline', 'followupy', 'permanentky', 'sluzby', 'tym', 'komunikace'],
+  therapist: ['prehled', 'kalendar', 'klienti', 'pipeline', 'followupy'],
   client: [],
 };
 
@@ -164,7 +167,13 @@ export function AdminApp(): JSX.Element {
         screen = <ClientsScreen />;
         break;
       case 'klient':
-        screen = <ClientDetailScreen clientId={route.clientId} />;
+        screen = <ClientDetailScreen clientId={route.clientId} tab={route.tab} />;
+        break;
+      case 'pipeline':
+        screen = <PipelineScreen />;
+        break;
+      case 'followupy':
+        screen = <FollowUpsScreen />;
         break;
       case 'permanentky':
         screen = <PackagesScreen />;

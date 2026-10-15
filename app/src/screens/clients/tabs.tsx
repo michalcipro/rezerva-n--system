@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { Booking, Client, ClientConsents, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
-import { addClinicalNote, setConsent } from '../../engine/commands';
+import { setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatDateTimeShort, formatDayShort, formatMoney, formatTime } from '../../engine/format';
-import { bookingsOfClient, getBooking, getService, getTherapist, packageUsage, packagesOfClient, therapistName } from '../../engine/selectors';
+import { bookingsOfClient, getBooking, getService, packageUsage, packagesOfClient } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
-import { TherapistAvatar } from '../../components/domain';
-import { useActor, useClinic, useCommand } from '../../store/hooks';
+import { useClinic, useCommand } from '../../store/hooks';
 import {
   Badge,
   Button,
-  Callout,
   Card,
   CardHeader,
   ConfirmDialog,
@@ -19,7 +17,6 @@ import {
   Select,
   Switch,
   Table,
-  Textarea,
   cx,
 } from '../../ui';
 import { DebtPanel, PackageBlock } from './balances';
@@ -36,7 +33,7 @@ import {
   type DebtItem,
 } from './model';
 import { BookingTable } from './OverviewTab';
-import { CONSENT_META, Pagination, SignedMoney, useMediaQuery, usePaged, type Permissions } from './parts';
+import { CONSENT_META, Pagination, SignedMoney, useMediaQuery, usePaged, usePermissions } from './parts';
 
 /* ------------------------------------------------------------------ */
 /* Rezervace                                                           */
@@ -379,110 +376,6 @@ export function FinanceTab({
 }
 
 /* ------------------------------------------------------------------ */
-/* Dokumentace                                                         */
-/* ------------------------------------------------------------------ */
-
-const SOAP = 'S (subjektivně): \nO (vyšetření): \nA (hodnocení): \nP (plán): ';
-
-export function DocsTab({ client, perms, onGrantHealth }: { client: Client; perms: Permissions; onGrantHealth: () => void }): JSX.Element {
-  const clinic = useClinic();
-  const actor = useActor();
-  const run = useCommand();
-  const [text, setText] = useState('');
-  const author = actor.therapistId ? getTherapist(clinic, actor.therapistId) : undefined;
-
-  if (!perms.clinical) {
-    return (
-      <Card>
-        <EmptyState
-          icon="lock"
-          title="Klinická dokumentace je jen pro terapeuty"
-          text={
-            client.notes.length
-              ? `Klient má ${countLabel(client.notes.length, ['klinickou poznámku', 'klinické poznámky', 'klinických poznámek'])}. Obsah vidí jen terapeuti.`
-              : 'Poznámky z terapie zapisují a čtou terapeuti.'
-          }
-        />
-      </Card>
-    );
-  }
-
-  const save = (): void => {
-    const r = run(addClinicalNote, { clientId: client.id, text }, { success: 'Klinická poznámka uložena' });
-    if (r.ok) setText('');
-  };
-
-  return (
-    <div className="cli-stack">
-      {!client.consents.health && (
-        <Callout
-          tone="warning"
-          title="Chybí souhlas se zdravotní dokumentací"
-          actions={
-            <Button size="sm" variant="secondary" onClick={onGrantHealth}>
-              Zaznamenat souhlas
-            </Button>
-          }
-        >
-          Před zápisem anamnézy a průběhu terapie si nechte od klienta souhlas potvrdit.
-        </Callout>
-      )}
-      <Card as="section" aria-label="Nová klinická poznámka">
-        <CardHeader
-          title="Nová poznámka"
-          icon="edit"
-          actions={
-            <Badge tone="neutral" icon="lock">
-              vidí jen terapeuti
-            </Badge>
-          }
-        />
-        <Textarea
-          aria-label="Text klinické poznámky"
-          rows={5}
-          value={text}
-          onValueChange={setText}
-          placeholder="Průběh terapie, nález, doporučená cvičení, plán další návštěvy…"
-        />
-        <div className="cli-note-actions">
-          <span className="cli-hint">Zapíše se pod: {author ? therapistName(author) : actor.name}</span>
-          <span className="spacer" />
-          <Button size="sm" variant="ghost" onClick={() => setText((t) => (t.trim() ? t + '\n\n' + SOAP : SOAP))}>
-            Vložit osnovu SOAP
-          </Button>
-          <Button size="sm" variant="primary" icon="check" disabled={!text.trim()} onClick={save}>
-            Uložit poznámku
-          </Button>
-        </div>
-      </Card>
-      <Card padding="none" as="section" aria-label="Klinické poznámky">
-        <CardHeader divided title="Klinické poznámky" meta={client.notes.length ? countLabel(client.notes.length, ['poznámka', 'poznámky', 'poznámek']) : undefined} />
-        {client.notes.length === 0 ? (
-          <EmptyState compact icon="file" title="Zatím žádné poznámky" text="První poznámku zapíšete výše – po vyšetření nebo terapii." />
-        ) : (
-          <ol className="cli-notes">
-            {client.notes.map((n) => {
-              const t = getTherapist(clinic, n.therapistId);
-              return (
-                <li key={n.id} className="cli-notes__item">
-                  <TherapistAvatar therapist={t} size="sm" />
-                  <div className="cli-notes__body">
-                    <span className="cli-notes__meta tnum">
-                      <strong>{therapistName(t)}</strong> · {formatDate(n.at)} {formatTime(n.at)}
-                    </span>
-                    <p className="cli-note-text">{n.text}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Komunikace                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -490,6 +383,8 @@ type MsgFilter = 'all' | 'email' | 'sms' | 'skipped';
 
 export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => void }): JSX.Element {
   const clinic = useClinic();
+  // Zápis ze sezení obsahuje celou poznámku – jeho text vidí jen ti, kdo vidí poznámky (docs/CRM.md).
+  const { clinical } = usePermissions();
   const [filter, setFilter] = useState<MsgFilter>('all');
   const all = useMemo(() => messagesOfClient(clinic, client.id), [clinic, client.id]);
   const list = all.filter((m) => (filter === 'all' ? true : filter === 'skipped' ? m.status === 'skipped' : m.channel === filter));
@@ -563,10 +458,17 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => v
                     {m.channel === 'sms' ? 'SMS' : 'E-mail'} · {messageKindLabel(clinic, m)} · {formatDayShort(m.at)} {formatTime(m.at)}
                   </span>
                   {m.skipReason && <span className="cli-msg__reason">Důvod: {m.skipReason}</span>}
-                  <details className="cli-msg__details">
-                    <summary>Zobrazit text</summary>
-                    <p className="cli-msg__text">{m.body}</p>
-                  </details>
+                  {m.kind === 'session_notes' && !clinical ? (
+                    <span className="cli-msg__locked">
+                      <Icon name="lock" size={12} />
+                      Obsah zápisu vidí jen kouči a terapeuti.
+                    </span>
+                  ) : (
+                    <details className="cli-msg__details">
+                      <summary>Zobrazit text</summary>
+                      <p className="cli-msg__text">{m.body}</p>
+                    </details>
+                  )}
                 </div>
               </li>
             ))}

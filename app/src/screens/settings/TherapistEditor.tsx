@@ -192,7 +192,7 @@ export function TherapistEditor({
               <Input value={t.lastName} maxLength={40} onValueChange={(v) => setT((c) => ({ ...c, lastName: v }))} />
             </Field>
           </div>
-          <Field label="Zaměření" hint="Zobrazí se klientům při výběru terapeuta, např. „Sportovní fyzioterapie“.">
+          <Field label="Zaměření" hint="Zobrazí se klientům při výběru terapeuta, např. „Mentální koučink sportovců“.">
             <Input value={t.focus} maxLength={80} onValueChange={(v) => setT((c) => ({ ...c, focus: v }))} />
           </Field>
           <div className="set-form__grid">

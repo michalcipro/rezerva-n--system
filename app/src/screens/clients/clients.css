@@ -324,7 +324,18 @@ a.cli-fact:hover { color: var(--accent-fg); text-decoration: underline; text-und
 strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-stat__divider { align-self: center; width: 1px; height: 28px; background: var(--border); }
 
-.cli-hero__tabs { padding-left: 72px; }
+/* 9 karet: o něco menší mezery, aby se vešly i na 1280 px. Když se nevejdou, stín u okraje ukáže, že pás jde
+   posunout (pozadí „local“ stín na konci pásu zakryje). */
+.cli-hero__tabs {
+  padding-left: 72px;
+  gap: var(--space-5);
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left center / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) right center / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--border-strong), transparent) left center / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--border-strong), transparent) right center / 12px 100% no-repeat scroll;
+}
+.cli-hero__stage { margin-top: var(--space-1); }
 
 .cli-body {
   display: flex;
@@ -591,6 +602,14 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-side__link { align-self: flex-start; font-size: var(--text-md); }
 .cli-side__headlink { flex: none; font-size: var(--text-sm); }
 
+.cli-note-title {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .cli-note-text {
   margin: 0;
   font-size: var(--text-md);
@@ -636,15 +655,8 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-policy-lines strong { color: var(--text); font-weight: var(--weight-semibold); }
 
 /* =========================================================================
-   Dokumentace, komunikace, souhlasy
+   Komunikace, souhlasy
    ========================================================================= */
-.cli-note-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-
-.cli-notes__item { display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
-.cli-notes__item + .cli-notes__item { border-top: 1px solid var(--border-subtle); }
-.cli-notes__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
-.cli-notes__meta { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-muted); }
-.cli-notes__meta strong { color: var(--text); }
 
 .cli-msg { display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 .cli-msg + .cli-msg { border-top: 1px solid var(--border-subtle); }
@@ -665,6 +677,15 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-msg__title { font-size: var(--text-md); font-weight: var(--weight-semibold); min-width: 0; overflow-wrap: anywhere; }
 .cli-msg__meta { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-muted); }
 .cli-msg__reason { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--warning-fg); }
+.cli-msg__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
 .cli-msg__details summary {
   width: fit-content;
   margin-top: 2px;
@@ -767,3 +788,144 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
   outline: none;
 }
 .cli-tags__input::placeholder { color: var(--text-muted); }
+
+/* =========================================================================
+   CRM: fáze v seznamu, karta Spolupráce, follow-upy
+   ========================================================================= */
+.cli-stagecell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 128px; max-width: 190px; }
+.cli-stagecell .cli-cell-sub { white-space: nowrap; }
+.cli-mrow__stage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 2px 0; }
+
+.cli-side__pinned {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.cli-crm__stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5) var(--space-3);
+  padding: var(--space-3) var(--space-4) 0;
+}
+.cli-crm__since { font-size: var(--text-md); color: var(--text-secondary); }
+
+.cli-crm__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.cli-crm__item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cli-crm__item dd { margin: 0; }
+.cli-crm__value {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.cli-crm__value--muted { font-size: var(--text-md); font-weight: var(--weight-regular); color: var(--text-muted); }
+.cli-crm__value .cli-cell-sub { font-weight: var(--weight-regular); }
+
+.cli-crm__links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+}
+.cli-crm__link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: pointer;
+}
+.cli-crm__link + .cli-crm__link { border-left: 1px solid var(--border); }
+.cli-crm__link:hover { background: var(--surface-hover); color: var(--text); }
+.cli-crm__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cli-crm__link > .icon:first-child { flex: none; color: var(--text-muted); }
+.cli-crm__link > span { min-width: 0; }
+.cli-crm__chev { margin-left: auto; color: var(--text-faint); }
+.cli-crm__link--alert { color: var(--text); }
+
+@media (max-width: 720px) {
+  .cli-crm__links { grid-template-columns: minmax(0, 1fr); }
+  .cli-crm__link + .cli-crm__link { border-left: 0; border-top: 1px solid var(--border-subtle); }
+}
+@media (max-width: 640px) {
+  .cli-crm__stage { padding: var(--space-3) var(--space-3) 0; }
+  .cli-crm__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--space-3); }
+  .cli-crm__link { padding-inline: var(--space-3); }
+}
+
+.cli-fu + .cli-fu { border-top: 1px solid var(--border); }
+.cli-fu__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cli-fu__head .badge { text-transform: none; letter-spacing: 0; }
+.cli-fu__list { margin: 0; padding: 0 0 var(--space-1); list-style: none; }
+.cli-fu__list .crm-fu { padding-inline: var(--space-4); }
+.cli-fu__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+}
+.cli-fu__empty .icon { flex: none; color: var(--success); }
+.cli-fu__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+.cli-fu__toggle:hover { color: var(--text); }
+.cli-fu__toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: var(--radius-sm); }
+@media (max-width: 640px) {
+  .cli-fu__head, .cli-fu__toggle { padding-inline: var(--space-3); }
+  .cli-fu__list .crm-fu { padding-inline: var(--space-3); }
+}
+
+/* Hlavička karty Follow-upy: na úzké šířce se akce zalomí pod nadpis. */
+.cli-fucard > .card-header { flex-wrap: wrap; row-gap: var(--space-1-5); }
+.cli-fucard > .card-header .card-header__titles { min-width: max-content; }
+.cli-fucard > .card-header .card-header__actions { margin-left: auto; }
+@media (max-width: 640px) {
+  .cli-fucard > .card-header .card-header__meta { display: none; }
+  .cli-toolbar__select--stage { flex-basis: 100%; }
+}

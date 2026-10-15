@@ -67,6 +67,7 @@ import {
   type StatsFilters,
   type TrendPoint,
 } from './model';
+import { StagesSection } from './StagesSection';
 import './stats.css';
 
 /* ------------------------------------------------------------------ */
@@ -1005,6 +1006,17 @@ export function StatsScreen(): JSX.Element {
       coverage.push('Srovnávací období začíná před prvním záznamem, rozdíly mohou být zkreslené.');
   }
 
+  /* ------------------------- Klienti a fáze (CRM) ------------------------- */
+  const stagesSection = (
+    <StagesSection
+      range={resolved.range}
+      compare={compareUsable ? resolved.compare : null}
+      rangeText={resolved.rangeText}
+      compareShort={resolved.compareShort}
+      filtered={filtered}
+    />
+  );
+
   const custom = prefs.period.unit === 'custom' ? clampCustom(prefs.period.customFrom, prefs.period.customTo) : null;
   const setCustom = (from: string, to: string): void => {
     if (!isValidLocalDate(from) || !isValidLocalDate(to)) return;
@@ -1146,6 +1158,7 @@ export function StatsScreen(): JSX.Element {
             }
           />
           <div className="st-grid">{trendCard}</div>
+          {stagesSection}
         </>
       ) : (
         <>
@@ -1166,6 +1179,7 @@ export function StatsScreen(): JSX.Element {
             </div>
           </div>
           {packagesCard}
+          {stagesSection}
         </>
       )}
     </div>

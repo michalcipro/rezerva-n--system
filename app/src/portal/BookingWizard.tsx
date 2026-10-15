@@ -110,7 +110,7 @@ function resolveFlow(s: ClinicState, clientId: Id, route: RezervaceRoute, now: L
         ...base,
         original: b,
         invalid: {
-          title: 'Vstupní vyšetření přesune recepce',
+          title: 'Úvodní schůzku přesune recepce',
           text: 'Napište nebo zavolejte na recepci, rádi vám najdou jiný čas. Případně termín zrušte a zarezervujte si nový.',
         },
       };
@@ -505,7 +505,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           <PaymentPicker options={payOpts} value={effectivePayKey} onChange={setPayKey} />
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
           <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
-            <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. bolest kolene po běhu" />
+            <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. chci se připravit na důležitý závod" />
           </Field>
         </>
       )}
@@ -802,7 +802,7 @@ function TherapistStep({ service, flow, onPick }: { service: Service; flow: Flow
 
   return (
     <section className="por-stack" aria-labelledby="por-th-title">
-      <SectionTitle id="por-th-title">Kdo vás ošetří</SectionTitle>
+      <SectionTitle id="por-th-title">Kdo s vámi bude pracovat</SectionTitle>
       <div className="por-list">
         {allowAny && (
           <button type="button" className="por-pick" onClick={() => onPick('any')}>

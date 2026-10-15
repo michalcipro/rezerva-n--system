@@ -5,6 +5,6 @@
  */
 export const BRAND: { name: string; tagline: string; logo: string | null } = {
   name: 'Winning Minds',
-  tagline: 'rezervace',
+  tagline: 'koučink · terapie · mentoring',
   logo: null,
 };

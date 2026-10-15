@@ -10,6 +10,10 @@ import type {
   Command,
   CommandResult,
   Ctx,
+  FileKind,
+  FileRecord,
+  FileStorage,
+  FollowUp,
   GroupTemplate,
   Id,
   LedgerEntry,
@@ -18,20 +22,38 @@ import type {
   MakeupRight,
   MessageTemplate,
   MoneyMethod,
+  Note,
+  NoteKind,
   PackageTemplate,
   PaymentMethod,
   PaymentRecord,
   Service,
   Settings,
+  Stage,
+  StageChange,
   TemplateKey,
   Therapist,
   TimeOff,
+  TimeOfDay,
+  Tone,
   WaitlistEntry,
 } from '../domain/types';
 import { checkBookingSlot } from './availability';
-import { formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
+import {
+  FILE_CAPTION_MAX,
+  FOLLOW_UP_TITLE_MAX,
+  getStage,
+  NOTE_KIND_LABEL,
+  NOTE_KINDS,
+  NOTE_TEXT_MAX,
+  NOTE_TITLE_MAX,
+  STAGE_NAME_MAX,
+  STAGE_NOTE_MAX,
+  stagesSorted,
+} from './crm';
+import { formatDayShort, formatMoney, formatNumber, formatPercent, formatTime, countLabel, plural } from './format';
 import { newId } from './ids';
-import { addManualMessage, bookingVars, queueTemplateMessage } from './messages';
+import { addManualMessage, bookingVars, MESSAGE_BODY_MAX, MESSAGE_SUBJECT_MAX, queueTemplateMessage } from './messages';
 import { evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { evaluateSegment, campaignPlainText } from './segments';
 import {
@@ -50,7 +72,7 @@ import {
   packageUsage,
   therapistName,
 } from './selectors';
-import { addDays, addHours, addMinutes, dateOf, diffMinutes, isValidLocalDateTime, minStr } from './time';
+import { addDays, addHours, addMinutes, dateOf, diffMinutes, isValidLocalDate, isValidLocalDateTime, minStr } from './time';
 
 /* ------------------------------------------------------------------ */
 /* Pomocné funkce                                                      */
@@ -110,6 +132,8 @@ export interface CreateClientInput {
   consents: { gdpr: boolean; health: boolean; marketingEmail: boolean; sms: boolean };
   internalNote?: string;
   demo?: boolean;
+  /** Fáze spolupráce (výchozí první fáze z nastavení). */
+  stageId?: Id;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -122,6 +146,10 @@ export const createClient: Command<CreateClientInput, Id> = (d, input, ctx) => {
   if (email && !EMAIL_RE.test(email)) return fail('E-mail nemá platný tvar.');
   if (!email && !input.phone.trim()) return fail('Vyplňte e-mail nebo telefon.');
   if (!input.consents.gdpr) return fail('Bez souhlasu se zpracováním osobních údajů nelze klienta založit.');
+  const stage = input.stageId ? getStage(d, input.stageId) : stagesSorted(d)[0];
+  if (input.stageId && !stage) return fail('Zvolená fáze spolupráce neexistuje.');
+  if (input.stageId && ctx.actor.role === 'client') return fail('Fázi spolupráce může nastavit jen personál.');
+  const stageId = stage?.id ?? '';
   const notices: string[] = [];
   if (email && d.clients.some((c) => c.email === email)) notices.push('Klient se stejným e-mailem už existuje.');
   const source = input.source ?? (ctx.actor.role === 'client' ? 'online' : 'recepce');
@@ -142,6 +170,8 @@ export const createClient: Command<CreateClientInput, Id> = (d, input, ctx) => {
       marketingEmail: rec(input.consents.marketingEmail),
       sms: rec(input.consents.sms),
     },
+    stageId,
+    stageHistory: stageId ? [{ stageId, at: ctx.now, actor: ctx.actor.name }] : [],
     notes: [],
     internalNote: input.internalNote ?? '',
     blocked: false,
@@ -203,17 +233,10 @@ export const setConsent: Command<{ clientId: Id; key: keyof ClientConsents; valu
   return ok(undefined);
 };
 
+/** Starší rozhraní pro rychlou poznámku – vytvoří `Note` druhu 'note' v kolekci `notes`. */
 export const addClinicalNote: Command<{ clientId: Id; text: string }, Id> = (d, input, ctx) => {
   if (!isStaff(ctx)) return fail('Poznámky může psát jen personál.');
-  const c = d.clients.find((x) => x.id === input.clientId);
-  if (!c) return fail('Klient neexistuje.');
-  const text = input.text.trim();
-  if (!text) return fail('Poznámka je prázdná.');
-  const therapistId = ctx.actor.therapistId ?? d.therapists[0]?.id ?? '';
-  const id = newId('n');
-  c.notes.unshift({ id, at: ctx.now, therapistId, text });
-  audit(d, ctx, 'Klinická poznámka', `${c.firstName} ${c.lastName}`, { clientId: c.id });
-  return ok(id);
+  return addNote(d, { clientId: input.clientId, kind: 'note', title: '', text: input.text }, ctx);
 };
 
 /* ------------------------------------------------------------------ */
@@ -321,7 +344,8 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
       break;
     }
     case 'free': {
-      if (mode === 'client') return fail('Tento způsob platby není dostupný.');
+      // klient si sám může zvolit „zdarma“ jen u služby za 0 Kč (např. Freetalk)
+      if (mode === 'client' && price > 0) return fail('Tento způsob platby není dostupný.');
       payment.paid = true;
       break;
     }
@@ -979,8 +1003,8 @@ export const declineWaitlistOffer: Command<{ entryId: Id }> = (d, input, ctx) =>
 /* Katalog a nastavení                                                 */
 /* ------------------------------------------------------------------ */
 
-function requireStaff(ctx: Ctx): string | null {
-  return isStaff(ctx) ? null : 'Nastavení může měnit jen personál.';
+function requireStaff(ctx: Ctx, message = 'Nastavení může měnit jen personál.'): string | null {
+  return isStaff(ctx) ? null : message;
 }
 
 export const upsertService: Command<Service, Id> = (d, input, ctx) => {
@@ -1234,11 +1258,493 @@ export const sendManualMessage: Command<{ clientId: Id; channel: Channel; subjec
   const c = getClient(d, input.clientId);
   if (!c) return fail('Klient neexistuje.');
   if (!input.body.trim()) return fail('Zpráva je prázdná.');
+  if (input.subject.trim().length > MESSAGE_SUBJECT_MAX) return fail(SUBJECT_TOO_LONG);
+  if (input.body.trim().length > MESSAGE_BODY_MAX) return fail(`Zpráva je příliš dlouhá (max. ${formatNumber(MESSAGE_BODY_MAX)} znaků).`);
   if (input.channel === 'email' && !c.email) return fail('Klient nemá e-mail.');
   if (input.channel === 'sms' && !c.phone) return fail('Klient nemá telefon.');
   const msg = addManualMessage(d, { clientId: c.id, channel: input.channel, subject: input.subject.trim(), body: input.body.trim(), now: ctx.now });
   audit(d, ctx, 'Zpráva klientovi', input.subject || input.channel, { clientId: c.id });
   return ok(msg.id, ['Zpráva odeslána (simulace).']);
+};
+
+/* ------------------------------------------------------------------ */
+/* CRM – fáze spolupráce, poznámky, soubory, follow-upy (docs/CRM.md)   */
+/* ------------------------------------------------------------------ */
+
+const CRM_DENIED = 'Kartu klienta může upravovat jen personál.';
+const STAGE_TONES: readonly Tone[] = ['teal', 'sand', 'blue', 'violet', 'slate', 'rose', 'olive'];
+const FILE_KINDS: readonly FileKind[] = ['image', 'audio', 'video', 'pdf', 'text', 'other'];
+const FILE_STORAGES: readonly FileStorage[] = ['asset', 'asset-b64', 'local'];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const FOLLOW_UP_NOTE_MAX = 2000;
+const FILE_NAME_MAX = 200;
+/** Hláška při překročení NOTE_TEXT_MAX. */
+export const NOTE_TOO_LONG = `Text je příliš dlouhý (max. ${formatNumber(NOTE_TEXT_MAX)} znaků). Dlouhý přepis vložte jako soubor.`;
+/** Hlášky při překročení MESSAGE_SUBJECT_MAX / MESSAGE_BODY_MAX u e-mailu se zápisem. */
+export const SUBJECT_TOO_LONG = `Předmět může mít nejvýše ${formatNumber(MESSAGE_SUBJECT_MAX)} znaků.`;
+export const SESSION_NOTES_TOO_LONG = `Text e-mailu je příliš dlouhý (max. ${formatNumber(MESSAGE_BODY_MAX)} znaků). Zkraťte ho – celý zápis zůstane v kartě klienta.`;
+
+const fullName = (c: Pick<Client, 'firstName' | 'lastName'>): string => `${c.firstName} ${c.lastName}`;
+/** Obyčejná kopie (záznamy vracené z příkazu nesmí být drafty Immeru). */
+const plainCopy = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+
+const sameStageChange = (a: StageChange, b: StageChange): boolean =>
+  a.stageId === b.stageId && a.at === b.at && a.actor === b.actor && (a.note ?? '') === (b.note ?? '');
+
+/**
+ * Přesune klienta do fáze a vrátí zapsaný záznam historie (kopii).
+ * `undo` = vrácení právě provedené změny: záznam z předchozího volání se z historie odebere a klient se vrátí
+ * do `stageId` – jen pokud je to pořád poslední změna fáze klienta. Statistiky ani „ve fázi od“ pak nevidí
+ * přesun, který se nestal.
+ */
+export const setClientStage: Command<{ clientId: Id; stageId: Id; note?: string; undo?: StageChange }, StageChange | null> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const c = d.clients.find((x) => x.id === input.clientId);
+  if (!c) return fail('Klient neexistuje.');
+  const stage = getStage(d, input.stageId);
+  if (!stage) return fail('Zvolená fáze spolupráce neexistuje.');
+  if (c.stageId === stage.id) return fail('Klient už v této fázi je.');
+  if (!Array.isArray(c.stageHistory)) c.stageHistory = [];
+  const prev = getStage(d, c.stageId);
+  if (input.undo) {
+    const history = c.stageHistory;
+    const last = history[history.length - 1];
+    const before = history[history.length - 2];
+    if (!last || c.stageId !== input.undo.stageId || !sameStageChange(last, input.undo) || (before && before.stageId !== stage.id)) {
+      return fail('Změnu fáze už nejde vrátit zpět, protože se mezitím fáze klienta znovu změnila.');
+    }
+    history.pop();
+    c.stageId = stage.id;
+    audit(d, ctx, 'Vrácení změny fáze', `${fullName(c)}: ${prev?.name ?? 'bez fáze'} → ${stage.name}`, { clientId: c.id });
+    return ok(null);
+  }
+  const note = (input.note ?? '').trim();
+  if (note.length > STAGE_NOTE_MAX) return fail(`Poznámka ke změně fáze může mít nejvýše ${STAGE_NOTE_MAX} znaků.`);
+  c.stageId = stage.id;
+  const entry: StageChange = { stageId: stage.id, at: ctx.now, actor: ctx.actor.name };
+  if (note) entry.note = note;
+  c.stageHistory.push(entry);
+  audit(d, ctx, 'Změna fáze spolupráce', `${fullName(c)}: ${prev?.name ?? 'bez fáze'} → ${stage.name}`, { clientId: c.id });
+  return ok({ ...entry });
+};
+
+/** Uloží celý seznam fází (pořadí = pořadí v poli; nové fáze mají id ''). */
+export const saveStages: Command<{ stages: Stage[] }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx);
+  if (denied) return fail(denied);
+  if (!input.stages.length) return fail('Musí zůstat aspoň jedna fáze spolupráce.');
+  const next: Stage[] = [];
+  const names = new Set<string>();
+  const ids = new Set<string>();
+  for (const [i, st] of input.stages.entries()) {
+    const name = (st.name ?? '').trim();
+    if (!name) return fail('Zadejte název fáze.');
+    if (name.length > STAGE_NAME_MAX) return fail(`Název fáze může mít nejvýše ${STAGE_NAME_MAX} znaků.`);
+    const key = name.toLocaleLowerCase('cs');
+    if (names.has(key)) return fail(`Fáze „${name}“ je v seznamu dvakrát.`);
+    names.add(key);
+    if (!STAGE_TONES.includes(st.tone)) return fail(`Fáze „${name}“ nemá platnou barvu.`);
+    if (st.id && ids.has(st.id)) return fail(`Fáze „${name}“ je v seznamu dvakrát.`);
+    const id = st.id || newId('st');
+    ids.add(id);
+    const stage: Stage = { id, name, tone: st.tone, order: i };
+    if (st.closed) stage.closed = true;
+    next.push(stage);
+  }
+  for (const old of d.settings.stages ?? []) {
+    if (ids.has(old.id)) continue;
+    const n = d.clients.filter((c) => c.stageId === old.id).length;
+    if (n) {
+      return fail(
+        `Fázi „${old.name}“ nelze smazat, protože v ní ${plural(n, ['je', 'jsou', 'je'])} ${countLabel(n, ['klient', 'klienti', 'klientů'])}. Nejdřív je přesuňte do jiné fáze.`,
+      );
+    }
+  }
+  d.settings.stages = next;
+  audit(d, ctx, 'Fáze spolupráce', next.map((x) => x.name).join(' → '));
+  return ok(undefined);
+};
+
+function checkNoteText(title: string, text: string): string | null {
+  if (title.length > NOTE_TITLE_MAX) return `Nadpis může mít nejvýše ${NOTE_TITLE_MAX} znaků.`;
+  if (text.length > NOTE_TEXT_MAX) return NOTE_TOO_LONG;
+  return null;
+}
+
+function checkNoteBooking(d: ClinicState, clientId: Id, bookingId: Id, kind: NoteKind, noteId: Id | null): string | null {
+  const b = findBooking(d, bookingId);
+  if (!b) return 'Schůzka neexistuje.';
+  if (b.clientId !== clientId) return 'Schůzka patří jinému klientovi.';
+  if (kind === 'session' && d.notes.some((n) => n.id !== noteId && n.kind === 'session' && n.bookingId === bookingId)) {
+    return 'K této schůzce už zápis ze sezení existuje.';
+  }
+  return null;
+}
+
+function checkTranscriptFile(d: ClinicState, clientId: Id, fileId: Id | null): string | null {
+  if (!fileId) return null;
+  const f = d.files.find((x) => x.id === fileId);
+  if (!f || f.clientId !== clientId) return 'Soubor s přepisem neexistuje.';
+  return null;
+}
+
+type PlaudInput = { recordedAt?: LocalDateTime | null; transcriptFileId?: Id | null } | null;
+
+export interface AddNoteInput {
+  clientId: Id;
+  kind: NoteKind;
+  title: string;
+  text: string;
+  /** Kdy se událost stala (výchozí teď; u zápisu ze sezení začátek schůzky). */
+  at?: LocalDateTime;
+  bookingId?: Id | null;
+  /** Jen u druhu 'plaud'. */
+  plaud?: PlaudInput;
+}
+
+export const addNote: Command<AddNoteInput, Id> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const c = d.clients.find((x) => x.id === input.clientId);
+  if (!c) return fail('Klient neexistuje.');
+  const kind = input.kind;
+  if (!NOTE_KINDS.includes(kind)) return fail('Neznámý druh poznámky.');
+  const title = (input.title ?? '').trim();
+  const text = (input.text ?? '').trim();
+  const textError = checkNoteText(title, text);
+  if (textError) return fail(textError);
+  const transcriptFileId = kind === 'plaud' ? input.plaud?.transcriptFileId ?? null : null;
+  if (!title && !text && !transcriptFileId) return fail('Poznámka je prázdná – doplňte nadpis nebo text.');
+  const bookingId = input.bookingId || null;
+  if (bookingId) {
+    const e = checkNoteBooking(d, c.id, bookingId, kind, null);
+    if (e) return fail(e);
+  }
+  const booking = bookingId ? findBooking(d, bookingId) : undefined;
+  const at = input.at ?? (kind === 'session' && booking ? booking.start : ctx.now);
+  if (!isValidLocalDateTime(at)) return fail('Neplatné datum a čas poznámky.');
+  const fileError = checkTranscriptFile(d, c.id, transcriptFileId);
+  if (fileError) return fail(fileError);
+  const recordedAt = kind === 'plaud' ? input.plaud?.recordedAt ?? null : null;
+  if (recordedAt !== null && !isValidLocalDateTime(recordedAt)) return fail('Neplatné datum nahrávky.');
+  const note: Note = {
+    id: newId('n'),
+    clientId: c.id,
+    at,
+    createdAt: ctx.now,
+    updatedAt: null,
+    authorId: ctx.actor.therapistId ?? '',
+    kind,
+    title,
+    text,
+    bookingId,
+    pinned: false,
+    sentAt: null,
+    plaud: kind === 'plaud' ? { recordedAt, transcriptFileId } : null,
+  };
+  d.notes.push(note);
+  audit(d, ctx, 'Nová poznámka', `${NOTE_KIND_LABEL[kind]} – ${fullName(c)}`, bookingId ? { clientId: c.id, bookingId } : { clientId: c.id });
+  return ok(note.id);
+};
+
+export interface UpdateNotePatch {
+  title?: string;
+  text?: string;
+  at?: LocalDateTime;
+  kind?: NoteKind;
+  pinned?: boolean;
+  bookingId?: Id | null;
+  /** Rozšíření: údaje Plaud importu (jen u druhu 'plaud'). */
+  plaud?: PlaudInput;
+}
+
+export const updateNote: Command<{ noteId: Id; patch: UpdateNotePatch }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const n = d.notes.find((x) => x.id === input.noteId);
+  if (!n) return fail('Poznámka neexistuje.');
+  const p = input.patch;
+  const kind = p.kind ?? n.kind;
+  if (!NOTE_KINDS.includes(kind)) return fail('Neznámý druh poznámky.');
+  const title = p.title !== undefined ? p.title.trim() : n.title;
+  const text = p.text !== undefined ? p.text.trim() : n.text;
+  const textError = checkNoteText(title, text);
+  if (textError) return fail(textError);
+  const bookingId = p.bookingId !== undefined ? p.bookingId || null : n.bookingId;
+  if (bookingId && (bookingId !== n.bookingId || kind !== n.kind)) {
+    const e = checkNoteBooking(d, n.clientId, bookingId, kind, n.id);
+    if (e) return fail(e);
+  }
+  const at = p.at ?? n.at;
+  if (!isValidLocalDateTime(at)) return fail('Neplatné datum a čas poznámky.');
+  let plaud: Note['plaud'] = null;
+  if (kind === 'plaud') {
+    const base = n.plaud ?? { recordedAt: null, transcriptFileId: null };
+    plaud = {
+      recordedAt: p.plaud && p.plaud.recordedAt !== undefined ? p.plaud.recordedAt : base.recordedAt,
+      transcriptFileId: p.plaud && p.plaud.transcriptFileId !== undefined ? p.plaud.transcriptFileId : base.transcriptFileId,
+    };
+    if (plaud.recordedAt !== null && !isValidLocalDateTime(plaud.recordedAt)) return fail('Neplatné datum nahrávky.');
+    const fileError = checkTranscriptFile(d, n.clientId, plaud.transcriptFileId);
+    if (fileError) return fail(fileError);
+  }
+  if (!title && !text && !plaud?.transcriptFileId) return fail('Poznámka je prázdná – doplňte nadpis nebo text.');
+  const contentChanged =
+    title !== n.title || text !== n.text || at !== n.at || kind !== n.kind || bookingId !== n.bookingId || JSON.stringify(plaud) !== JSON.stringify(n.plaud);
+  n.title = title;
+  n.text = text;
+  n.at = at;
+  n.kind = kind;
+  n.bookingId = bookingId;
+  n.plaud = plaud;
+  if (p.pinned !== undefined) n.pinned = p.pinned;
+  if (contentChanged) n.updatedAt = ctx.now;
+  const c = d.clients.find((x) => x.id === n.clientId);
+  const action = contentChanged ? 'Úprava poznámky' : p.pinned !== undefined ? (p.pinned ? 'Připnutí poznámky' : 'Odepnutí poznámky') : 'Úprava poznámky';
+  audit(d, ctx, action, `${NOTE_KIND_LABEL[kind]}${c ? ' – ' + fullName(c) : ''}`, { clientId: n.clientId });
+  return ok(undefined);
+};
+
+/** Smaže poznámku i záznamy jejích souborů. Vrací odebrané záznamy – UI pak smaže jejich data (deleteStoredFile). */
+export const deleteNote: Command<{ noteId: Id }, { fileRecords: FileRecord[] }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const i = d.notes.findIndex((x) => x.id === input.noteId);
+  if (i < 0) return fail('Poznámka neexistuje.');
+  const note = d.notes[i];
+  const transcriptId = note.plaud?.transcriptFileId ?? null;
+  const removed: FileRecord[] = [];
+  for (let k = d.files.length - 1; k >= 0; k--) {
+    const f = d.files[k];
+    if (f.noteId === note.id || (transcriptId && f.id === transcriptId)) {
+      removed.unshift(plainCopy(f));
+      d.files.splice(k, 1);
+    }
+  }
+  const removedIds = new Set(removed.map((f) => f.id));
+  for (const other of d.notes) if (other.plaud?.transcriptFileId && removedIds.has(other.plaud.transcriptFileId)) other.plaud.transcriptFileId = null;
+  const c = d.clients.find((x) => x.id === note.clientId);
+  const kind = note.kind;
+  const clientId = note.clientId;
+  d.notes.splice(i, 1);
+  audit(
+    d,
+    ctx,
+    'Smazání poznámky',
+    `${NOTE_KIND_LABEL[kind]}${c ? ' – ' + fullName(c) : ''}${removed.length ? ` · ${countLabel(removed.length, ['příloha', 'přílohy', 'příloh'])}` : ''}`,
+    { clientId },
+  );
+  return ok({ fileRecords: removed });
+};
+
+/** Odešle zápis ze sezení klientovi e-mailem (simulace přes addManualMessage) a nastaví `sentAt`. */
+export const sendSessionNotes: Command<{ noteId: Id; subject: string; body: string }, Id> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const n = d.notes.find((x) => x.id === input.noteId);
+  if (!n) return fail('Poznámka neexistuje.');
+  const c = getClient(d, n.clientId);
+  if (!c) return fail('Klient neexistuje.');
+  if (!c.email) return fail('Klient nemá e-mail – zápis nelze odeslat.');
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject) return fail('Doplňte předmět e-mailu.');
+  if (subject.length > MESSAGE_SUBJECT_MAX) return fail(SUBJECT_TOO_LONG);
+  if (!body) return fail('Text e-mailu je prázdný.');
+  if (body.length > MESSAGE_BODY_MAX) return fail(SESSION_NOTES_TOO_LONG);
+  const resend = !!n.sentAt;
+  const msg = addManualMessage(d, { clientId: c.id, channel: 'email', subject, body, now: ctx.now, kind: 'session_notes', bookingId: n.bookingId ?? undefined });
+  n.sentAt = ctx.now;
+  audit(d, ctx, 'Zápis ze sezení odeslán', `${fullName(c)} · ${subject}`, n.bookingId ? { clientId: c.id, bookingId: n.bookingId } : { clientId: c.id });
+  return ok(msg.id, [resend ? 'Zápis byl klientovi odeslán znovu (simulace odeslání).' : 'Zápis byl odeslán klientovi (simulace odeslání).']);
+};
+
+export interface AddFileRecordInput {
+  clientId: Id;
+  noteId?: Id | null;
+  name: string;
+  mime: string;
+  size: number;
+  kind: FileKind;
+  storage: FileStorage;
+  ref: string;
+  durationSec?: number | null;
+  caption?: string;
+}
+
+export const addFileRecord: Command<AddFileRecordInput, Id> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const c = d.clients.find((x) => x.id === input.clientId);
+  if (!c) return fail('Klient neexistuje.');
+  const noteId = input.noteId || null;
+  if (noteId) {
+    const n = d.notes.find((x) => x.id === noteId);
+    if (!n) return fail('Poznámka neexistuje.');
+    if (n.clientId !== c.id) return fail('Poznámka patří jinému klientovi.');
+  }
+  const name = (input.name ?? '').trim();
+  if (!name) return fail('Zadejte název souboru.');
+  if (name.length > FILE_NAME_MAX) return fail(`Název souboru může mít nejvýše ${FILE_NAME_MAX} znaků.`);
+  if (!input.ref) return fail('Chybí odkaz na uložený soubor.');
+  if (!FILE_STORAGES.includes(input.storage)) return fail('Neznámé úložiště souboru.');
+  if (!FILE_KINDS.includes(input.kind)) return fail('Neznámý druh souboru.');
+  if (!Number.isFinite(input.size) || input.size < 0) return fail('Neplatná velikost souboru.');
+  const caption = (input.caption ?? '').trim();
+  if (caption.length > FILE_CAPTION_MAX) return fail(`Popisek může mít nejvýše ${FILE_CAPTION_MAX} znaků.`);
+  const duration = input.durationSec ?? null;
+  if (duration !== null && (!Number.isFinite(duration) || duration < 0)) return fail('Neplatná délka nahrávky.');
+  const rec: FileRecord = {
+    id: newId('f'),
+    clientId: c.id,
+    noteId,
+    name,
+    mime: (input.mime ?? '').trim().toLowerCase() || 'application/octet-stream',
+    size: Math.round(input.size),
+    kind: input.kind,
+    at: ctx.now,
+    uploadedBy: ctx.actor.name,
+    storage: input.storage,
+    ref: input.ref,
+    durationSec: duration === null ? null : Math.round(duration),
+    caption,
+  };
+  d.files.push(rec);
+  audit(d, ctx, 'Nový soubor', `${name} – ${fullName(c)}`, { clientId: c.id });
+  return ok(rec.id);
+};
+
+export const updateFileRecord: Command<{ fileId: Id; patch: { caption?: string; noteId?: Id | null; name?: string } }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const f = d.files.find((x) => x.id === input.fileId);
+  if (!f) return fail('Soubor neexistuje.');
+  const p = input.patch;
+  if (p.name !== undefined) {
+    const name = p.name.trim();
+    if (!name) return fail('Zadejte název souboru.');
+    if (name.length > FILE_NAME_MAX) return fail(`Název souboru může mít nejvýše ${FILE_NAME_MAX} znaků.`);
+    f.name = name;
+  }
+  if (p.caption !== undefined) {
+    const caption = p.caption.trim();
+    if (caption.length > FILE_CAPTION_MAX) return fail(`Popisek může mít nejvýše ${FILE_CAPTION_MAX} znaků.`);
+    f.caption = caption;
+  }
+  if (p.noteId !== undefined) {
+    const noteId = p.noteId || null;
+    if (noteId) {
+      const n = d.notes.find((x) => x.id === noteId);
+      if (!n) return fail('Poznámka neexistuje.');
+      if (n.clientId !== f.clientId) return fail('Poznámka patří jinému klientovi.');
+    }
+    f.noteId = noteId;
+  }
+  audit(d, ctx, 'Úprava souboru', f.name, { clientId: f.clientId });
+  return ok(undefined);
+};
+
+/** Odebere záznam souboru. Vrací ho – UI pak zavolá deleteStoredFile. */
+export const removeFileRecord: Command<{ fileId: Id }, { record: FileRecord }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const i = d.files.findIndex((x) => x.id === input.fileId);
+  if (i < 0) return fail('Soubor neexistuje.');
+  const record = plainCopy(d.files[i]);
+  d.files.splice(i, 1);
+  for (const n of d.notes) if (n.plaud?.transcriptFileId === record.id) n.plaud.transcriptFileId = null;
+  audit(d, ctx, 'Smazání souboru', record.name, { clientId: record.clientId });
+  return ok({ record });
+};
+
+export interface FollowUpInput {
+  clientId: Id;
+  title: string;
+  due: LocalDate;
+  dueTime?: TimeOfDay | null;
+  assigneeId?: Id | null;
+  note?: string;
+}
+
+function checkFollowUp(d: ClinicState, f: { title: string; due: LocalDate; dueTime: TimeOfDay | null; assigneeId: Id | null; note: string }): string | null {
+  if (!f.title) return 'Napište, co je potřeba udělat.';
+  if (f.title.length > FOLLOW_UP_TITLE_MAX) return `Název úkolu může mít nejvýše ${FOLLOW_UP_TITLE_MAX} znaků.`;
+  if (!isValidLocalDate(f.due)) return 'Zadejte platný termín.';
+  if (f.dueTime !== null && !TIME_RE.test(f.dueTime)) return 'Zadejte platný čas (např. 9:30).';
+  if (f.assigneeId !== null && !getTherapist(d, f.assigneeId)) return 'Zvolený kouč neexistuje.';
+  if (f.note.length > FOLLOW_UP_NOTE_MAX) return `Poznámka k úkolu může mít nejvýše ${formatNumber(FOLLOW_UP_NOTE_MAX)} znaků.`;
+  return null;
+}
+
+export const addFollowUp: Command<FollowUpInput, Id> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const c = d.clients.find((x) => x.id === input.clientId);
+  if (!c) return fail('Klient neexistuje.');
+  const f: FollowUp = {
+    id: newId('fu'),
+    clientId: c.id,
+    title: (input.title ?? '').trim(),
+    due: input.due,
+    dueTime: input.dueTime || null,
+    assigneeId: input.assigneeId || null,
+    note: (input.note ?? '').trim(),
+    done: false,
+    doneAt: null,
+    createdAt: ctx.now,
+    createdBy: ctx.actor.name,
+  };
+  const e = checkFollowUp(d, f);
+  if (e) return fail(e);
+  d.followUps.push(f);
+  audit(d, ctx, 'Nový follow-up', `${f.title} – ${fullName(c)}`, { clientId: c.id });
+  return ok(f.id);
+};
+
+export const updateFollowUp: Command<{ followUpId: Id; patch: Partial<Omit<FollowUpInput, 'clientId'>> }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const f = d.followUps.find((x) => x.id === input.followUpId);
+  if (!f) return fail('Follow-up neexistuje.');
+  const p = input.patch;
+  const next = {
+    title: p.title !== undefined ? p.title.trim() : f.title,
+    due: p.due ?? f.due,
+    dueTime: p.dueTime !== undefined ? p.dueTime || null : f.dueTime,
+    assigneeId: p.assigneeId !== undefined ? p.assigneeId || null : f.assigneeId,
+    note: p.note !== undefined ? p.note.trim() : f.note,
+  };
+  const e = checkFollowUp(d, next);
+  if (e) return fail(e);
+  Object.assign(f, next);
+  audit(d, ctx, 'Úprava follow-upu', f.title, { clientId: f.clientId });
+  return ok(undefined);
+};
+
+export const setFollowUpDone: Command<{ followUpId: Id; done: boolean }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const f = d.followUps.find((x) => x.id === input.followUpId);
+  if (!f) return fail('Follow-up neexistuje.');
+  if (f.done === input.done) return ok(undefined);
+  f.done = input.done;
+  f.doneAt = input.done ? ctx.now : null;
+  audit(d, ctx, input.done ? 'Follow-up hotový' : 'Follow-up znovu otevřený', f.title, { clientId: f.clientId });
+  return ok(undefined);
+};
+
+export const deleteFollowUp: Command<{ followUpId: Id }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, CRM_DENIED);
+  if (denied) return fail(denied);
+  const i = d.followUps.findIndex((x) => x.id === input.followUpId);
+  if (i < 0) return fail('Follow-up neexistuje.');
+  const f = d.followUps[i];
+  const title = f.title;
+  const clientId = f.clientId;
+  d.followUps.splice(i, 1);
+  audit(d, ctx, 'Smazání follow-upu', title, { clientId });
+  return ok(undefined);
 };
 
 /* ------------------------------------------------------------------ */

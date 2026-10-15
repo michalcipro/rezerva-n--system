@@ -58,7 +58,7 @@ export function CategoryDialog({ initial, onClose }: { initial: Category; onClos
             id="set-cat-name"
             value={name}
             maxLength={40}
-            placeholder="např. Fyzioterapie"
+            placeholder="např. Koučink"
             onValueChange={setName}
             onKeyDown={(e) => {
               if (e.key === 'Enter') save();

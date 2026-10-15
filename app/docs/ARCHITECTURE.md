@@ -1,7 +1,9 @@
-# Rezervační systém „pohyb" – architektura pro vývojáře
+# Winning Minds – architektura pro vývojáře
 
-Webová aplikace (React 18 + TypeScript, Vite, bez UI knihoven) pro soukromou kliniku: fyzioterapie, masáže,
-kondiční tréninky 1:1 a skupinové lekce. Běží jako claude.ai artefakt (sdílená databáze) nebo lokálně
+Webová aplikace (React 18 + TypeScript, Vite, bez UI knihoven) pro Winning Minds: mentální koučink, terapie,
+neurovizuální trénink, strategický koučink a mentoring (1:1 i skupinové workshopy). Slouží hlavně jako kalendář
+a CRM (fáze spolupráce, poznámky, soubory, follow-upy – viz `docs/CRM.md`), dál umí online rezervace
+a klientský portál. Běží jako claude.ai artefakt (sdílená databáze, assety pro soubory) nebo lokálně
 (`npm run dev`, data v IndexedDB). Celé UI je česky.
 
 ## Struktura
@@ -27,15 +29,22 @@ src/
     stats.ts             computeStats (KPI, grafy, heatmapa, trend), daySummary
     segments.ts          evaluateSegment, segmentFunnel, describeRule, RULE_TYPES, defaultRule, campaignPlainText
     messages.ts          šablony zpráv, renderTemplate, TEMPLATE_VARIABLES, paymentLabel
+    crm.ts               CRM selektory (fáze, poznámky, soubory, follow-upy, pipelineStats…), NOTE_TEXT_MAX,
+                         NOTE_KIND_LABEL, followUpDueLabel, sessionNotesEmail – viz docs/CRM.md
     defaults.ts          výchozí katalog (služby, terapeuti, permanentky, nastavení)
     seed.ts              generátor ukázkových dat (simulace provozu)
   store/
     store.ts             globální stav, dispatch příkazů, ukládání, synchronizace
     session.ts           nastavení prohlížeče: testovací role, otevřená obrazovka, motiv
     hooks.ts             useClinic, useNow, useActor, useCommand, useStore
+    files.ts             binární obsah souborů klientů (assety artefaktu / IndexedDB): storeFile, getFileUrl,
+                         readFileText, deleteStoredFile, downloadFile, canStoreFiles, clearLocalFiles
   ui/                    designový systém (viz src/ui/README.md) – primitivy a AppShell
   styles/                tokens.css (barvy světlý/tmavý motiv), base.css, components.css
   components/            sdílené doménové komponenty (PolicyTimeline, avatary, štítky)
+  components/crm/        sdílené CRM komponenty (styly .crm-…): StageBadge, StageControl, FollowUpDialog,
+                         FollowUpRow, NotesPanel, SessionNoteEditor, SendSessionNotesDialog, AudioRecorder,
+                         PlaudImportDialog, FilesPanel, FileViewerDialog, FileUploadButton
   screens/<oblast>/      obrazovky administrace (každá oblast má vlastní složku a index.ts)
   portal/                klientský portál (mobilní rezervace)
   app/                   kostra aplikace: App, AdminApp, TestBar, úvodní volba dat
@@ -93,6 +102,10 @@ if (r.ok) onClose();
 | sendManualMessage | clientId, channel, subject, body | id |
 | setSimulatedNow | value\|null | – |
 
+CRM příkazy (setClientStage, saveStages, addNote, updateNote, deleteNote, sendSessionNotes, addFileRecord,
+updateFileRecord, removeFileRecord, addFollowUp, updateFollowUp, setFollowUpDone, deleteFollowUp) popisuje
+`docs/CRM.md`.
+
 Před vytvořením nebo přesunem termínu ukaž personálu výsledek `checkBookingSlot` (chyby blokují,
 varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber z `evaluateCancellation(s, b, now, 'staff'|'client').options`.
 
@@ -102,7 +115,7 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
 - Komponenty a tokeny ze `src/ui` (`import { Button, Dialog, … } from '../../ui'`). Barvy jen přes CSS
   proměnné (`var(--…)`), žádné literální barvy – aplikace má světlý i tmavý motiv.
 - Vlastní styly dané obrazovky: jeden CSS soubor ve tvé složce (importovaný z komponenty), třídy s prefixem
-  oblasti (např. `.cal-…`, `.cli-…`, `.set-…`, `.st-…`, `.com-…`, `.por-…`).
+  oblasti (např. `.cal-…`, `.cli-…`, `.pip-…`, `.set-…`, `.st-…`, `.com-…`, `.por-…`, sdílené CRM `.crm-…`).
 - Žádné `window.alert/confirm/prompt` (v artefaktu nefungují) – potvrzení přes `ConfirmDialog`.
 - Přístupnost: skutečné `<button>`, `<label>`, `aria-label` u ikonových tlačítek, focus, kontrast.
 - Responzivita: funguje od 360 px šířky bez vodorovného posunu stránky; široké tabulky a kalendář ve vlastním
@@ -114,6 +127,8 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
 ## Navigace
 
 - Administrace: `navigate({ name: 'klient', clientId })`, `navigate({ name: 'kalendar' })` … (`store/session.ts`).
+  Karta klienta rovnou na konkrétní kartě: `navigate({ name: 'klient', clientId, tab: 'poznamky' })` (`ClientTab`).
+  CRM obrazovky: `navigate({ name: 'pipeline' })`, `navigate({ name: 'followupy' })`.
 - Datum a pohled kalendáře: `setSession({ calendarDate, calendarView, calendarTherapist })`.
 - Klientský portál: `navigatePortal({ name: 'rezervace' })` …
 - Testovací role: `session.role` (`owner` | `reception` | `therapist` | `client`), `session.clientId`.

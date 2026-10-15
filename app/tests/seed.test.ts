@@ -26,6 +26,6 @@ describe('ukázková data', () => {
     }, null, 1));
     expect(u.free).toBe(4);
     expect(u.reserved).toBe(2);
-    expect(clientCredit(s, martin.id)).toBe(1455);
+    expect(clientCredit(s, martin.id)).toBe(1400);
   });
 });

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Id } from '../../domain/types';
+import { daysInStage, stagesSorted } from '../../engine/crm';
 import { countLabel, formatDayShort, formatMoney, formatNumber, formatRelative, formatTime } from '../../engine/format';
+import { StageBadge } from '../../components/crm';
 import { useClinic, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import { Avatar, Badge, Button, Card, EmptyState, Icon, IconButton, Input, PageHeader, Select, Table, cx, type IconName } from '../../ui';
@@ -29,13 +31,15 @@ interface ListState {
   query: string;
   filters: ClientFilter[];
   tag: string;
+  /** Fáze spolupráce ('' = všechny). */
+  stage: string;
   sort: ClientSort;
   dir: SortDir;
   page: number;
 }
 
 /** Stav seznamu přežije odchod do detailu klienta a návrat (jen v paměti této záložky). */
-let remembered: ListState = { query: '', filters: [], tag: '', sort: 'lastVisit', dir: 'desc', page: 0 };
+let remembered: ListState = { query: '', filters: [], tag: '', stage: '', sort: 'lastVisit', dir: 'desc', page: 0 };
 
 const SORT_LABEL: Record<ClientSort, string> = {
   lastVisit: 'Poslední návštěva',
@@ -67,11 +71,20 @@ export function ClientsScreen(): JSX.Element {
   const activeFilters = useMemo(() => (activeKey ? (activeKey.split(',') as ClientFilter[]) : []), [activeKey]);
   const sort: ClientSort = !perms.finance && state.sort === 'spent' ? 'lastVisit' : state.sort;
 
-  // Hledání a štítek; čipové filtry se počítají nad tímto výběrem.
-  const base = useMemo(
+  const stages = stagesSorted(clinic);
+  const stageId = state.stage && stages.some((st) => st.id === state.stage) ? state.stage : '';
+
+  // Hledání a štítek; počty fází a čipové filtry se počítají nad tímto výběrem.
+  const searched = useMemo(
     () => rows.filter((r) => matchesQuery(r, state.query) && (!state.tag || r.client.tags.includes(state.tag))),
     [rows, state.query, state.tag],
   );
+  const stageCounts = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const r of searched) c.set(r.stageId, (c.get(r.stageId) ?? 0) + 1);
+    return c;
+  }, [searched]);
+  const base = useMemo(() => (stageId ? searched.filter((r) => r.stageId === stageId) : searched), [searched, stageId]);
   const counts = useMemo(() => {
     const c = {} as Record<ClientFilter, number>;
     for (const f of availableFilters) c[f] = base.filter((r) => matchesFilter(r, f)).length;
@@ -94,8 +107,8 @@ export function ClientsScreen(): JSX.Element {
   const toggleFilter = (f: ClientFilter): void =>
     update({ filters: activeFilters.includes(f) ? activeFilters.filter((x) => x !== f) : [...activeFilters, f] });
   const setSort = (s: ClientSort): void => update({ sort: s, dir: s === sort ? (state.dir === 'asc' ? 'desc' : 'asc') : DEFAULT_DIR[s] });
-  const resetAll = (): void => update({ query: '', filters: [], tag: '' });
-  const anyActive = !!state.query || activeFilters.length > 0 || !!state.tag;
+  const resetAll = (): void => update({ query: '', filters: [], tag: '', stage: '' });
+  const anyActive = !!state.query || activeFilters.length > 0 || !!state.tag || !!stageId;
   const open = (id: Id): void => navigate({ name: 'klient', clientId: id });
 
   const sortOptions = (Object.keys(SORT_LABEL) as ClientSort[])
@@ -152,6 +165,18 @@ export function ClientsScreen(): JSX.Element {
                 />
               ) : undefined
             }
+          />
+          <Select
+            inline
+            className="cli-toolbar__select cli-toolbar__select--stage"
+            aria-label="Filtrovat podle fáze spolupráce"
+            prefix={compact ? <Icon name="layers" size={14} /> : 'Fáze:'}
+            value={stageId}
+            onValueChange={(v) => update({ stage: v })}
+            options={[
+              { value: '', label: compact ? 'Všechny fáze' : 'Všechny' },
+              ...stages.map((st) => ({ value: st.id, label: `${st.name} (${formatNumber(stageCounts.get(st.id) ?? 0)})` })),
+            ]}
           />
           <Select
             inline
@@ -212,7 +237,7 @@ export function ClientsScreen(): JSX.Element {
           <EmptyState
             icon="search"
             title="Nikdo neodpovídá hledání"
-            text={`Zkuste jiné jméno, e-mail nebo telefon${activeFilters.length || state.tag ? ', nebo zrušte filtry' : ''}.`}
+            text={`Zkuste jiné jméno, e-mail nebo telefon${activeFilters.length || state.tag || stageId ? ', nebo zrušte filtry' : ''}.`}
             action={<Button onClick={resetAll}>Zrušit hledání a filtry</Button>}
           />
         ) : compact ? (
@@ -222,10 +247,11 @@ export function ClientsScreen(): JSX.Element {
             ))}
           </ul>
         ) : (
-          <Table caption="Seznam klientů" hover minWidth={perms.finance ? 1060 : 860} wrapperClassName="cli-tablewrap">
+          <Table caption="Seznam klientů" hover minWidth={perms.finance ? 1220 : 1020} wrapperClassName="cli-tablewrap">
             <thead>
               <tr>
                 <SortTh label="Klient" sortKey="name" sort={sort} dir={state.dir} onSort={setSort} />
+                <th scope="col">Fáze</th>
                 <th scope="col">Kontakt</th>
                 <th scope="col">Aktivní permanentka</th>
                 {perms.finance && (
@@ -290,6 +316,11 @@ function SortTh({
       </button>
     </th>
   );
+}
+
+/** '12 dní ve fázi' / 'od dneška'. */
+function stageDaysLabel(days: number): string {
+  return days === 0 ? 've fázi od dneška' : `${countLabel(days, ['den', 'dny', 'dní'])} ve fázi`;
 }
 
 function Alerts({ row, finance }: { row: ClientRow; finance: boolean }): JSX.Element | null {
@@ -372,6 +403,12 @@ function ClientTableRow({ row, finance, now, onOpen }: { row: ClientRow; finance
         </span>
       </td>
       <td>
+        <span className="cli-stagecell">
+          <StageBadge stageId={row.stageId} />
+          <span className="cli-cell-sub">{stageDaysLabel(daysInStage(c, now))}</span>
+        </span>
+      </td>
+      <td>
         <span className="cli-contact">
           <span className="tnum nowrap">{c.phone || <span className="muted">bez telefonu</span>}</span>
           <span className="cli-cell-sub cli-contact__email">{c.email || 'bez e-mailu'}</span>
@@ -424,6 +461,10 @@ function MobileRow({ row, finance, now, onOpen }: { row: ClientRow; finance: boo
                 Nový
               </Badge>
             )}
+          </span>
+          <span className="cli-mrow__stage">
+            <StageBadge stageId={row.stageId} />
+            <span className="cli-mrow__sub tnum">{stageDaysLabel(daysInStage(c, now))}</span>
           </span>
           <span className="cli-mrow__sub tnum">{c.phone || c.email || 'bez kontaktu'}</span>
           <span className="cli-mrow__sub tnum">

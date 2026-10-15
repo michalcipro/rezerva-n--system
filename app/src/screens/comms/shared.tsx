@@ -17,10 +17,12 @@ export function Personalized({ text, vars }: { text: string; vars: TemplateVars 
     <>
       {splitTokens(text).map((part, i) => {
         if (!part.token) return <Fragment key={i}>{part.text}</Fragment>;
-        if (part.token in vars) {
+        if (Object.prototype.hasOwnProperty.call(vars, part.token)) {
+          const value = vars[part.token];
+          // víceřádková hodnota (např. [poznámky] – text zápisu ze sezení) si zachová zalomení řádků
           return (
-            <mark key={i} className="com-var" title={`Proměnná ${part.text}`}>
-              {vars[part.token]}
+            <mark key={i} className={cx('com-var', value.includes('\n') && 'com-var--multiline')} title={`Proměnná ${part.text}`}>
+              {value}
             </mark>
           );
         }

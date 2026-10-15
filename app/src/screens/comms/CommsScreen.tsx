@@ -5,6 +5,7 @@ import { useClinic } from '../../store/hooks';
 import { Button, PageHeader, TabPanel, Tabs } from '../../ui';
 import { CampaignsTab } from './CampaignsTab';
 import { DEFAULT_OUTBOX_FILTER, OutboxTab, type OutboxFilter } from './OutboxTab';
+import { isManualTemplate } from './lib';
 import { TemplatesTab, type TemplateDrafts } from './TemplatesTab';
 import './comms.css';
 
@@ -48,7 +49,9 @@ export function CommsScreen(): JSX.Element {
   };
 
   const consented = useMemo(() => clinic.clients.filter((c) => c.consents.marketingEmail && c.email).length, [clinic.clients]);
-  const enabled = clinic.templates.filter((t) => t.enabled).length;
+  // ručně posílané šablony (zápis ze sezení) nemají vypínač – nepočítají se
+  const automatic = clinic.templates.filter((t) => !isManualTemplate(t.key));
+  const enabled = automatic.filter((t) => t.enabled).length;
 
   const actions =
     tab === 'kampane' ? (
@@ -67,7 +70,7 @@ export function CommsScreen(): JSX.Element {
         title="Komunikace"
         subtitle={
           <>
-            {countLabel(consented, ['klient', 'klienti', 'klientů'])} se souhlasem s obchodními sděleními · {enabled} z {clinic.templates.length}{' '}
+            {countLabel(consented, ['klient', 'klienti', 'klientů'])} se souhlasem s obchodními sděleními · {enabled} z {automatic.length}{' '}
             automatických zpráv zapnuto · odesílání je v prototypu simulované
           </>
         }
@@ -82,7 +85,7 @@ export function CommsScreen(): JSX.Element {
         onChange={setTab}
         items={[
           { id: 'kampane', label: 'Kampaně', count: clinic.campaigns.length || undefined },
-          { id: 'automaticke', label: 'Automatické zprávy', count: `${enabled}/${clinic.templates.length}` },
+          { id: 'automaticke', label: 'Automatické zprávy', count: `${enabled}/${automatic.length}` },
           { id: 'odeslane', label: 'Odeslané', count: formatNumber(clinic.messages.length) },
         ]}
       />

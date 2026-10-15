@@ -138,7 +138,7 @@ export function ServicesScreen(): JSX.Element {
               <EmptyState
                 icon="layers"
                 title="Ceník je zatím prázdný"
-                text="Začněte kategorií (např. Fyzioterapie, Masáže) a pak do ní přidejte služby s délkou a cenou."
+                text="Začněte kategorií (např. Koučink, Terapie) a pak do ní přidejte služby s délkou a cenou."
                 action={
                   <Button variant="primary" icon="plus" onClick={openNewCategory}>
                     Přidat první kategorii
@@ -459,7 +459,7 @@ function GroupSchedule({ onEdit, onNew }: { onEdit: (t: GroupTemplate) => void; 
         <EmptyState
           icon="calendar"
           title="Rozvrh lekcí je prázdný"
-          text="Přidejte pravidelnou lekci (např. Pilates v úterý v 18:00). Termíny se pak v kalendáři a v online rezervaci objeví každý týden."
+          text="Přidejte pravidelnou skupinovou lekci (např. workshop v úterý v 17:30). Termíny se pak v kalendáři a v online rezervaci objeví každý týden."
           action={
             <Button variant="primary" icon="plus" onClick={() => onNew(0)}>
               Přidat první lekci

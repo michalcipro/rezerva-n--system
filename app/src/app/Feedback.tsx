@@ -90,6 +90,8 @@ const ADMIN_SCREEN: Record<Session['route']['name'], string> = {
   kalendar: 'Kalendář',
   klienti: 'Klienti',
   klient: 'Detail klienta',
+  pipeline: 'Pipeline',
+  followupy: 'Follow-upy',
   permanentky: 'Permanentky a kredity',
   sluzby: 'Služby a ceník',
   tym: 'Tým a směny',

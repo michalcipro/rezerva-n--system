@@ -8,10 +8,11 @@
  * - dailySeries / bucketize: rezervace po dnech podle výsledku.
  * - trendSeries: storna a nedostavení za 6 měsíců jen z termínů, které už začaly.
  * - hourlyOccupancy: obsazenost jednoho dne po hodinách.
+ * - daysText: průměrný počet dní česky (doba ve fázi spolupráce).
  */
 import type { Booking, ClinicState, Id, LocalDate, LocalDateTime } from '../../domain/types';
 import { workingIntervals } from '../../engine/availability';
-import { MONTH_GENITIVE, MONTH_NOMINATIVE, NBSP, formatMoney, formatMonthYear, formatNumber } from '../../engine/format';
+import { MONTH_GENITIVE, MONTH_NOMINATIVE, NBSP, countLabel, formatMoney, formatMonthYear, formatNumber } from '../../engine/format';
 import {
   bookingsOfTherapistOnDate,
   bookingsOnDate,
@@ -658,6 +659,16 @@ export function moneyCompact(n: number): string {
 export function hoursText(minutes: number): string {
   const h = minutes / 60;
   return formatNumber(h, h >= 100 || Number.isInteger(h) ? 0 : 1) + NBSP + 'h';
+}
+
+/**
+ * Průměrný počet dní: „1 den“, „3 dny“, „12 dní“, „4,5 dne“ (desetinné číslo má 2. pád jednotného čísla).
+ * Od 10 dní celá čísla, pod 10 na jedno desetinné místo.
+ */
+export function daysText(days: number): string {
+  const v = days >= 10 ? Math.round(days) : Math.round(days * 10) / 10;
+  if (Number.isInteger(v)) return countLabel(v, ['den', 'dny', 'dní']);
+  return formatNumber(v, 1) + NBSP + 'dne';
 }
 
 export interface NiceScale {

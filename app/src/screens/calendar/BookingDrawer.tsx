@@ -32,7 +32,7 @@ import { addHours, diffMinutes } from '../../engine/time';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
 import { ClientAvatar } from '../../components/domain';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
-import { navigate, setSession } from '../../store/session';
+import { navigate, setSession, type ClientTab } from '../../store/session';
 import {
   Badge,
   Button,
@@ -56,6 +56,8 @@ import {
 import { CancelBookingDialog } from './CancelBookingDialog';
 import { NewBookingDialog, type NewBookingInitial } from './NewBookingDialog';
 import { RescheduleDialog } from './RescheduleDialog';
+import { SessionNotesSection } from './SessionNotesSection';
+import { useClinicalAccess } from './hooks';
 import { activeOfferGroups, isFirstVisit, noShowLabel, packageEntry, paymentHint, waitingForSession } from './model';
 import './calendar.css';
 
@@ -113,6 +115,8 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const inProgress = b.status === 'confirmed' && started && b.end > now;
   const credit = clientCredit(clinic, b.clientId);
   const showFinance = actor.role !== 'therapist';
+  // Zápisy ze sezení jsou klinické poznámky – vidí je majitelka a terapeuti, ne recepce (jako karta klienta).
+  const clinical = useClinicalAccess();
   const unpaidOnsite = b.payment.method === 'onsite' && !b.payment.paid;
   const due = Math.max(0, b.price - b.payment.paidAmount);
   const feeDue = b.fee?.status === 'due';
@@ -131,9 +135,9 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const pay = (method: MoneyMethod | 'credit'): void => {
     run(payFee, { bookingId: b.id, method }, { success: `Poplatek uhrazen ${MONEY_LABEL[method]}` });
   };
-  const openClient = (): void => {
+  const openClient = (tab?: ClientTab): void => {
     onClose();
-    navigate({ name: 'klient', clientId: b.clientId });
+    navigate({ name: 'klient', clientId: b.clientId, tab });
   };
   const showInCalendar = (): void => {
     setSession({ calendarDate: b.start.slice(0, 10), calendarView: 'day' });
@@ -246,7 +250,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   }
 
   const menu: MenuEntry[] = [
-    { id: 'client', label: 'Otevřít kartu klienta', icon: 'user', onSelect: openClient },
+    { id: 'client', label: 'Otevřít kartu klienta', icon: 'user', onSelect: () => openClient() },
     { id: 'calendar', label: 'Zobrazit v kalendáři', icon: 'calendar', onSelect: showInCalendar },
     { id: 'rebook', label: 'Nová rezervace pro klienta', icon: 'calendarPlus', onSelect: () => setDialog('rebook') },
   ];
@@ -277,7 +281,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
         <div className="cal-dr__head">
           <ClientAvatar client={client} size="md" />
           <div className="cal-dr__who">
-            <button type="button" className="cal-dr__name" onClick={openClient}>
+            <button type="button" className="cal-dr__name" onClick={() => openClient()}>
               {clientName(client)}
             </button>
             <span className="cal-dr__service">
@@ -327,6 +331,8 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
         )}
 
         <DescriptionList items={details} termWidth={92} />
+
+        {clinical && <SessionNotesSection key={b.id} booking={b} onOpenClient={() => openClient('poznamky')} />}
 
         <NoteEditor booking={b} />
 

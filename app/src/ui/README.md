@@ -53,7 +53,7 @@ import { Button, Card, toast } from '../ui';
 | `StatusPill` | `status: BookingStatus`, `label?` (e.g. „Nedostavila se“), `appearance` pill · plain | `<StatusPill status="late_cancelled" />` |
 | `BOOKING_STATUS_META` | `{label, tone, shape}` per status (filters, legends) | Potvrzeno · Proběhlo · Nedostavil/a se · Zrušeno · Pozdní storno · Omluveno · Zrušeno klinikou |
 | `Kbd` | children | `<Kbd>⌘K</Kbd>` |
-| `Swatch` | `tone` (Tone · accent · neutral · break · free), `variant` soft · solid | `<div className="legend"><Swatch tone="teal">Fyzioterapie</Swatch>…</div>` |
+| `Swatch` | `tone` (Tone · accent · neutral · break · free), `variant` soft · solid | `<div className="legend"><Swatch tone="teal">Koučink</Swatch>…</div>` |
 
 Status shapes never rely on colour alone: circle = confirmed/done, ring = cancelled/excused, square = penalty (late cancel, no-show).
 

@@ -28,7 +28,7 @@ export interface EventBlockProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   density?: EventDensity;
   /** Client name, lesson name… */
   title: ReactNode;
-  /** Second line, e.g. „15:15 Fyzioterapie 45“ (tabular numerals). */
+  /** Second line, e.g. „15:15 Mentální koučink“ (tabular numerals). */
   meta?: ReactNode;
   /** Third line: <EventStatus>, <EventChip>, <EventSeats>, payment info. */
   footer?: ReactNode;

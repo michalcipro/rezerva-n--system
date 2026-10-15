@@ -7,7 +7,7 @@ import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { Button, Card, CardHeader, Dialog, EmptyState, Field, Icon, IconButton, Input, RadioCards, Switch } from '../../ui';
 import { CampaignEditor } from './CampaignEditor';
 import type { EditorMode } from './EmailCard';
-import { CAMPAIGN_PRESETS, channelsLabel, emptyCampaign, formatWhen, recipientsLabel, templateTiming } from './lib';
+import { CAMPAIGN_PRESETS, channelsLabel, emptyCampaign, formatWhen, isManualTemplate, recipientsLabel, templateTiming } from './lib';
 import { CampaignStatusBadge, revealElement, type Device } from './shared';
 
 /* ------------------------------------------------------------------ */
@@ -105,12 +105,14 @@ function CampaignList({
 function AutomationCard({ onManage }: { onManage: () => void }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
-  const enabled = clinic.templates.filter((t) => t.enabled).length;
+  // ručně posílané šablony (zápis ze sezení) nemají vypínač – mezi automatické nepatří
+  const automatic = clinic.templates.filter((t) => !isManualTemplate(t.key));
+  const enabled = automatic.filter((t) => t.enabled).length;
   return (
     <Card padding="none" as="section" className="com-auto" aria-label="Automatické zprávy">
-      <CardHeader divided title="Automatické zprávy" meta={`${enabled} z ${clinic.templates.length} zapnuto`} />
+      <CardHeader divided title="Automatické zprávy" meta={`${enabled} z ${automatic.length} zapnuto`} />
       <ul className="com-auto__list">
-        {clinic.templates.map((t) => (
+        {automatic.map((t) => (
           <li key={t.key} className="com-auto__item">
             <Switch
               checked={t.enabled}

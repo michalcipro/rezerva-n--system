@@ -3,9 +3,10 @@ import type { Client, ClientPackage, Id, LocalDateTime, MakeupRight } from '../.
 import { setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatMoney, plural } from '../../engine/format';
 import { activePackages, bookingsOfClient, clientSummary, getBooking, getClient, packageUsage } from '../../engine/selectors';
+import { filesOfClient, followUpsOfClient, notesOfClient } from '../../engine/crm';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
-import { navigate } from '../../store/session';
+import { navigate, useSession, type ClientTab } from '../../store/session';
 import {
   Avatar,
   Badge,
@@ -22,6 +23,7 @@ import {
   type MenuEntry,
   type TabItem,
 } from '../../ui';
+import { StageControl } from '../../components/crm';
 import { BookingDrawer, NewBookingDialog } from '../calendar';
 import { CreditCard, DebtPanel, ExcusesCard, PackagesCard } from './balances';
 import { EditClientDialog, TagsDialog } from './ClientForm';
@@ -39,9 +41,10 @@ import {
 import { ageOf, debtItems, digitsOf, messagesOfClient, type DebtItem, type PackageInfo } from './model';
 import { ClinicalNoteCard, CommsCard, ConsentsCard, InternalNoteCard, PolicyCard, RecentCard, UpcomingCard } from './OverviewTab';
 import { scrollContainerToTop, useMediaQuery, usePermissions } from './parts';
-import { AuditTab, BookingsTab, CommsTab, ConsentsTab, DocsTab, FinanceTab } from './tabs';
+import { CrmCard, FilesTab, FollowUpsTab, NotesTab } from './crmTabs';
+import { AuditTab, BookingsTab, CommsTab, ConsentsTab, FinanceTab } from './tabs';
 
-type TabId = 'prehled' | 'rezervace' | 'finance' | 'dokumentace' | 'komunikace' | 'souhlasy' | 'historie';
+type TabId = ClientTab;
 
 type DialogState =
   | { kind: 'edit' | 'tags' | 'message' | 'sell' | 'topup' | 'adjust' | 'block' }
@@ -56,7 +59,7 @@ interface BookingInitial {
   start?: LocalDateTime;
 }
 
-export function ClientDetailScreen({ clientId }: { clientId: Id }): JSX.Element {
+export function ClientDetailScreen({ clientId, tab }: { clientId: Id; tab?: ClientTab }): JSX.Element {
   const clinic = useClinic();
   const client = getClient(clinic, clientId);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -85,13 +88,14 @@ export function ClientDetailScreen({ clientId }: { clientId: Id }): JSX.Element 
   }
   return (
     <div ref={rootRef} className="cli-detail">
-      <ClientDetail key={client.id} client={client} />
+      <ClientDetail key={client.id} client={client} initialTab={tab} />
     </div>
   );
 }
 
-function ClientDetail({ client }: { client: Client }): JSX.Element {
+function ClientDetail({ client, initialTab }: { client: Client; initialTab?: ClientTab }): JSX.Element {
   const clinic = useClinic();
+  const route = useSession().route;
   const now = useNow();
   const run = useCommand();
   const perms = usePermissions();
@@ -108,18 +112,36 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
   const debts = useMemo(() => (perms.finance ? debtItems(clinic, client.id) : []), [clinic, client.id, perms.finance]);
   const bookingCount = bookingsOfClient(clinic, client.id).length;
   const messageCount = useMemo(() => messagesOfClient(clinic, client.id).length, [clinic, client.id]);
+  const noteCount = notesOfClient(clinic, client.id).length;
+  const fileCount = filesOfClient(clinic, client.id).length;
+  const openFollowUps = followUpsOfClient(clinic, client.id).filter((f) => !f.done).length;
 
   const tabs: TabItem<TabId>[] = [
-    ...(perms.finance ? [{ id: 'prehled' as const, label: 'Přehled' }] : []),
+    { id: 'prehled', label: 'Přehled' },
+    { id: 'poznamky', label: 'Poznámky', count: perms.clinical && noteCount ? noteCount : undefined },
     { id: 'rezervace', label: 'Rezervace', count: bookingCount || undefined },
+    { id: 'followupy', label: 'Follow-upy', count: openFollowUps || undefined },
+    { id: 'soubory', label: 'Soubory a fotky', count: perms.clinical && fileCount ? fileCount : undefined },
     ...(perms.finance ? [{ id: 'finance' as const, label: 'Permanentky a kredit' }] : []),
-    { id: 'dokumentace', label: 'Dokumentace', count: perms.clinical && client.notes.length ? client.notes.length : undefined },
     ...(perms.manage ? [{ id: 'komunikace' as const, label: 'Komunikace', count: messageCount || undefined }] : []),
     { id: 'souhlasy', label: 'Souhlasy' },
     ...(perms.manage ? [{ id: 'historie' as const, label: 'Historie změn' }] : []),
   ];
-  const [tab, setTab] = useState<TabId>(tabs[0].id);
+  const [tab, setTab] = useState<TabId>(initialTab ?? tabs[0].id);
   const current = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
+  /** Poznámka, na kterou se má karta Poznámky posunout (odkaz ze souboru). */
+  const [focusNote, setFocusNote] = useState<Id | null>(null);
+  const changeTab = (t: TabId): void => {
+    setFocusNote(null);
+    setTab(t);
+  };
+  // Odkaz na konkrétní kartu (např. z detailu schůzky) – i když je karta klienta už otevřená.
+  useEffect(() => {
+    if (route.name === 'klient' && route.clientId === client.id && route.tab) {
+      setFocusNote(null);
+      setTab(route.tab);
+    }
+  }, [route, client.id]);
 
   const [dlg, setDlg] = useState<DialogState>(null);
   const [booking, setBooking] = useState<BookingInitial | null>(null);
@@ -136,7 +158,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
     setBooking({ clientId: client.id, serviceId, therapistId: src?.therapistId });
   };
   const goTab = (t: TabId): void => {
-    setTab(t);
+    changeTab(t);
     requestAnimationFrame(() => document.getElementById(`${tabPrefix}-tab-${t}`)?.focus({ preventScroll: true }));
   };
 
@@ -182,32 +204,37 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       content = (
         <div className="split">
           <div className="split__main">
-            <DebtPanel items={debts} onSettle={(item) => setDlg({ kind: 'settle', item })} onWaive={(item) => setDlg({ kind: 'waive', item })} />
-            <div className="cli-balances-wrap">
-            <div className="cli-balances">
-              <PackagesCard
-                active={active}
-                today={today}
-                onSell={() => setDlg({ kind: 'sell' })}
-                onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
-                onCancel={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
-                onShowAll={() => goTab('finance')}
-              />
-              <CreditCard
-                client={client}
-                credit={summary.credit}
-                onTopUp={() => setDlg({ kind: 'topup' })}
-                onAdjust={() => setDlg({ kind: 'adjust' })}
-                onShowAll={() => goTab('finance')}
-              />
-              <ExcusesCard client={client} now={now} active={active} onBookMakeup={bookMakeup} />
-            </div>
-            </div>
+            {perms.finance && (
+              <DebtPanel items={debts} onSettle={(item) => setDlg({ kind: 'settle', item })} onWaive={(item) => setDlg({ kind: 'waive', item })} />
+            )}
+            <CrmCard client={client} now={now} finance={perms.finance} onGo={goTab} />
+            {perms.finance && (
+              <div className="cli-balances-wrap">
+                <div className="cli-balances">
+                  <PackagesCard
+                    active={active}
+                    today={today}
+                    onSell={() => setDlg({ kind: 'sell' })}
+                    onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
+                    onCancel={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
+                    onShowAll={() => goTab('finance')}
+                  />
+                  <CreditCard
+                    client={client}
+                    credit={summary.credit}
+                    onTopUp={() => setDlg({ kind: 'topup' })}
+                    onAdjust={() => setDlg({ kind: 'adjust' })}
+                    onShowAll={() => goTab('finance')}
+                  />
+                  <ExcusesCard client={client} now={now} active={active} onBookMakeup={bookMakeup} />
+                </div>
+              </div>
+            )}
             <UpcomingCard client={client} now={now} finance={perms.finance} onOpen={setDrawer} onNew={newBooking} />
             <RecentCard client={client} now={now} finance={perms.finance} onOpen={setDrawer} onShowAll={() => goTab('rezervace')} />
           </div>
           <aside className="split__aside" aria-label="Doplňující informace">
-            <ClinicalNoteCard client={client} perms={perms} onOpenDocs={() => goTab('dokumentace')} />
+            <ClinicalNoteCard client={client} perms={perms} onOpenDocs={() => goTab('poznamky')} />
             <InternalNoteCard client={client} onEdit={perms.manage ? () => setDlg({ kind: 'edit' }) : undefined} />
             <ConsentsCard client={client} onManage={() => goTab('souhlasy')} />
             {perms.manage && <CommsCard client={client} onShowAll={() => goTab('komunikace')} />}
@@ -238,14 +265,31 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
         />
       );
       break;
-    case 'dokumentace':
+    case 'poznamky':
       content = (
-        <DocsTab
+        <NotesTab
           client={client}
           perms={perms}
+          focusNoteId={focusNote}
+          onOpenBooking={setDrawer}
           onGrantHealth={() => run(setConsent, { clientId: client.id, key: 'health', value: true }, { success: 'Souhlas se zdravotní dokumentací zaznamenán' })}
         />
       );
+      break;
+    case 'soubory':
+      content = (
+        <FilesTab
+          client={client}
+          perms={perms}
+          onOpenNote={(noteId) => {
+            goTab('poznamky');
+            setFocusNote(noteId);
+          }}
+        />
+      );
+      break;
+    case 'followupy':
+      content = <FollowUpsTab client={client} now={now} />;
       break;
     case 'komunikace':
       content = <CommsTab client={client} onWrite={() => setDlg({ kind: 'message' })} />;
@@ -274,6 +318,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
                 </Badge>
               )}
             </div>
+            <StageControl clientId={client.id} className="cli-hero__stage" />
             <span className="cli-hero__meta tnum">{metaParts.join(' · ')}</span>
           </div>
           <div className="cli-hero__actions">
@@ -357,7 +402,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
           </span>
         </div>
 
-        <Tabs aria-label="Sekce klienta" items={tabs} value={current} onChange={setTab} idPrefix={tabPrefix} className="cli-hero__tabs" />
+        <Tabs aria-label="Sekce klienta" items={tabs} value={current} onChange={changeTab} idPrefix={tabPrefix} className="cli-hero__tabs" />
       </section>
 
       <div className="cli-body">

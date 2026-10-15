@@ -10,6 +10,7 @@ import {
   therapistShort,
   upcomingBookingsOfClient,
 } from '../../engine/selectors';
+import { NOTE_KIND_LABEL, notesOfClient } from '../../engine/crm';
 import { dateOf } from '../../engine/time';
 import { ToneDot } from '../../components/domain';
 import { useClinic } from '../../store/hooks';
@@ -245,36 +246,45 @@ export function RecentCard({
 
 export function ClinicalNoteCard({ client, perms, onOpenDocs }: { client: Client; perms: Permissions; onOpenDocs: () => void }): JSX.Element {
   const clinic = useClinic();
-  const note = client.notes[0];
+  const notes = notesOfClient(clinic, client.id);
+  const note = notes.find((n) => !n.pinned) ?? notes[0];
+  const pinned = notes.filter((n) => n.pinned);
   return (
-    <Card as="section" className="cli-side" aria-label="Klinická poznámka">
+    <Card as="section" className="cli-side" aria-label="Poslední poznámka">
       <div className="cli-side__head">
         <Icon name="file" size={16} className="cli-side__icon" />
-        <Eyebrow as="h2">Klinická poznámka</Eyebrow>
+        <Eyebrow as="h2">{note?.pinned ? 'Připnutá poznámka' : 'Poslední poznámka'}</Eyebrow>
         <Badge tone="neutral" icon="lock">
-          jen pro terapeuty
+          důvěrné
         </Badge>
       </div>
       {!perms.clinical ? (
         <p className="cli-side__muted">
-          Klinickou dokumentaci vidí jen terapeuti
-          {client.notes.length ? ` (${countLabel(client.notes.length, ['poznámka', 'poznámky', 'poznámek'])}).` : '.'}
+          Poznámky ke klientovi vidí jen kouči a terapeuti
+          {notes.length ? ` (${countLabel(notes.length, ['záznam', 'záznamy', 'záznamů'])}).` : '.'}
         </p>
       ) : note ? (
         <>
-          <p className="cli-note-text cli-note-text--clamp">{note.text}</p>
+          {pinned.length > 0 && note !== pinned[0] && (
+            <p className="cli-side__pinned">
+              <Icon name="pin" size={12} /> {pinned[0].title || NOTE_KIND_LABEL[pinned[0].kind]}
+            </p>
+          )}
+          {note.title && <strong className="cli-note-title">{note.title}</strong>}
+          {note.text && <p className="cli-note-text cli-note-text--clamp">{note.text}</p>}
           <span className="cli-side__meta tnum">
-            {therapistName(getTherapist(clinic, note.therapistId))}, {formatDayShort(note.at)}
+            {NOTE_KIND_LABEL[note.kind]} · {note.authorId ? therapistName(getTherapist(clinic, note.authorId)) + ', ' : ''}
+            {formatDayShort(note.at)}
           </span>
           <button type="button" className="link cli-side__link" onClick={onOpenDocs}>
-            {client.notes.length > 1 ? `Všechny poznámky (${client.notes.length})` : 'Přidat poznámku'}
+            {notes.length > 1 ? `Všechny poznámky (${notes.length})` : 'Otevřít poznámky'}
           </button>
         </>
       ) : (
         <>
-          <p className="cli-side__muted">Zatím bez klinické poznámky.</p>
+          <p className="cli-side__muted">Zatím bez poznámky ani zápisu ze sezení.</p>
           <button type="button" className="link cli-side__link" onClick={onOpenDocs}>
-            Přidat poznámku
+            Napsat poznámku
           </button>
         </>
       )}

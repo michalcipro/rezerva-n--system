@@ -20,10 +20,10 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     description: 'Ihned po vytvoření rezervace.',
     channels: ['email', 'sms'],
     enabled: true,
-    subject: 'Potvrzení rezervace: [služba] [datum] v [čas]',
+    subject: 'Potvrzení termínu: [služba] [datum] v [čas]',
     body:
-      'Dobrý den, [jméno],\n\npotvrzujeme vaši rezervaci:\n[služba] · [datum] [čas]–[konec]\n[terapeut] · [místnost]\nPlatba: [platba]\n\nTermín můžete zdarma zrušit nebo přesunout do [storno_do]. Pozdější zrušení se řídí storno podmínkami.\n\nTěšíme se na vás\n[klinika]',
-    smsBody: '[klinika]: rezervace [služba] [datum] v [čas] je potvrzená. Zrušení zdarma do [storno_do].',
+      'Dobrý den, [jméno],\n\npotvrzujeme váš termín:\n[služba] · [datum] [čas]–[konec]\n[terapeut] · [místnost]\nPlatba: [platba]\n\nTermín můžete zdarma zrušit nebo přesunout do [storno_do]. Pozdější zrušení se řídí storno podmínkami.\n\nTěšíme se na setkání s vámi.\n[klinika]',
+    smsBody: '[klinika]: termín [služba] [datum] v [čas] je potvrzený. Zrušení zdarma do [storno_do].',
   },
   {
     key: 'reminder',
@@ -33,8 +33,8 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     enabled: true,
     subject: 'Připomínka: [služba] [datum] v [čas]',
     body:
-      'Dobrý den, [jméno],\n\npřipomínáme váš termín [služba] [datum] v [čas] u [terapeut] ([místnost]).\nPokud nemůžete přijít, dejte nám prosím vědět co nejdříve – uvolněný termín nabídneme dalším klientům.\n\n[klinika]',
-    smsBody: '[klinika]: připomínáme [služba] [datum] v [čas] ([terapeut]). Nemůžete přijít? Zrušte termín v aplikaci.',
+      'Dobrý den, [jméno],\n\npřipomínáme váš termín:\n[služba] · [datum] v [čas]\n[terapeut] · [místnost]\n\nPokud nemůžete přijít, dejte nám prosím vědět co nejdříve – uvolněný čas rádi nabídneme dalším klientům.\n\nTěšíme se na vás.\n[klinika]',
+    smsBody: '[klinika]: připomínáme [služba] [datum] v [čas] ([terapeut]). Nemůžete přijít? Zrušte prosím termín v aplikaci.',
   },
   {
     key: 'cancellation',
@@ -42,9 +42,10 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     description: 'Po zrušení v bezplatné lhůtě.',
     channels: ['email'],
     enabled: true,
-    subject: 'Rezervace zrušena: [služba] [datum]',
-    body: 'Dobrý den, [jméno],\n\nvaše rezervace [služba] [datum] v [čas] byla zrušena bez poplatku. [platba_vratka]\n\n[klinika]',
-    smsBody: '[klinika]: rezervace [datum] v [čas] byla zrušena.',
+    subject: 'Termín zrušen: [služba] [datum]',
+    body:
+      'Dobrý den, [jméno],\n\nváš termín [služba] ([datum] v [čas]) byl zrušen bez poplatku. [platba_vratka]\n\nAž budete chtít navázat, rádi s vámi domluvíme nový termín.\n\n[klinika]',
+    smsBody: '[klinika]: termín [datum] v [čas] byl zrušen bez poplatku.',
   },
   {
     key: 'excuse',
@@ -54,7 +55,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     enabled: true,
     subject: 'Omluvenka přijata – vyberte si náhradní termín',
     body:
-      'Dobrý den, [jméno],\n\nomluvenku na termín [služba] [datum] v [čas] jsme přijali, žádný poplatek se neúčtuje. [náhrada_text]\n\nBrzy se uzdravte\n[klinika]',
+      'Dobrý den, [jméno],\n\nomluvenku na termín [služba] ([datum] v [čas]) jsme přijali, žádný poplatek se neúčtuje. [náhrada_text]\n\nTěšíme se na další setkání.\n[klinika]',
     smsBody: '[klinika]: omluvenka na [datum] přijata. [náhrada_text]',
   },
   {
@@ -63,10 +64,10 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     description: 'Po zrušení po bezplatné lhůtě.',
     channels: ['email'],
     enabled: true,
-    subject: 'Rezervace zrušena po lhůtě: [služba] [datum]',
+    subject: 'Termín zrušen po lhůtě: [služba] [datum]',
     body:
-      'Dobrý den, [jméno],\n\nrezervaci [služba] [datum] v [čas] jsme zrušili. Protože k tomu došlo po lhůtě pro bezplatné zrušení, platí storno podmínky: [poplatek].\n\n[klinika]',
-    smsBody: '[klinika]: rezervace [datum] zrušena po lhůtě. [poplatek]',
+      'Dobrý den, [jméno],\n\nváš termín [služba] ([datum] v [čas]) jsme zrušili. Protože ke zrušení došlo po lhůtě pro bezplatné zrušení, platí storno podmínky: [poplatek]\n\nDěkujeme za pochopení.\n[klinika]',
+    smsBody: '[klinika]: termín [datum] zrušen po lhůtě. [poplatek]',
   },
   {
     key: 'no_show',
@@ -74,20 +75,20 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     description: 'Když recepce označí nedostavení.',
     channels: ['email'],
     enabled: true,
-    subject: 'Dnes jsme se neviděli',
+    subject: 'Dnes jsme se nesešli',
     body:
-      'Dobrý den, [jméno],\n\nna termín [služba] [datum] v [čas] jste nedorazil/a. Podle storno podmínek: [poplatek].\nPokud se něco stalo, ozvěte se nám.\n\n[klinika]',
-    smsBody: '[klinika]: na termín [datum] [čas] jste nedorazil/a. [poplatek]',
+      'Dobrý den, [jméno],\n\nv domluveném termínu [služba] ([datum] v [čas]) jsme se bohužel nesešli. Podle storno podmínek: [poplatek]\nPokud se něco stalo, ozvěte se nám prosím – domluvíme, jak ve spolupráci pokračovat.\n\n[klinika]',
+    smsBody: '[klinika]: v termínu [datum] v [čas] jsme se nesešli. [poplatek]',
   },
   {
     key: 'clinic_cancel',
-    name: 'Zrušení ze strany kliniky',
-    description: 'Když termín ruší klinika.',
+    name: 'Zrušení z naší strany',
+    description: 'Když termín ruší kouč nebo firma.',
     channels: ['email', 'sms'],
     enabled: true,
     subject: 'Omlouváme se – termín [datum] musíme zrušit',
     body:
-      'Dobrý den, [jméno],\n\nomlouváme se, ale termín [služba] [datum] v [čas] musíme zrušit. [platba_vratka] Ozveme se vám s náhradním termínem, případně si vyberte nový v aplikaci.\n\n[klinika]',
+      'Dobrý den, [jméno],\n\nomlouváme se, ale termín [služba] ([datum] v [čas]) musíme zrušit. [platba_vratka] Ozveme se vám s náhradním termínem, případně si nový vyberte v aplikaci.\n\nDěkujeme za pochopení.\n[klinika]',
     smsBody: '[klinika]: omlouváme se, termín [datum] v [čas] musíme zrušit. Vyberte si prosím nový.',
   },
   {
@@ -97,7 +98,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email', 'sms'],
     enabled: true,
     subject: 'Termín přesunut: [služba] [datum] v [čas]',
-    body: 'Dobrý den, [jméno],\n\nváš termín jsme přesunuli na [datum] v [čas] ([terapeut]).\n\n[klinika]',
+    body: 'Dobrý den, [jméno],\n\nváš termín jsme přesunuli. Nový termín:\n[služba] · [datum] v [čas]\n[terapeut] · [místnost]\n\nTěšíme se na vás.\n[klinika]',
     smsBody: '[klinika]: termín přesunut na [datum] v [čas].',
   },
   {
@@ -108,8 +109,8 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     enabled: true,
     subject: 'Uvolnil se termín [datum] v [čas]',
     body:
-      'Dobrý den, [jméno],\n\nuvolnil se termín [služba] [datum] v [čas] ([terapeut]). Pokud o něj máte zájem, potvrďte ho v aplikaci do [nabídka_do]. Platí, kdo potvrdí dřív.\n\n[klinika]',
-    smsBody: '[klinika]: uvolnil se termín [služba] [datum] v [čas]. Potvrďte v aplikaci do [nabídka_do].',
+      'Dobrý den, [jméno],\n\nuvolnil se termín [služba] – [datum] v [čas] ([terapeut]). Pokud o něj máte zájem, potvrďte ho prosím v aplikaci do [nabídka_do]. Termín získá ten, kdo potvrdí jako první.\n\n[klinika]',
+    smsBody: '[klinika]: uvolnil se termín [služba] [datum] v [čas]. Potvrďte ho v aplikaci do [nabídka_do].',
   },
   {
     key: 'makeup_reminder',
@@ -118,7 +119,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email'],
     enabled: true,
     subject: 'Nezapomeňte na náhradní termín (do [náhrada_do])',
-    body: 'Dobrý den, [jméno],\n\nmáte nevyčerpaný náhradní termín za omluvenou návštěvu. Vyberte si ho prosím do [náhrada_do], potom propadne.\n\n[klinika]',
+    body: 'Dobrý den, [jméno],\n\nza omluvené sezení máte nevyčerpaný náhradní termín. Vyberte si ho prosím do [náhrada_do], potom propadne.\n\n[klinika]',
     smsBody: '[klinika]: náhradní termín si vyberte do [náhrada_do].',
   },
   {
@@ -127,9 +128,10 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     description: 'Když na permanentce zbývají 2 volné vstupy.',
     channels: ['email'],
     enabled: true,
-    subject: 'Na permanentce [permanentka] vám zbývají [zbývá]',
-    body: 'Dobrý den, [jméno],\n\nna permanentce [permanentka] vám zbývají [zbývá] (platnost do [platnost_do]). Novou si můžete koupit na recepci nebo v aplikaci.\n\n[klinika]',
-    smsBody: '[klinika]: na permanentce zbývají [zbývá].',
+    subject: 'Na permanentce [permanentka] máte už jen [zbývá]',
+    body:
+      'Dobrý den, [jméno],\n\nna permanentce [permanentka] máte už jen [zbývá] (platnost do [platnost_do]). Pokud chcete ve spolupráci pokračovat, novou permanentku vám rádi připravíme – stačí odpovědět na tento e-mail nebo se zeptat na příštím sezení.\n\n[klinika]',
+    smsBody: '[klinika]: na permanentce [permanentka] máte už jen [zbývá].',
   },
   {
     key: 'package_expiring',
@@ -139,18 +141,18 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     enabled: true,
     subject: 'Permanentka [permanentka] končí [platnost_do]',
     body:
-      'Dobrý den, [jméno],\n\nplatnost permanentky [permanentka] končí [platnost_do] a zbývají vám [zbývá]. Rezervujte si termíny, ať o ně nepřijdete.\n\n[klinika]',
-    smsBody: '[klinika]: permanentka končí [platnost_do], zbývají [zbývá].',
+      'Dobrý den, [jméno],\n\nplatnost permanentky [permanentka] končí [platnost_do] a ještě na ní máte [zbývá]. Domluvte si prosím termíny včas, ať o ně nepřijdete.\n\n[klinika]',
+    smsBody: '[klinika]: permanentka končí [platnost_do], ještě na ní máte [zbývá].',
   },
   {
     key: 'after_visit',
-    name: 'Po návštěvě: poděkování',
+    name: 'Po sezení: poděkování',
     description: '2 hodiny po proběhlém termínu.',
     channels: ['email'],
     enabled: true,
-    subject: 'Děkujeme za návštěvu',
+    subject: 'Děkujeme za dnešní sezení',
     body:
-      'Dobrý den, [jméno],\n\nděkujeme, že jste dnes přišel/přišla. Nezapomeňte na domácí cvičení od [terapeut]. Budeme rádi, když nám napíšete, jak jste byl/a spokojen/a.\n\n[klinika]',
+      'Dobrý den, [jméno],\n\nděkujeme za dnešní sezení. Nezapomeňte na kroky, na kterých jsme se společně domluvili – právě práce mezi sezeními přináší největší posun.\n\nBudeme rádi za vaši zpětnou vazbu, stačí odpovědět na tento e-mail.\n\n[klinika]',
     smsBody: '',
   },
   {
@@ -160,7 +162,8 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email'],
     enabled: false,
     subject: 'Dlouho jsme se neviděli',
-    body: 'Dobrý den, [jméno],\n\nje to už nějaký čas od vaší poslední návštěvy. Pokud se potíže vrací, rádi vás uvidíme.\n\n[klinika]',
+    body:
+      'Dobrý den, [jméno],\n\nod našeho posledního setkání uplynul už nějaký čas. Pokud chcete navázat na to, na čem jsme spolu pracovali, nebo vás čeká nová výzva, rádi se s vámi znovu potkáme. Stačí odpovědět na tento e-mail nebo si vybrat termín v aplikaci.\n\n[klinika]',
     smsBody: '',
   },
   {
@@ -170,7 +173,17 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email'],
     enabled: false,
     subject: 'Všechno nejlepší, [jméno]',
-    body: 'Dobrý den, [jméno],\n\npřejeme vám k narozeninám hodně zdraví a úspěchů.\n\n[klinika]',
+    body: 'Dobrý den, [jméno],\n\nk narozeninám vám přejeme hodně zdraví, energie a radosti z každého dalšího kroku.\n\n[klinika]',
+    smsBody: '',
+  },
+  {
+    key: 'session_notes',
+    name: 'Zápis ze sezení',
+    description: 'Posílá se ručně z karty klienta nebo z detailu schůzky – shrnutí sezení pro klienta.',
+    channels: ['email'],
+    enabled: true,
+    subject: 'Zápis ze sezení [datum]',
+    body: 'Dobrý den, [jméno],\n\nposíláme vám zápis ze sezení dne [datum].\n\n[poznámky]\n\nS pozdravem\n[klinika]',
     smsBody: '',
   },
 ];
@@ -180,8 +193,12 @@ export const MARKETING_TEMPLATES: readonly TemplateKey[] = ['reactivation', 'bir
 
 export type TemplateVars = Record<string, string>;
 
+/**
+ * Doplní proměnné v hranatých závorkách ([jméno], [datum], [poznámky]…). Neznámé proměnné nechá beze změny.
+ * Hodnoty se vkládají doslova a znovu se neprocházejí – text poznámky obsahující „[jméno]“ zůstane, jak je.
+ */
 export function renderTemplate(text: string, vars: TemplateVars): string {
-  return text.replace(/\[([a-zA-Zá-žÁ-Ž_]+)\]/g, (m, key: string) => (key in vars ? vars[key] : m));
+  return text.replace(/\[([a-zA-Zá-žÁ-Ž_]+)\]/g, (m, key: string) => (Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : m));
 }
 
 export function paymentLabel(s: ClinicState, b: Booking): string {
@@ -199,7 +216,7 @@ export function paymentLabel(s: ClinicState, b: Booking): string {
     case 'free':
       return 'zdarma';
     default:
-      return `na místě (${formatMoney(b.price)})`;
+      return b.price > 0 ? `na místě (${formatMoney(b.price)})` : 'zdarma';
   }
 }
 
@@ -268,20 +285,39 @@ export function queueTemplateMessage(draft: ClinicState, input: QueueInput): Mes
   return created;
 }
 
+/** Nejdelší předmět ručně odesílané zprávy (znaky). */
+export const MESSAGE_SUBJECT_MAX = 200;
+/**
+ * Nejdelší text ručně odesílané zprávy (znaky). Zpráva se ukládá celá do kolekce `messages`; i v nejhorším
+ * případě (znaky escapované v JSON až na 6 bajtů) se tak vejde do jednoho dokumentu databáze (256 KiB).
+ * Pokryje zápis s maximální délkou poznámky (NOTE_TEXT_MAX) i s textem šablony.
+ */
+export const MESSAGE_BODY_MAX = 25_000;
+
 export function addManualMessage(
   draft: ClinicState,
-  input: { clientId: Id; channel: Channel; subject: string; body: string; now: LocalDateTime },
+  input: {
+    clientId: Id;
+    channel: Channel;
+    subject: string;
+    body: string;
+    now: LocalDateTime;
+    /** Druh zprávy v odeslaných (výchozí 'manual'; zápis ze sezení 'session_notes'). */
+    kind?: Message['kind'];
+    bookingId?: Id;
+  },
 ): Message {
   const msg: Message = {
     id: newId('m'),
     clientId: input.clientId,
     channel: input.channel,
-    kind: 'manual',
+    kind: input.kind ?? 'manual',
     subject: input.subject,
     body: input.body,
     at: input.now,
     status: 'sent',
   };
+  if (input.bookingId) msg.bookingId = input.bookingId;
   draft.messages.push(msg);
   return msg;
 }
@@ -305,5 +341,6 @@ export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
   { key: 'zbývá', label: 'Zbývající vstupy' },
   { key: 'platnost_do', label: 'Konec platnosti' },
   { key: 'nabídka_do', label: 'Platnost nabídky z čekací listiny' },
+  { key: 'poznámky', label: 'Text zápisu ze sezení' },
   { key: 'klinika', label: 'Název kliniky' },
 ];

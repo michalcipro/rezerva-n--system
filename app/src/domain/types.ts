@@ -46,7 +46,7 @@ export interface Service {
   capacity: number;
   therapistIds: Id[];
   onlineBookable: boolean;
-  /** Jen pro nové klienty (např. vstupní vyšetření). */
+  /** Jen pro nové klienty (např. Freetalk). */
   newClientsOnly: boolean;
   /** Online konzultace (video). */
   remote: boolean;
@@ -133,6 +133,95 @@ export interface ClinicalNote {
   text: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* CRM – fáze spolupráce, poznámky, soubory, follow-upy (docs/CRM.md)   */
+/* ------------------------------------------------------------------ */
+
+/** Fáze spolupráce s klientem (Potenciální klient → … → Konec spolupráce). */
+export interface Stage {
+  id: Id;
+  name: string;
+  tone: Tone;
+  order: number;
+  /** Ukončená spolupráce (v Pipeline lze skrýt). */
+  closed?: boolean;
+}
+
+/** Záznam o přesunu klienta do fáze. */
+export interface StageChange {
+  stageId: Id;
+  at: LocalDateTime;
+  actor: string;
+  note?: string;
+}
+
+export type NoteKind = 'note' | 'session' | 'plaud' | 'call';
+
+/** Poznámka ke klientovi: obecná, zápis ze sezení, import z Plaud AI, telefonát. */
+export interface Note {
+  id: Id;
+  clientId: Id;
+  /** Kdy se událost stala (u zápisu ze sezení začátek schůzky). */
+  at: LocalDateTime;
+  createdAt: LocalDateTime;
+  updatedAt: LocalDateTime | null;
+  /** Id terapeuta / kouče ('' když neznámý). */
+  authorId: Id;
+  kind: NoteKind;
+  /** Max. 120 znaků, může být ''. */
+  title: string;
+  /** Max. NOTE_TEXT_MAX (20 000) znaků. */
+  text: string;
+  /** Zápis ze sezení / Plaud navázaný na schůzku. */
+  bookingId: Id | null;
+  pinned: boolean;
+  /** Kdy byl zápis odeslán klientovi. */
+  sentAt: LocalDateTime | null;
+  plaud: { recordedAt: LocalDateTime | null; transcriptFileId: Id | null } | null;
+}
+
+export type FileKind = 'image' | 'audio' | 'video' | 'pdf' | 'text' | 'other';
+/** asset = asset artefaktu, asset-b64 = asset text/plain s obsahem v base64, local = IndexedDB. */
+export type FileStorage = 'asset' | 'asset-b64' | 'local';
+
+/** Záznam o souboru klienta (obsah je v úložišti souborů, viz store/files.ts). */
+export interface FileRecord {
+  id: Id;
+  clientId: Id;
+  noteId: Id | null;
+  name: string;
+  /** Skutečný typ souboru (např. 'audio/mpeg'). */
+  mime: string;
+  /** Velikost originálu v bajtech. */
+  size: number;
+  kind: FileKind;
+  at: LocalDateTime;
+  uploadedBy: string;
+  storage: FileStorage;
+  /** Id assetu (artefakt) nebo klíč v IndexedDB. */
+  ref: string;
+  /** U audia / videa, pokud je délka známá. */
+  durationSec: number | null;
+  caption: string;
+}
+
+/** Úkol s termínem ke klientovi. */
+export interface FollowUp {
+  id: Id;
+  clientId: Id;
+  /** Max. 160 znaků, povinné. */
+  title: string;
+  due: LocalDate;
+  dueTime: TimeOfDay | null;
+  /** Id terapeuta / kouče. */
+  assigneeId: Id | null;
+  note: string;
+  done: boolean;
+  doneAt: LocalDateTime | null;
+  createdAt: LocalDateTime;
+  createdBy: string;
+}
+
 export interface Client {
   id: Id;
   firstName: string;
@@ -144,6 +233,14 @@ export interface Client {
   createdAt: LocalDateTime;
   source: 'online' | 'recepce' | 'telefon' | 'doporučení';
   consents: ClientConsents;
+  /** Fáze spolupráce (id z `settings.stages`). */
+  stageId: Id;
+  /** Historie fází, nejstarší první. */
+  stageHistory: StageChange[];
+  /**
+   * Zastaralé: zůstává kvůli zpětné kompatibilitě, ale je vždy [] – poznámky jsou v kolekci
+   * `ClinicState.notes` (staré se při načtení přesunou, viz store/persistence.ts normalizeState).
+   */
   notes: ClinicalNote[];
   internalNote: string;
   /** Online rezervace zablokované (např. po opakovaném nedostavení). */
@@ -354,7 +451,8 @@ export type TemplateKey =
   | 'package_expiring'
   | 'after_visit'
   | 'reactivation'
-  | 'birthday';
+  | 'birthday'
+  | 'session_notes';
 
 export type Channel = 'email' | 'sms';
 
@@ -399,7 +497,8 @@ export type SegmentRule =
   | { type: 'has_upcoming_booking'; withinDays: number }
   | { type: 'tag'; tag: string }
   | { type: 'new_client'; withinDays: number }
-  | { type: 'credit_balance_gt'; amount: number };
+  | { type: 'credit_balance_gt'; amount: number }
+  | { type: 'stage'; stageIds: Id[] };
 
 export interface SegmentDefinition {
   match: 'all' | 'any';
@@ -498,6 +597,8 @@ export interface Settings {
   waitlist: WaitlistSettings;
   reminders: ReminderSettings;
   creditBonus: CreditBonusRule[];
+  /** Fáze spolupráce s klienty (CRM). */
+  stages: Stage[];
   /** Testovací hodiny – null znamená skutečný čas. */
   simulatedNow: LocalDateTime | null;
 }
@@ -535,6 +636,12 @@ export interface ClinicState {
   templates: MessageTemplate[];
   campaigns: Campaign[];
   audit: AuditEntry[];
+  /** CRM: poznámky, zápisy ze sezení, Plaud importy a telefonáty. */
+  notes: Note[];
+  /** CRM: záznamy o souborech klientů (obsah je v úložišti souborů). */
+  files: FileRecord[];
+  /** CRM: úkoly s termínem ke klientům. */
+  followUps: FollowUp[];
   /** Kdy byla vygenerována ukázková data (null = vlastní data). */
   demoSeededAt: LocalDateTime | null;
 }

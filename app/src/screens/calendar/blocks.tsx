@@ -1,5 +1,6 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type { Booking, GroupSession, LocalDateTime } from '../../domain/types';
+import { sessionNoteOfBooking } from '../../engine/crm';
 import { countLabel, formatDuration, formatSpan, formatTime, formatTimeRange } from '../../engine/format';
 import {
   clientName,
@@ -13,6 +14,7 @@ import {
 import { dateOf, diffMinutes } from '../../engine/time';
 import { useClinic } from '../../store/hooks';
 import { EventBlock, EventChip, EventProgress, EventSeats, EventStatus, Icon, cx } from '../../ui';
+import { useClinicalAccess } from './hooks';
 import { GHOST_LABEL, densityFor, isFirstVisit, noShowLabel, paymentHint, waitingForSession, type OfferGroup } from './model';
 
 type Density = 'xs' | 'sm' | 'md' | 'lg';
@@ -51,6 +53,11 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
   const pastUnmarked = b.status === 'confirmed' && b.end <= now;
   const unpaidOnsite = b.payment.method === 'onsite' && !b.payment.paid;
   const first = isFirstVisit(clinic, b);
+  // Značka zápisu ze sezení jen pro role s přístupem ke klinickým poznámkám (lookup je cachovaný podle pole poznámek).
+  const clinical = useClinicalAccess();
+  const sessionNote = clinical ? sessionNoteOfBooking(clinic, b.id) : undefined;
+  // Jedno místo pro ikonu: u proběhlé schůzky má přednost zápis, u nadcházející online konzultace.
+  const icon = sessionNote && (b.status !== 'confirmed' || !svc?.remote) ? 'clipboard' : svc?.remote ? 'video' : undefined;
 
   let variant: 'default' | 'active' | 'completed' | 'no_show' = 'default';
   if (b.status === 'completed') variant = 'completed';
@@ -122,6 +129,8 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
     therapistName(getTherapist(clinic, b.therapistId)),
     statusText,
     first ? 'nový klient' : '',
+    svc?.remote ? 'online' : '',
+    sessionNote ? (sessionNote.sentAt ? 'zápis ze sezení odeslán' : 'má zápis ze sezení') : '',
   ]
     .filter(Boolean)
     .join(', ');
@@ -134,7 +143,7 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
       title={density === 'xs' ? <>{meta} · {client?.lastName ?? name}</> : name}
       meta={density === 'xs' ? undefined : meta}
       footer={parts.length && (density === 'md' || density === 'lg') ? parts : undefined}
-      icon={svc?.remote ? 'video' : undefined}
+      icon={icon}
       selected={selected}
       style={style}
       className={cx('cal-ev', 'cal-ev--booking', draggable && 'is-draggable', dragging && 'is-dragging')}

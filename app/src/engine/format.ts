@@ -168,3 +168,28 @@ export function initials(p: { firstName: string; lastName: string }): string {
 export function shortName(p: { firstName: string; lastName: string }): string {
   return p.firstName.charAt(0) + '.' + NBSP + p.lastName;
 }
+
+/** Velikost souboru: '512 B', '820 kB', '1,2 MB' (násobky 1024 jako ve správci souborů Windows). */
+export function formatFileSize(bytes: number): string {
+  const b = Math.max(0, Math.round(bytes));
+  const KB = 1024;
+  const MB = KB * 1024;
+  if (b < KB) return formatNumber(b) + NBSP + 'B';
+  if (b < MB) return formatNumber(Math.min(1023, Math.max(1, Math.round(b / KB)))) + NBSP + 'kB';
+  if (b < MB * 1024) {
+    const mb = b / MB;
+    return formatNumber(mb, mb < 10 && Math.round(mb * 10) % 10 !== 0 ? 1 : 0) + NBSP + 'MB';
+  }
+  return formatNumber(b / (MB * 1024), 1) + NBSP + 'GB';
+}
+
+/** Délka nahrávky z celých sekund: '0:42', '12:05', '1:02:05'. */
+export function formatClockDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = s < 10 ? '0' + s : String(s);
+  if (h) return h + ':' + (m < 10 ? '0' + m : String(m)) + ':' + ss;
+  return m + ':' + ss;
+}

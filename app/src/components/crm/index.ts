@@ -1,0 +1,26 @@
+/** Sdílené CRM komponenty (fáze spolupráce, poznámky, soubory, follow-upy). Styly: crm.css, třídy s prefixem .crm-. */
+export { StageBadge } from './StageBadge';
+export type { StageBadgeProps } from './StageBadge';
+export { FollowUpDialog } from './FollowUpDialog';
+export type { FollowUpDialogProps } from './FollowUpDialog';
+export { FollowUpRow, useStickyFollowUpGroups } from './FollowUpRow';
+export type { FollowUpRowProps } from './FollowUpRow';
+export { StageControl, ChangeStageDialog, StageHistoryDialog } from './StageControl';
+export type { StageControlProps } from './StageControl';
+export { NotesPanel } from './NotesPanel';
+export type { NotesPanelProps } from './NotesPanel';
+export { SessionNoteEditor } from './SessionNoteEditor';
+export type { SessionNoteEditorProps } from './SessionNoteEditor';
+export { SendSessionNotesDialog } from './SendSessionNotesDialog';
+export type { SendSessionNotesDialogProps } from './SendSessionNotesDialog';
+export { AudioRecorder, AudioRecorderDialog, recordingSupported } from './AudioRecorder';
+export type { AudioRecorderProps, AudioRecorderDialogProps, RecordedAudio } from './AudioRecorder';
+export { FileUploadButton } from './FileUploadButton';
+export type { FileUploadButtonProps } from './FileUploadButton';
+export { FilesPanel } from './FilesPanel';
+export type { FilesPanelProps } from './FilesPanel';
+export { FileViewerDialog } from './FileViewerDialog';
+export type { FileViewerDialogProps } from './FileViewerDialog';
+export { PlaudImportDialog } from './PlaudImportDialog';
+export type { PlaudImportDialogProps } from './PlaudImportDialog';
+export { NOTE_KIND_ICON, NOTE_KIND_TONE, FILE_KIND_ICON, useFileStorage, useFileUrl } from './shared';

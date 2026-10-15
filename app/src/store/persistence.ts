@@ -1,6 +1,9 @@
-import type { ClinicState } from '../domain/types';
-import { SCHEMA_VERSION } from '../engine/defaults';
-import { isoWeekKey, monthKey } from '../engine/time';
+import type { Client, ClinicState, LocalDateTime, Note } from '../domain/types';
+import { inferStageId } from '../engine/crm';
+import { defaultStages, SCHEMA_VERSION } from '../engine/defaults';
+import { DEFAULT_TEMPLATES } from '../engine/messages';
+import { clearSelectorCaches } from '../engine/selectors';
+import { isoWeekKey, monthKey, nowLocal } from '../engine/time';
 
 /**
  * Ukládání stavu kliniky.
@@ -44,10 +47,38 @@ const META_KEYS = [
   'demoSeededAt',
 ] as const;
 
-export const COLLECTIONS = ['clients', 'bookings', 'packages', 'makeups', 'waitlist', 'ledger', 'payments', 'messages', 'campaigns', 'audit'] as const;
+export const COLLECTIONS = [
+  'clients',
+  'bookings',
+  'packages',
+  'makeups',
+  'waitlist',
+  'ledger',
+  'payments',
+  'messages',
+  'campaigns',
+  'audit',
+  'notes',
+  'files',
+  'followUps',
+] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
-const MAX_CHUNK_BYTES = 180_000;
+/**
+ * Kolekce, které se při ukládání do artefaktu zapíšou (a potvrdí) před ostatními: záznamy, které do nich
+ * přesouvá migrace (client.notes → notes), musí v databázi být dřív, než z klientů zmizí.
+ */
+const WRITE_FIRST: ReadonlySet<CollectionName> = new Set<CollectionName>(['notes', 'files', 'followUps']);
+
+/** Největší velikost jednoho dokumentu v bajtech UTF-8 (limit databáze je 256 KiB, necháváme rezervu). */
+export const MAX_CHUNK_BYTES = 180_000;
+
+const encoder = new TextEncoder();
+
+/** Velikost JSON v bajtech UTF-8 (čeština má dvoubajtové znaky, délka řetězce nestačí). */
+export function utf8Bytes(text: string): number {
+  return encoder.encode(text).length;
+}
 
 type Item = { id: string } & Record<string, unknown>;
 
@@ -58,6 +89,7 @@ function chunkKey(collection: CollectionName, item: Item, index: number): string
     case 'ledger':
     case 'payments':
     case 'audit':
+    case 'notes':
       return monthKey(String(item.at));
     case 'messages':
       return isoWeekKey(String(item.at));
@@ -81,17 +113,26 @@ export function chunkCollection(collection: CollectionName, items: readonly unkn
   });
   const out = new Map<string, unknown[]>();
   for (const [key, list] of groups) {
-    const size = JSON.stringify(list).length;
+    const size = utf8Bytes(JSON.stringify(list));
     if (size <= MAX_CHUNK_BYTES) {
       out.set(`${collection}/${key}`, list);
       continue;
     }
-    const parts = Math.ceil(size / MAX_CHUNK_BYTES) + 1;
-    const per = Math.ceil(list.length / parts);
-    for (let p = 0; p < parts; p++) {
-      const slice = list.slice(p * per, (p + 1) * per);
-      if (slice.length) out.set(`${collection}/${key}~${p}`, slice);
+    // Velký blok: rozdělit postupně podle skutečné velikosti položek (každá část ≤ MAX_CHUNK_BYTES).
+    let part: unknown[] = [];
+    let partBytes = 2; // []
+    let p = 0;
+    for (const item of list) {
+      const bytes = utf8Bytes(JSON.stringify(item)) + 1; // čárka
+      if (part.length && partBytes + bytes > MAX_CHUNK_BYTES) {
+        out.set(`${collection}/${key}~${p++}`, part);
+        part = [];
+        partBytes = 2;
+      }
+      part.push(item);
+      partBytes += bytes;
     }
+    if (part.length) out.set(`${collection}/${key}~${p}`, part);
   }
   return out;
 }
@@ -122,7 +163,11 @@ export function sortCollection(name: CollectionName, items: readonly unknown[]):
     case 'payments':
     case 'messages':
     case 'audit':
+    case 'notes':
+    case 'files':
       return sortBy(copy, (x) => x.at + x.id);
+    case 'followUps':
+      return sortBy(copy, (f) => followUpKey(f as unknown as { due: string; dueTime: string | null; id: string }));
     case 'clients':
       return sortBy(copy, (c) => c.createdAt + c.id);
     default:
@@ -130,9 +175,104 @@ export function sortCollection(name: CollectionName, items: readonly unknown[]):
   }
 }
 
-/** Doplní chybějící pole a seřadí kolekce (po načtení z úložiště). */
+const followUpKey = (f: { due: string; dueTime: string | null; id: string }): string => f.due + 'T' + (f.dueTime ?? '99:99') + f.id;
+
+/* ------------------------------------------------------------------ */
+/* Migrace (idempotentní – lze volat opakovaně)                        */
+/* ------------------------------------------------------------------ */
+
+/** Doplní CRM části nastavení: výchozí fáze spolupráce a šablonu „Zápis ze sezení“. Vrací true, když něco změnila. */
+export function migrateMeta(s: Pick<ClinicState, 'settings' | 'templates'>): boolean {
+  let changed = false;
+  if (s.settings && (!Array.isArray(s.settings.stages) || s.settings.stages.length === 0)) {
+    s.settings.stages = defaultStages();
+    changed = true;
+  }
+  if (!Array.isArray(s.templates)) s.templates = [];
+  for (const tpl of DEFAULT_TEMPLATES) {
+    if (tpl.key === 'session_notes' && !s.templates.some((t) => t.key === tpl.key)) {
+      s.templates.push(JSON.parse(JSON.stringify(tpl)));
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+let migratedOnLoad = false;
+
+/** Změnila poslední normalizace načtený stav (migrace)? Volání příznak vynuluje. */
+export function takeMigrationFlag(): boolean {
+  const v = migratedOnLoad;
+  migratedOnLoad = false;
+  return v;
+}
+
+/** Starou klinickou poznámku klienta převede na `Note` (id zůstává). */
+function noteFromClinical(client: Client, n: Client['notes'][number]): Note {
+  return {
+    id: n.id,
+    clientId: client.id,
+    at: n.at,
+    createdAt: n.at,
+    updatedAt: null,
+    authorId: n.therapistId ?? '',
+    kind: 'note',
+    title: '',
+    text: n.text ?? '',
+    bookingId: null,
+    pinned: false,
+    sentAt: null,
+    plaud: null,
+  };
+}
+
+/**
+ * CRM migrace klientů: chybějící fáze podle historie schůzek (dokončená schůzka za 90 dní → Aktivní spolupráce,
+ * jiná schůzka → Pozastaveno, bez schůzek → Potenciální klient), historie fází, přesun `client.notes` do `notes`.
+ * Vrací true, když něco změnila.
+ */
+export function migrateClients(s: ClinicState, now: LocalDateTime): boolean {
+  let changed = false;
+  if (!Array.isArray(s.notes)) {
+    s.notes = [];
+    changed = true;
+  }
+  const stages = s.settings?.stages ?? [];
+  const known = new Set(stages.map((st) => st.id));
+  const first = [...stages].sort((a, b) => a.order - b.order)[0]?.id ?? '';
+  const noteIds = new Set(s.notes.map((n) => n.id));
+  for (const c of s.clients) {
+    if (!c.stageId) {
+      const inferred = inferStageId(s, c.id, now);
+      c.stageId = known.has(inferred) ? inferred : first;
+      changed = true;
+    }
+    if (!Array.isArray(c.stageHistory) || c.stageHistory.length === 0) {
+      c.stageHistory = c.stageId ? [{ stageId: c.stageId, at: c.createdAt, actor: 'Systém' }] : [];
+      changed = true;
+    }
+    if (!Array.isArray(c.notes)) {
+      c.notes = [];
+      changed = true;
+    } else if (c.notes.length) {
+      for (const n of c.notes) {
+        if (noteIds.has(n.id)) continue;
+        s.notes.push(noteFromClinical(c, n));
+        noteIds.add(n.id);
+      }
+      c.notes = [];
+      changed = true;
+    }
+  }
+  if (changed) sortBy(s.notes, (n) => n.at + n.id);
+  return changed;
+}
+
+/** Doplní chybějící pole, provede migrace a seřadí kolekce (po načtení z úložiště). */
 export function normalizeState(s: ClinicState): ClinicState {
-  s.schema = s.schema ?? SCHEMA_VERSION;
+  let migrated = (s.schema ?? 0) < SCHEMA_VERSION;
+  s.schema = Math.max(s.schema ?? 0, SCHEMA_VERSION);
+  for (const c of COLLECTIONS) if (!Array.isArray((s as unknown as Record<string, unknown>)[c])) migrated = true;
   for (const c of COLLECTIONS) if (!Array.isArray((s as unknown as Record<string, unknown>)[c])) (s as unknown as Record<string, unknown>)[c] = [];
   s.cancelledSessions = s.cancelledSessions ?? [];
   s.timeOff = s.timeOff ?? [];
@@ -142,7 +282,15 @@ export function normalizeState(s: ClinicState): ClinicState {
   sortBy(s.messages, (m) => m.at + m.id);
   sortBy(s.audit, (a) => a.at + a.id);
   sortBy(s.clients, (c) => c.createdAt + c.id);
+  sortBy(s.notes, (n) => n.at + n.id);
+  sortBy(s.files, (f) => f.at + f.id);
+  sortBy(s.followUps, followUpKey);
   for (const w of s.waitlist) w.offeredStarts = w.offeredStarts ?? [];
+  if (migrateMeta(s)) migrated = true;
+  // indexy selektorů mohly vzniknout nad nesetříděnými poli
+  clearSelectorCaches();
+  if (migrateClients(s, s.settings?.simulatedNow ?? nowLocal())) migrated = true;
+  if (migrated) migratedOnLoad = true;
   return s;
 }
 
@@ -301,13 +449,17 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
     async save(state) {
       busy++;
       try {
-        const writes: { path: string; body: Record<string, unknown> | null; json: string | null }[] = [];
+        type Write = { path: string; body: Record<string, unknown> | null; json: string | null };
+        // Dvě fáze: nejdřív CRM kolekce, až po jejich úspěšném zápisu zbytek. Migrace přesouvá client.notes do
+        // kolekce notes – klienti s prázdným notes tak nikdy nejsou v databázi dřív než přesunuté poznámky.
+        const phases: Write[][] = [[], []];
         const meta = metaOf(state);
         const metaJson = JSON.stringify(meta);
-        if (known.get('clinic/meta') !== metaJson) writes.push({ path: 'clinic/meta', body: { data: meta }, json: metaJson });
+        if (known.get('clinic/meta') !== metaJson) phases[1].push({ path: 'clinic/meta', body: { data: meta }, json: metaJson });
         for (const c of COLLECTIONS) {
           const arr = (state as unknown as Record<string, unknown>)[c];
           if (lastSavedRefs[c] === arr) continue;
+          const writes = phases[WRITE_FIRST.has(c) ? 0 : 1];
           const docs = collectionDocs(state, c);
           for (const [path, items] of docs) {
             const json = JSON.stringify(items);
@@ -317,7 +469,7 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
             if (path.startsWith(c + '/') && !docs.has(path)) writes.push({ path, body: null, json: null });
           }
         }
-        await inBatches(writes, 4, async (w) => {
+        const write = async (w: Write): Promise<void> => {
           const prev = known.get(w.path);
           // známý stav aktualizujeme před zápisem, aby se vlastní změna nevracela jako „cizí"
           if (w.json === null) known.delete(w.path);
@@ -330,7 +482,8 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
             else known.set(w.path, prev);
             throw e;
           }
-        });
+        };
+        for (const writes of phases) await inBatches(writes, 4, write);
         for (const c of COLLECTIONS) lastSavedRefs[c] = (state as unknown as Record<string, unknown>)[c];
       } finally {
         busy--;
@@ -399,23 +552,55 @@ export function createArtifactAdapter(db: Db): PersistenceAdapter {
 /* Lokální úložiště (IndexedDB)                                        */
 /* ------------------------------------------------------------------ */
 
-const IDB_NAME = 'winningminds-rezervace';
+export const IDB_NAME = 'winningminds-rezervace';
+/** 1 = jen stav kliniky, 2 = navíc úložiště souborů. */
+export const IDB_VERSION = 2;
 const IDB_STORE = 'state';
+/** Binární obsah souborů klientů (klíč = FileRecord.ref). */
+export const IDB_FILES_STORE = 'files';
 const IDB_KEY = 'clinic';
 
-function openIdb(): Promise<IDBDatabase | null> {
-  return new Promise((resolve) => {
+let idbPromise: Promise<IDBDatabase | null> | null = null;
+
+/** Otevře (sdílené) spojení s IndexedDB aplikace; null, když prohlížeč IndexedDB nemá nebo ji blokuje. */
+export function openIdb(): Promise<IDBDatabase | null> {
+  if (idbPromise) return idbPromise;
+  idbPromise = new Promise<IDBDatabase | null>((resolve) => {
+    let settled = false;
+    const done = (db: IDBDatabase | null): void => {
+      if (settled) return;
+      settled = true;
+      resolve(db);
+    };
     try {
-      if (typeof indexedDB === 'undefined') return resolve(null);
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-      req.onblocked = () => resolve(null);
+      if (typeof indexedDB === 'undefined') return done(null);
+      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+        if (!db.objectStoreNames.contains(IDB_FILES_STORE)) db.createObjectStore(IDB_FILES_STORE);
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        // novější verze aplikace v jiné záložce potřebuje databázi povýšit – uvolníme ji
+        db.onversionchange = () => {
+          db.close();
+          idbPromise = null;
+        };
+        if (settled) db.close();
+        else done(db);
+      };
+      req.onerror = () => done(null);
+      // starší záložka drží databázi otevřenou – chvíli počkáme, pak pokračujeme bez ní
+      req.onblocked = () => setTimeout(() => done(null), 4000);
     } catch {
-      resolve(null);
+      done(null);
     }
+  }).then((db) => {
+    if (!db) idbPromise = null;
+    return db;
   });
+  return idbPromise;
 }
 
 export async function createLocalAdapter(): Promise<PersistenceAdapter> {
@@ -462,6 +647,17 @@ export async function createLocalAdapter(): Promise<PersistenceAdapter> {
     },
     async clear() {
       await tx('readwrite', (s) => s.delete(IDB_KEY));
+      // smazat i obsah souborů klientů
+      await new Promise<void>((resolve) => {
+        try {
+          const t = idb.transaction(IDB_FILES_STORE, 'readwrite');
+          const req = t.objectStore(IDB_FILES_STORE).clear();
+          req.onsuccess = () => resolve();
+          req.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
     },
   };
 }

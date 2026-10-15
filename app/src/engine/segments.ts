@@ -1,11 +1,13 @@
 import type { Campaign, ClinicState, Id, LocalDateTime, SegmentDefinition, SegmentRule } from '../domain/types';
 import { countLabel, formatMoney } from './format';
 import { renderTemplate, type TemplateVars } from './messages';
+import { clientStage, stagesSorted } from './crm';
 import {
   activePackages,
   bookingsOfClient,
   clientCredit,
   getCategory,
+  getClient,
   getPackageTemplate,
   getService,
   packageUsage,
@@ -53,6 +55,11 @@ function ruleMatches(s: ClinicState, clientId: Id, rule: SegmentRule, now: Local
     }
     case 'credit_balance_gt':
       return clientCredit(s, clientId) > rule.amount;
+    case 'stage': {
+      const c = getClient(s, clientId);
+      // klient s neznámou fází patří do první fáze (stejně jako v Pipeline, viz clientStage)
+      return !!c && rule.stageIds.includes(clientStage(s, c).id);
+    }
     default:
       return false;
   }
@@ -111,6 +118,13 @@ export function describeRule(s: ClinicState, rule: SegmentRule): string {
       return `Nový klient (posledních ${rule.withinDays} dní)`;
     case 'credit_balance_gt':
       return `Kredit vyšší než ${formatMoney(rule.amount)}`;
+    case 'stage': {
+      const names = stagesSorted(s)
+        .filter((st) => rule.stageIds.includes(st.id))
+        .map((st) => st.name);
+      if (!names.length) return 'Fáze spolupráce (vyberte)';
+      return names.length === 1 ? `Ve fázi ${names[0]}` : `Ve fázích ${names.slice(0, -1).join(', ')} nebo ${names[names.length - 1]}`;
+    }
     default:
       return 'Pravidlo';
   }
@@ -125,6 +139,7 @@ export const RULE_TYPES: { type: SegmentRule['type']; label: string }[] = [
   { type: 'tag', label: 'Má štítek' },
   { type: 'new_client', label: 'Nový klient' },
   { type: 'credit_balance_gt', label: 'Kredit vyšší než' },
+  { type: 'stage', label: 'Fáze spolupráce' },
 ];
 
 export function defaultRule(s: ClinicState, type: SegmentRule['type']): SegmentRule {
@@ -145,6 +160,11 @@ export function defaultRule(s: ClinicState, type: SegmentRule['type']): SegmentR
       return { type, withinDays: 30 };
     case 'credit_balance_gt':
       return { type, amount: 0 };
+    case 'stage': {
+      const stages = stagesSorted(s);
+      const active = stages.find((st) => st.id === 'st_aktivni') ?? stages.find((st) => !st.closed) ?? stages[0];
+      return { type, stageIds: active ? [active.id] : [] };
+    }
     default:
       return { type: 'no_visit_for', days: 90 };
   }

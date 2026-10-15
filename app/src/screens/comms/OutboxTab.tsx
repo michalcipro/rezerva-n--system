@@ -4,7 +4,7 @@ import { sendManualMessage } from '../../engine/commands';
 import { formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
 import { getBooking, getClient, getService } from '../../engine/selectors';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
-import { navigate } from '../../store/session';
+import { navigate, useSession } from '../../store/session';
 import {
   Avatar,
   Badge,
@@ -25,7 +25,7 @@ import {
   Table,
   Textarea,
 } from '../../ui';
-import { fold, formatWhen, kindLabel, skipAdvice } from './lib';
+import { canReadMessageBody, fold, formatWhen, kindLabel, SESSION_NOTES_LOCKED, skipAdvice } from './lib';
 
 export interface OutboxFilter {
   q: string;
@@ -68,10 +68,10 @@ function ChannelLabel({ channel }: { channel: Channel }): JSX.Element {
   );
 }
 
-/** Jednořádkové shrnutí zprávy: předmět e-mailu, nebo začátek SMS. */
-function summaryOf(m: Message): string {
+/** Jednořádkové shrnutí zprávy: předmět e-mailu, nebo začátek SMS (text jen pro role, které ho smí číst). */
+function summaryOf(m: Message, canRead: boolean): string {
   if (m.subject) return m.subject;
-  return m.body.replace(/\s+/g, ' ').trim();
+  return canRead ? m.body.replace(/\s+/g, ' ').trim() : SESSION_NOTES_LOCKED;
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,6 +90,7 @@ function MessageDrawer({
   onReply: (clientId: Id) => void;
 }): JSX.Element {
   const clinic = useClinic();
+  const role = useSession().role;
   const m = message;
   const client = m?.clientId ? getClient(clinic, m.clientId) : undefined;
   const booking = m?.bookingId ? getBooking(clinic, m.bookingId) : undefined;
@@ -198,7 +199,14 @@ function MessageDrawer({
 
           <div className={m.channel === 'sms' ? 'com-msg__body com-msg__body--sms' : 'com-msg__body'}>
             {m.subject && <p className="com-msg__subject">{m.subject}</p>}
-            <p className="com-msg__text">{m.body}</p>
+            {canReadMessageBody(m, role) ? (
+              <p className="com-msg__text">{m.body}</p>
+            ) : (
+              <p className="com-msg__text com-msg__locked">
+                <Icon name="lock" size={14} />
+                {SESSION_NOTES_LOCKED}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -407,6 +415,7 @@ function kindOptions(templates: readonly MessageTemplate[], messages: readonly M
 export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId, onCompose, onComposeClose, onOpenCampaign }: OutboxTabProps): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const role = useSession().role;
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<Id | null>(null);
   const set = (patch: Partial<OutboxFilter>): void => onFilterChange({ ...filter, ...patch });
@@ -424,13 +433,15 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
       if (filter.campaignId && m.campaignId !== filter.campaignId) continue;
       if (term) {
         const c = m.clientId ? getClient(clinic, m.clientId) : undefined;
-        const hay = fold(`${c ? `${c.firstName} ${c.lastName} ${c.email}` : ''} ${m.subject} ${m.body}`);
+        // text zápisu ze sezení prohledává jen role, která ho smí číst
+        const body = canReadMessageBody(m, role) ? m.body : '';
+        const hay = fold(`${c ? `${c.firstName} ${c.lastName} ${c.email}` : ''} ${m.subject} ${body}`);
         if (!hay.includes(term)) continue;
       }
       out.push(m);
     }
     return out.reverse().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  }, [all, filter, clinic]);
+  }, [all, filter, clinic, role]);
 
   const totals = useMemo(() => {
     let skipped = 0;
@@ -568,7 +579,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                               setOpenId(m.id);
                             }}
                           >
-                            <span className="truncate">{summaryOf(m)}</span>
+                            <span className="truncate">{summaryOf(m, canReadMessageBody(m, role))}</span>
                           </button>
                         </td>
                         <td className="com-cell-status">
@@ -593,7 +604,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                         <span className="com-mrow__client truncate">{clientLabel(c)}</span>
                         <span className="com-mrow__time tnum">{formatWhen(m.at, now)}</span>
                       </span>
-                      <span className="com-mrow__subject">{summaryOf(m)}</span>
+                      <span className="com-mrow__subject">{summaryOf(m, canReadMessageBody(m, role))}</span>
                       <span className="com-mrow__meta">
                         <StatusBadge m={m} />
                         <span className="truncate">{m.status === 'skipped' ? m.skipReason : kindLabel(m.kind, clinic.templates)}</span>

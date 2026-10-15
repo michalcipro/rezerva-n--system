@@ -41,7 +41,7 @@ if (await demo.count()) {
 const martinId = await page.evaluate(async () => {
   // najde id Martina Dvořáka přes globální hledání v DOM není spolehlivé – vezmeme ho z IndexedDB
   const db = await new Promise((res) => {
-    const r = indexedDB.open('winningminds-rezervace', 1);
+    const r = indexedDB.open('winningminds-rezervace'); // aktuální verze (aplikace ji povýšila na 2)
     r.onsuccess = () => res(r.result);
     r.onerror = () => res(null);
   });
@@ -74,6 +74,10 @@ const shots = [
   { name: '15-portal-moje', session: { role: 'client', clientId: martinId, portalRoute: { name: 'moje' } }, viewport: { width: 390, height: 844 } },
   { name: '16-portal-ucet-tmavy', session: { role: 'client', clientId: martinId, portalRoute: { name: 'ucet' }, theme: 'dark' }, viewport: { width: 390, height: 844 } },
   { name: '17-kalendar-mobil', session: { route: { name: 'kalendar' } }, viewport: { width: 390, height: 844 } },
+  { name: '18-pipeline', session: { route: { name: 'pipeline' } } },
+  { name: '19-followupy', session: { route: { name: 'followupy' } } },
+  { name: '20-klient-poznamky', session: { route: { name: 'klient', clientId: martinId, tab: 'poznamky' } } },
+  { name: '21-pipeline-mobil-tmavy', session: { route: { name: 'pipeline' }, theme: 'dark' }, viewport: { width: 360, height: 800 } },
 ];
 
 for (const s of shots) {
