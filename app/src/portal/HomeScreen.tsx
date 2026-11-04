@@ -3,6 +3,7 @@ import type { ClientPackage, MakeupRight } from '../domain/types';
 import { TherapistAvatar } from '../components/domain';
 import { leaveWaitlist } from '../engine/commands';
 import { countLabel, formatDate, formatDateLong, formatDayShort, formatMoney, formatTimeRange } from '../engine/format';
+import { pendingRequestFor } from '../engine/qr';
 import {
   activePackages,
   bookingsOfClient,
@@ -21,6 +22,7 @@ import { useClinic, useCommand, useNow } from '../store/hooks';
 import { Button, Callout, Icon, IconButton, StackedBar, cx } from '../ui';
 import { usePortal } from './context';
 import {
+  awaitsQr,
   bookableServices,
   bookingTitle,
   cancelState,
@@ -30,13 +32,16 @@ import {
   clientWaiting,
   greetingFor,
   placeLabel,
+  QR_ICON,
+  qrAvailable,
   startsIn,
   vocative,
   waitlistLabel,
   whenLabel,
   zPrep,
 } from './logic';
-import { DateBadge, Screen, SectionTitle, StateChip } from './parts';
+import { DateBadge, QrPendingChip, Screen, SectionTitle, StateChip } from './parts';
+import { PendingPaymentsNotice } from './QrPay';
 import { inboxSeen } from './storage';
 import { OfferCard } from './WaitlistOffer';
 
@@ -74,7 +79,8 @@ export function HomeScreen(): JSX.Element {
       packages: activePackages(clinic, client.id, today),
       credit: clientCredit(clinic, client.id),
       excuses: clientExcuses(clinic, client.id, now),
-      fees: all.filter((b) => b.fee?.status === 'due'),
+      // poplatky, které už čekají na QR platbu, ukazuje upozornění „Čeká na zaplacení“
+      fees: all.filter((b) => b.fee?.status === 'due' && !pendingRequestFor(clinic, b.id, 'storno_fee')),
       rebook: lastDone && bookable.has(lastDone.serviceId) ? lastDone : undefined,
       latestMessage: messages[0]?.at ?? null,
     };
@@ -83,6 +89,7 @@ export function HomeScreen(): JSX.Element {
   const next = data.upcoming[0];
   const unread = !!data.latestMessage && data.latestMessage > (inboxSeen(client.id) ?? '');
   const excusesOn = clinic.settings.policy.excuses.enabled;
+  const qrOn = qrAvailable(clinic);
 
   return (
     <Screen
@@ -130,15 +137,43 @@ export function HomeScreen(): JSX.Element {
         <OfferCard key={w.id} entry={w} />
       ))}
 
+      <PendingPaymentsNotice />
+
       {data.fees.length > 0 && (
-        <Callout tone="warning" title="K úhradě">
-          {data.fees.map((b) => (
-            <span key={b.id} className="por-block">
-              {b.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee?.amount ?? 0)} ·{' '}
-              {bookingTitle(clinic, b)} {formatDayShort(b.start)}
-            </span>
-          ))}
-          <span className="por-block">Uhradíte ho na recepci při příští návštěvě.</span>
+        <Callout
+          tone="warning"
+          title="K úhradě"
+          actions={
+            qrOn && data.fees.length === 1 ? (
+              <Button size="sm" variant="secondary" icon={QR_ICON} onClick={() => go({ name: 'termin', bookingId: data.fees[0].id })}>
+                Zaplatit QR kódem
+              </Button>
+            ) : undefined
+          }
+        >
+          {data.fees.map((b) =>
+            qrOn && data.fees.length > 1 ? (
+              <span key={b.id} className="por-feeline">
+                <span>
+                  {b.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee?.amount ?? 0)} ·{' '}
+                  {bookingTitle(clinic, b)} {formatDayShort(b.start)}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => go({ name: 'termin', bookingId: b.id })}>
+                  Zaplatit
+                </Button>
+              </span>
+            ) : (
+              <span key={b.id} className="por-block">
+                {b.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee?.amount ?? 0)} ·{' '}
+                {bookingTitle(clinic, b)} {formatDayShort(b.start)}
+              </span>
+            ),
+          )}
+          <span className="por-block">
+            {qrOn
+              ? `Zaplatíte ${data.fees.length > 1 ? 'je' : 'ho'} QR kódem z bankovní aplikace, nebo na recepci při příští návštěvě.`
+              : `Uhradíte ${data.fees.length > 1 ? 'je' : 'ho'} na recepci při příští návštěvě.`}
+          </span>
         </Callout>
       )}
 
@@ -283,9 +318,10 @@ function NextBookingCard({ bookingId }: { bookingId: string }): JSX.Element | nu
         </span>
         <Icon name="chevronRight" size={18} className="por-next__chev" />
       </button>
-      {cs.label && (
-        <div className="por-next__foot">
-          <StateChip tone={cs.tone}>{cs.label}</StateChip>
+      {(cs.label || awaitsQr(b)) && (
+        <div className="por-next__foot por-chips">
+          {cs.label && <StateChip tone={cs.tone}>{cs.label}</StateChip>}
+          <QrPendingChip booking={b} />
         </div>
       )}
     </article>

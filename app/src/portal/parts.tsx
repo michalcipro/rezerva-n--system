@@ -8,7 +8,8 @@ import { useClinic, useNow } from '../store/hooks';
 import { useSession } from '../store/session';
 import { Button, Drawer, Icon, IconButton, cx, toast, type DrawerProps, type IconName } from '../ui';
 import { PortalContext, usePortal } from './context';
-import { bookingTitle, cancelState, clientOffers, placeLabel, type ChipTone } from './logic';
+import { awaitsQr, bookingTitle, cancelState, clientOffers, isOverdue, placeLabel, QR_ICON, type ChipTone } from './logic';
+import './portal-payments.css';
 
 /* ------------------------------------------------------------------ */
 /* Kostra obrazovky: horní lišta, obsah, spodní dok (navigace / akce)   */
@@ -152,6 +153,20 @@ export function StateChip({ tone, icon = 'clock', children }: { tone: ChipTone; 
   );
 }
 
+/** Termín čekající na QR platbu – štítek do seznamů a na kartu nejbližšího termínu. */
+export function QrPendingChip({ booking }: { booking: Booking }): JSX.Element | null {
+  const clinic = useClinic();
+  const now = useNow();
+  if (!awaitsQr(booking)) return null;
+  const req = clinic.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === booking.id && r.purpose === 'booking');
+  const overdue = !!req && isOverdue(req, now);
+  return (
+    <StateChip tone={overdue ? 'danger' : 'warning'} icon={QR_ICON}>
+      {overdue ? 'QR platba po splatnosti' : 'Čeká na QR platbu'}
+    </StateChip>
+  );
+}
+
 /** Řádek termínu v seznamech (klik = detail). */
 export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () => void }): JSX.Element {
   const clinic = useClinic();
@@ -162,6 +177,7 @@ export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () =
   const upcoming = booking.status === 'confirmed' && booking.end > now;
   const cs = upcoming ? cancelState(clinic, booking, now) : null;
   const place = placeLabel(clinic, booking);
+  const qrPending = upcoming && awaitsQr(booking);
   return (
     <button type="button" className={cx('por-brow', !upcoming && 'por-brow--past')} onClick={onOpen}>
       <DateBadge date={booking.start} tone={cat?.tone} muted={!upcoming} />
@@ -173,8 +189,11 @@ export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () =
           {therapistName(t)}
           {place ? ` · ${place}` : ''}
         </span>
-        {cs && cs.label ? (
-          <StateChip tone={cs.tone}>{cs.label}</StateChip>
+        {cs && (cs.label || qrPending) ? (
+          <span className="por-chips">
+            {cs.label && <StateChip tone={cs.tone}>{cs.label}</StateChip>}
+            {qrPending && <QrPendingChip booking={booking} />}
+          </span>
         ) : !upcoming ? (
           <BookingStatusBadges booking={booking} />
         ) : null}
