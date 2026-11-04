@@ -132,7 +132,7 @@ export function visitPaymentInfo(s: ClinicState, b: Booking, today: LocalDate, n
       break;
     }
     case 'credit':
-      info = { kind: 'credit', payState: 'paid', label: VISIT_KIND_LABEL.credit, detail: 'stržено z kreditu', amount: p.paidAmount || b.price, prepaid: true };
+      info = { kind: 'credit', payState: 'paid', label: VISIT_KIND_LABEL.credit, detail: 'strženo z kreditu', amount: p.paidAmount || b.price, prepaid: true };
       break;
     case 'makeup': {
       const right = p.makeupId ? getMakeup(s, p.makeupId) : undefined;
