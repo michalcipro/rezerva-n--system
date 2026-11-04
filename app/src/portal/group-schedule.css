@@ -1,0 +1,127 @@
+/*
+ * Klientský portál – skupinové lekce na příští dny (prefix por-gs).
+ * Navazuje na obecné prvky portálu (por-card, por-sect, por-state). Jen tokeny.
+ */
+.por-gs__days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.por-gs__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+.por-gs__date {
+  margin: 0;
+  padding-inline: 2px;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.por-gs__list {
+  margin: 0;
+  list-style: none;
+}
+
+.por-gs__row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 68px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-3-5);
+}
+.por-gs__time {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.por-gs__clock {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: var(--weight-semibold);
+}
+.por-gs__dur {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.por-gs__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.por-gs__title {
+  font-size: var(--text-base);
+  line-height: 20px;
+  font-weight: var(--weight-semibold);
+}
+.por-gs__meta {
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+  color: var(--text-secondary);
+}
+.por-gs__status {
+  display: flex;
+  max-width: 100%;
+  margin-top: 3px;
+}
+.por-gs__spots {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.por-gs__spots.is-free {
+  color: var(--success-fg);
+}
+.por-gs__spots.is-almost {
+  color: var(--warning-fg);
+}
+.por-gs__spots.is-full {
+  color: var(--danger-fg);
+}
+.por-gs__spots.is-muted {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+.por-gs__row.is-cancelled .por-gs__clock,
+.por-gs__row.is-cancelled .por-gs__title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.por-gs__btn.btn {
+  align-self: center;
+}
+.por-gs__note {
+  max-width: 84px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.por-gs__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  min-height: 44px;
+  border-radius: var(--radius-lg);
+  color: var(--accent-fg);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-medium);
+}
+.por-gs__more:hover {
+  background: var(--surface-hover);
+}

@@ -1,0 +1,591 @@
+/*
+ * Skupinové lekce (prefix grp-): obrazovka obsazenosti, detail účastníků a karta na přehledu.
+ * Jen tokeny – světlý i tmavý motiv. Řádky termínů se přizpůsobují šířce svého seznamu
+ * (container queries), takže fungují vedle bočního menu i na telefonu.
+ */
+
+/* =========================================================================
+   Filtry a souhrn
+   ========================================================================= */
+.grp-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.grp-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.grp-presets .segmented__item {
+  white-space: nowrap;
+}
+.grp-period .period-nav__label {
+  min-width: 156px;
+  text-align: center;
+}
+.grp-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.grp-custom .control {
+  width: 178px;
+}
+.grp-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin-left: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .grp-presets {
+    display: flex;
+    width: 100%;
+  }
+  .grp-presets .segmented__item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: var(--space-2);
+  }
+  .grp-period {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .grp-custom {
+    width: 100%;
+  }
+  .grp-custom .control {
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .grp-filter.control {
+    flex: 1 1 150px;
+  }
+  .grp-switches {
+    width: 100%;
+    margin-left: 0;
+    padding-top: var(--space-1);
+  }
+}
+
+.grp-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 900px) {
+  .grp-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.grp-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   Obsazenost (pruh po místech + text)
+   ========================================================================= */
+.grp-spots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+.grp-spots__bar {
+  max-width: 320px;
+}
+.grp-spots__bar .progress__segments {
+  gap: 3px;
+}
+.grp-spots__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.grp-spots__text {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.grp-spots--sm .grp-spots__text {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.grp-spots__status {
+  font-weight: var(--weight-semibold);
+}
+.grp-spots--free .grp-spots__status {
+  color: var(--success-fg);
+}
+.grp-spots--almost .grp-spots__status {
+  color: var(--warning-fg);
+}
+.grp-spots--full .grp-spots__status {
+  color: var(--danger-fg);
+}
+.grp-spots--past .grp-spots__text {
+  color: var(--text-muted);
+}
+.grp-spots--past .grp-spots__status {
+  font-weight: var(--weight-regular);
+}
+
+/* =========================================================================
+   Dny a řádky termínů
+   ========================================================================= */
+.grp-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.grp-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.grp-day__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px var(--space-3);
+  padding-inline: 2px;
+}
+.grp-day__title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+}
+.grp-day__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.grp-list {
+  container-type: inline-size;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+
+/* Telefon / úzký sloupec: vše pod sebou */
+.grp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "time"
+    "main"
+    "fill"
+    "actions";
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3-5);
+  scroll-margin: var(--space-16);
+  transition: background-color var(--duration-slow) var(--ease-standard);
+}
+.grp-row + .grp-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.grp-row__time {
+  grid-area: time;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.grp-row__main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-top: -6px;
+}
+.grp-row__title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+}
+.grp-row__meta {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.grp-row__fill {
+  grid-area: fill;
+  min-width: 0;
+  padding-top: 2px;
+}
+.grp-row__actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+.grp-row__actions .btn {
+  flex: 1 1 auto;
+}
+
+/* Střední šířka: čas vlevo, obsazenost vpravo, akce pod názvem */
+@container (min-width: 540px) {
+  .grp-row {
+    grid-template-columns: 92px minmax(0, 1fr) minmax(170px, 0.85fr);
+    grid-template-areas:
+      "time main fill"
+      ". actions actions";
+    column-gap: var(--space-4);
+    row-gap: var(--space-2-5);
+    align-items: start;
+  }
+  .grp-row__time {
+    padding-top: 1px;
+  }
+  .grp-row__main {
+    margin-top: 0;
+  }
+  .grp-row__actions {
+    padding-top: 0;
+  }
+  .grp-row__actions .btn {
+    flex: none;
+  }
+}
+
+/* Široký sloupec: jeden řádek. Akce mají pevnou šířku, aby obsazenost lícovala
+   i u proběhlých a zrušených lekcí (ty mají jen „Účastníci“). */
+@container (min-width: 860px) {
+  .grp-row {
+    grid-template-columns: 104px minmax(0, 1fr) minmax(200px, 260px) 264px;
+    grid-template-areas: "time main fill actions";
+    align-items: center;
+    column-gap: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+  }
+  .grp-row__time {
+    padding-top: 0;
+    align-self: start;
+    margin-top: 1px;
+  }
+  .grp-row__fill {
+    padding-top: 0;
+  }
+  .grp-row__actions {
+    justify-content: flex-end;
+  }
+}
+
+/* Proběhlé: tlumené barvy (ne průhlednost – kontrast zůstává) */
+.grp-row.is-past {
+  background: var(--surface-muted);
+}
+.grp-row.is-past .grp-row__time,
+.grp-row.is-past .grp-row__title {
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+}
+.grp-row.is-past .grp-row__meta {
+  color: var(--text-muted);
+}
+
+/* Zrušené: přeškrtnuté */
+.grp-row.is-cancelled .grp-row__time,
+.grp-row.is-cancelled .grp-row__title {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.grp-row.is-cancelled .grp-row__meta {
+  color: var(--text-muted);
+}
+
+/* Zvýraznění termínu po příchodu z přehledu */
+.grp-row.is-highlighted {
+  background: var(--accent-soft);
+}
+
+/* =========================================================================
+   Detail účastníků (drawer)
+   ========================================================================= */
+.grp-dr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.grp-dr__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.grp-dr__title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-semibold);
+}
+.grp-dr__title.is-cancelled {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.grp-dr__when {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-medium);
+}
+.grp-dr__meta {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.grp-dr__cal {
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+}
+.grp-dr__fill .grp-spots__bar {
+  max-width: none;
+}
+.grp-dr__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.grp-dr__label {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.grp-dr__hint {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-muted);
+}
+.grp-dr__left summary {
+  padding: var(--space-1) 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.grp-dr__left[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.grp-people {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.grp-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-1-5) var(--space-2) var(--space-3);
+  background: var(--surface);
+}
+.grp-person + .grp-person {
+  border-top: 1px solid var(--border-subtle);
+}
+.grp-person__order {
+  flex: none;
+  width: 22px;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  text-align: right;
+}
+.grp-person__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.grp-person__name {
+  max-width: 100%;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-medium);
+  text-align: left;
+}
+.grp-person__detail {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.grp-person__side {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.grp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.grp-form__lead {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+
+/* =========================================================================
+   Karta „Volná místa ve skupinách“ (přehled)
+   ========================================================================= */
+.grp-card {
+  min-width: 0;
+}
+.grp-card__body {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.grp-card__day {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.grp-card__day:first-child {
+  margin-top: 0;
+}
+.grp-mini {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.grp-mini > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+.grp-mini__row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "time title chev"
+    ". spots chev";
+  align-items: center;
+  column-gap: var(--space-2-5);
+  row-gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-1) var(--space-2) 0;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.grp-mini__row:hover {
+  background: var(--surface-hover);
+}
+.grp-mini__row:focus-visible {
+  outline-offset: -2px;
+}
+.grp-mini__time {
+  grid-area: time;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.grp-mini__title {
+  grid-area: title;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-medium);
+}
+.grp-mini__spots {
+  grid-area: spots;
+  min-width: 0;
+}
+.grp-mini__chev {
+  grid-area: chev;
+  color: var(--text-faint);
+}
+@container (min-width: 420px) {
+  .grp-mini__row {
+    grid-template-columns: 44px minmax(0, 1fr) auto auto;
+    grid-template-areas: "time title spots chev";
+    column-gap: var(--space-3);
+  }
+  .grp-mini__spots .grp-spots__line {
+    justify-content: flex-end;
+  }
+}
+.grp-card__empty {
+  margin: 0;
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+  color: var(--text-muted);
+}
+.grp-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.grp-card__foot .link {
+  font-size: var(--text-md);
+}
