@@ -29,6 +29,11 @@ Co umí:
 - **Komunikace**: automatické e-maily a SMS (potvrzení, připomínka, omluvenka…), newslettery se segmentací
   a kontrolou souhlasů (odesílání je v testovací verzi simulované).
 - **Testovací režim**: přepínání rolí (majitelka, recepce, terapeut, klient) a posun času pro testování lhůt.
+- **Vstupy a platby**: přehled vstupů u všech zaměstnanců – z permanentky, z kreditu, nebo jednorázově,
+  co je zaplacené a co ne; export do CSV.
+- **Skupinové lekce**: volná místa na kruhovém tréninku a dalších lekcích, plné termíny a čekací listina.
+- **QR platba**: platba převodem přes QR Platbu na recepci i v portálu (termín, permanentka, kredit,
+  poplatek); personál potvrzuje přijetí podle variabilního symbolu.
 - **Připomínky**: tlačítko v testovacím panelu – poznámka si nese obrazovku, roli a testovací čas a odešle se
   e-mailem nebo zkopíruje.
 

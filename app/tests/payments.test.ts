@@ -12,6 +12,7 @@ import {
   markCompleted,
   markNoShow,
   receiveQrPayment,
+  rescheduleBooking,
   settleBooking,
   updateSettings,
 } from '../src/engine/commands';
@@ -132,6 +133,15 @@ describe('QR platby – výzvy', () => {
     const r = run(s, receiveQrPayment, { clientId, purpose: 'booking', bookingId: b.value, vs: '26119999' }, staff('2026-11-11T09:40'));
     expect(r.state.bookings.find((x) => x.id === b.value)!.payment).toMatchObject({ method: 'qr', paid: true, settledBy: 'qr' });
     expect(last(r.state.paymentRequests)).toMatchObject({ vs: '26119999', status: 'paid', createdBy: 'staff' });
+  });
+
+  it('přesun termínu přepíše popis výzvy a zkrátí splatnost, variabilní symbol zůstane', () => {
+    let { s, clientId } = setup();
+    const b = run(s, createBooking, { clientId, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-11T09:00', payment: { method: 'qr' } }, asClient('2026-11-04T10:00', clientId));
+    const vs = b.state.paymentRequests[0].vs;
+    s = run(b.state, rescheduleBooking, { bookingId: b.value, start: '2026-11-05T09:00' }, staff('2026-11-04T12:00')).state;
+    expect(s.paymentRequests[0]).toMatchObject({ vs, status: 'pending', dueAt: '2026-11-05T09:00' });
+    expect(s.paymentRequests[0].label).toContain('Čt 5.');
   });
 
   it('permanentka zaplacená QR vznikne až po připsání platby', () => {

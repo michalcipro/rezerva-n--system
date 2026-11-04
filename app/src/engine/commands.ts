@@ -724,6 +724,12 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
   }
   b.rescheduledFrom = old.start;
   b.reminderSentAt = undefined;
+  // čekající QR platba: nový popis a splatnost nejpozději do začátku nového termínu (VS zůstává)
+  for (const r of d.paymentRequests) {
+    if (r.status !== 'pending' || r.bookingId !== b.id || r.purpose !== 'booking') continue;
+    r.label = `${service.name} ${formatDayShort(b.start)} ${formatTime(b.start)}`;
+    if (r.dueAt > b.start) r.dueAt = b.start;
+  }
   queueTemplateMessage(d, { key: 'reschedule', clientId: b.clientId, now: ctx.now, bookingId: b.id, vars: bookingVars(d, b) });
   audit(d, ctx, 'Přesun rezervace', `${formatDayShort(old.start)} ${formatTime(old.start)} → ${formatDayShort(b.start)} ${formatTime(b.start)}`, { bookingId: b.id, clientId: b.clientId });
   const offered = offerFreedSlot(d, ctx, { serviceId: b.serviceId, therapistId: old.therapistId, start: old.start, end: old.end, sessionId: old.sessionId, excludeClientId: b.clientId });

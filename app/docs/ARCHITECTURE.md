@@ -27,6 +27,12 @@ src/
     stats.ts             computeStats (KPI, grafy, heatmapa, trend), daySummary
     segments.ts          evaluateSegment, segmentFunnel, describeRule, RULE_TYPES, defaultRule, campaignPlainText
     messages.ts          šablony zpráv, renderTemplate, TEMPLATE_VARIABLES, paymentLabel
+    qr.ts                QR Platba (SPAYD): parseAccount (číslo účtu → IBAN, kontrola vah), buildSpayd,
+                         paymentSpayd, nextVs (variabilní symbol RRMM + pořadí), qrReady,
+                         pendingPaymentRequests, pendingRequestFor
+    visits.ts            přehled vstupů: visitPaymentInfo (permanentka / kredit / jednorázově / náhrada / zdarma
+                         + stav platby), visitsOverview (po zaměstnancích), visitsCsv
+    groups.ts            obsazenost skupinových lekcí: groupSessionsOverview, groupTotals, groupServices, fillOf
     defaults.ts          výchozí katalog (služby, terapeuti, permanentky, nastavení)
     seed.ts              generátor ukázkových dat (simulace provozu)
   store/
@@ -36,6 +42,7 @@ src/
   ui/                    designový systém (viz src/ui/README.md) – primitivy a AppShell
   styles/                tokens.css (barvy světlý/tmavý motiv), base.css, components.css
   components/            sdílené doménové komponenty (PolicyTimeline, avatary, štítky)
+    payments/            QrCode, QrPaymentCard, QrPaymentDialog (recepce), PendingPaymentsList, VisitSourceBadge
   screens/<oblast>/      obrazovky administrace (každá oblast má vlastní složku a index.ts)
   portal/                klientský portál (mobilní rezervace)
   app/                   kostra aplikace: App, AdminApp, TestBar, úvodní volba dat
@@ -70,10 +77,10 @@ if (r.ok) onClose();
 | updateClient | clientId, patch{…} | – |
 | setConsent | clientId, key, value | – |
 | addClinicalNote | clientId, text | id |
-| createBooking | clientId, serviceId, therapistId, start, sessionId?, payment{method:'package'\|'credit'\|'online'\|'onsite'\|'makeup'\|'free', packageId?, makeupId?}, channel?, note?, override? | bookingId |
+| createBooking | clientId, serviceId, therapistId, start, sessionId?, payment{method:'package'\|'credit'\|'online'\|'onsite'\|'qr'\|'makeup'\|'free', packageId?, makeupId?}, channel?, note?, override? | bookingId (u 'qr' vznikne i platební výzva) |
 | cancelBooking | bookingId, option ('free'\|'excuse'\|'grace'\|'fee'\|'clinic'), reason? | {message} |
 | rescheduleBooking | bookingId, start, therapistId?, sessionId?, override?, useExcuse? | bookingId |
-| markCompleted | bookingId, settleWith? ('cash'\|'card'\|'online'\|'transfer'\|'credit'\|null) | – |
+| markCompleted | bookingId, settleWith? ('cash'\|'card'\|'online'\|'transfer'\|'qr'\|'credit'\|null) | – |
 | settleBooking | bookingId, method | – |
 | markNoShow | bookingId | {message} |
 | waiveFee / payFee | bookingId, reason / method | – |
@@ -87,7 +94,11 @@ if (r.ok) onClose();
 | setServiceTherapists | serviceId, therapistIds | – |
 | cancelSession | sessionId, reason | počet zrušených |
 | addTimeOff / removeTimeOff | {therapistId\|null, start, end, reason} / {id} | id |
-| updateSettings | částečný patch (vnořené bookingRules, policy, policy.excuses, waitlist, reminders) | – |
+| createPaymentRequest | clientId, purpose ('booking'\|'package'\|'credit_topup'\|'storno_fee'), bookingId?, packageTemplateId?, amount?, sendEmail?, vs? | {requestId, vs} |
+| confirmPaymentRequest | requestId (jen personál – peníze dorazily) | {message} |
+| receiveQrPayment | jako createPaymentRequest (recepce: zaplaceno hned u pultu) | {requestId, message} |
+| cancelPaymentRequest / notifyPaymentSent | requestId | – |
+| updateSettings | částečný patch (vnořené bookingRules, policy, policy.excuses, waitlist, reminders, payments) | – |
 | updateTemplate | key, patch | – |
 | saveCampaign / deleteCampaign / sendCampaign / scheduleCampaign | Campaign / {campaignId} / {campaignId} / {campaignId, at} | id / – / počet / – |
 | sendManualMessage | clientId, channel, subject, body | id |
@@ -117,3 +128,17 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
 - Datum a pohled kalendáře: `setSession({ calendarDate, calendarView, calendarTherapist })`.
 - Klientský portál: `navigatePortal({ name: 'rezervace' })` …
 - Testovací role: `session.role` (`owner` | `reception` | `therapist` | `client`), `session.clientId`.
+
+## QR platby
+
+- Platba převodem přes **QR Platbu** (český standard ČBA, formát SPAYD 1.0). Účet kliniky je v
+  `settings.payments` (`accountNumber` česky, vypočtený `iban`, `recipientName`, `qrDueHours`, `qrEnabled`).
+  Bez platného účtu se QR nenabízí (`qrReady`).
+- **Platební výzva** (`paymentRequests`): co se platí (termín, permanentka, dobití kreditu, storno poplatek),
+  částka, jedinečný variabilní symbol, splatnost. Personál ji potvrdí (`confirmPaymentRequest`), když peníze
+  dorazí – teprve pak se termín označí jako zaplacený, vznikne permanentka, připíše se kredit (i s bonusem)
+  nebo se uhradí poplatek. Platba za mezitím zrušený termín skončí na kreditu klienta.
+- Na recepci klient naskenuje QR a zaplatí hned (`receiveQrPayment`), nebo dostane platební údaje e-mailem
+  a zaplatí později (výzva čeká). Zaplacení termínu jinak (hotově, kartou, kreditem) i jeho zrušení
+  čekající výzvu uzavře.
+- Párování s bankou (např. přes API banky) v testovací verzi není – platby se potvrzují ručně podle VS.

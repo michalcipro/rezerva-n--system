@@ -487,7 +487,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     if (option) cancelBooking(d, { bookingId: tomorrowsMala.id, option: option.kind, reason: 'Nemoc' }, at(addMinutes(now, -25), clientActor(tomorrowsMala.clientId)));
   }
   // plná skupinová lekce s čekajícími
-  const fullSession = sessionsOnDate(d, tomorrow).concat(sessionsOnDate(d, addDays(tomorrow, 1)))[0];
+  const fullSession = sessionsOnDate(d, tomorrow).concat(sessionsOnDate(d, addDays(tomorrow, 1))).find((ses) => ses.serviceId !== 's_g_kruhovy');
   if (fullSession) {
     const pool = poolFor('skupiny', today);
     for (const c of pool) {

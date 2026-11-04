@@ -194,3 +194,15 @@ na pozadí `--bg`). Předlohy V1-Rezervace a V1-Omluvenka. Klient = `session.cli
    kredit a jeho pohyby, dobít kredit online (simulace → `topUpCredit` method 'online', bonus podle pravidel),
    zprávy od kliniky (inbox: zprávy klienta z `messages`), storno podmínky kliniky (text z nastavení).
    Zablokovaný klient (`blocked`) vidí vysvětlení a kontakt na recepci místo rezervace.
+
+## G · Vstupy a platby (`src/screens/visits`)
+
+Přehled vstupů za období u všech zaměstnanců: z čeho je každý termín placený (permanentka, kredit,
+jednorázově, náhrada, zdarma) a jestli je zaplacený (zaplatí na místě, čeká na QR platbu, nezaplaceno).
+Souhrn po zaměstnancích, seznam vstupů s filtry, export CSV a čekající QR platby. Terapeut vidí jen své vstupy.
+
+## H · Skupinové lekce (`src/screens/groups`)
+
+Termíny skupinových lekcí (kruhový trénink, zdravá záda, funkční trénink, pilates) s obsazeností, volnými
+místy a čekací listinou; přihlášení klienta na termín a seznam účastníků se zdrojem platby. Widget volných
+míst na Přehledu a rozvrh lekcí s volnými místy v klientském portálu.
