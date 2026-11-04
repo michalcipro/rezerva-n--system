@@ -41,6 +41,7 @@ import {
   zPrep,
 } from './logic';
 import { DateBadge, QrPendingChip, Screen, SectionTitle, StateChip } from './parts';
+import { GroupSchedule } from './GroupSchedule';
 import { PendingPaymentsNotice } from './QrPay';
 import { inboxSeen } from './storage';
 import { OfferCard } from './WaitlistOffer';
@@ -254,6 +255,8 @@ export function HomeScreen(): JSX.Element {
           )}
         </div>
       </section>
+
+      <GroupSchedule />
 
       {data.waiting.length > 0 && (
         <section className="por-stack por-stack--tight" aria-labelledby="por-wait-title">
