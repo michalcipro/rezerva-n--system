@@ -286,8 +286,8 @@
   border-radius: var(--radius-sm);
 }
 .tb__reopen:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .tb--compact {
   flex-direction: column;
@@ -356,8 +356,8 @@
   background: color-mix(in srgb, var(--inverse-fg) 18%, transparent);
 }
 .tb__feedback:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .tb__feedback--icon {
   flex: none;
@@ -528,7 +528,7 @@ a.btn--primary:hover {
 .gs__input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent);
   background: var(--surface);
 }
 .gs__kbd {

@@ -110,6 +110,10 @@
 }
 
 /* ---------------- Čekající QR platby ---------------- */
+.pqr-wrap {
+  container-type: inline-size;
+  min-width: 0;
+}
 .pqr {
   list-style: none;
   margin: 0;
@@ -154,8 +158,8 @@
   text-decoration-color: currentColor;
 }
 .pqr__client:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
 .pqr__label {
@@ -192,7 +196,7 @@
 .pqr__more {
   padding-top: var(--space-2);
 }
-@media (max-width: 560px) {
+@container (max-width: 520px) {
   .pqr__row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

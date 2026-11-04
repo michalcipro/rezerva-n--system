@@ -368,8 +368,10 @@ export function paymentHint(s: ClinicState, b: Booking, today: LocalDate): strin
       return 'náhrada za omluvenku';
     case 'free':
       return 'zdarma';
+    case 'qr':
+      return b.payment.paid ? 'zaplaceno QR platbou' : 'čeká na QR platbu';
     default:
-      return b.payment.paid ? 'zaplaceno' : 'na místě';
+      return b.payment.paid ? (b.payment.settledBy === 'qr' ? 'zaplaceno QR platbou' : 'zaplaceno') : 'na místě';
   }
 }
 

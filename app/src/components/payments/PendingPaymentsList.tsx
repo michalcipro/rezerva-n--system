@@ -24,12 +24,14 @@ export function PendingPaymentsList({ requests, showClient, limit, emptyText = '
   const now = useNow();
   const run = useCommand();
   const [openId, setOpenId] = useState<Id | null>(null);
-  const shown = limit ? requests.slice(0, limit) : requests;
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = !!limit && requests.length > limit;
+  const shown = collapsible && !expanded ? requests.slice(0, limit) : requests;
 
   if (!requests.length) return <p className="pqr__empty">{emptyText}</p>;
 
   return (
-    <>
+    <div className="pqr-wrap">
       <ul className="pqr">
         {shown.map((r) => {
           const c = getClient(clinic, r.clientId);
@@ -71,8 +73,14 @@ export function PendingPaymentsList({ requests, showClient, limit, emptyText = '
           );
         })}
       </ul>
-      {limit && requests.length > limit && <p className="pqr__more">a {requests.length - limit} dalších</p>}
+      {collapsible && (
+        <p className="pqr__more">
+          <button type="button" className="link" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Zobrazit méně' : `Zobrazit všechny (${requests.length})`}
+          </button>
+        </p>
+      )}
       <QrPaymentDialog open={!!openId} requestId={openId ?? undefined} onClose={() => setOpenId(null)} />
-    </>
+    </div>
   );
 }

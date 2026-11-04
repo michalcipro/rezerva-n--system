@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { PendingPaymentsList } from '../../components/payments';
 import { countLabel, formatMoney, formatNumber } from '../../engine/format';
 import { pendingPaymentRequests } from '../../engine/qr';
@@ -23,7 +23,6 @@ export function PendingPaymentsCard({ limit = 5, className }: PendingPaymentsCar
   const clinic = useClinic();
   const now = useNow();
   const actor = useActor();
-  const [expanded, setExpanded] = useState(false);
   const requests = useMemo(() => pendingPaymentRequests(clinic), [clinic]);
   if (actor.role !== 'owner' && actor.role !== 'reception') return null;
 
@@ -31,7 +30,6 @@ export function PendingPaymentsCard({ limit = 5, className }: PendingPaymentsCar
   const overdue = requests.filter((r) => r.dueAt < now).length;
   const notified = requests.filter((r) => r.clientNotifiedAt).length;
   const unavailable = qrUnavailableReason(clinic.settings.payments);
-  const canExpand = requests.length > limit;
 
   return (
     <Card as="section" aria-label="Čekající QR platby" className={cx('pay-card', className)}>
@@ -74,15 +72,8 @@ export function PendingPaymentsCard({ limit = 5, className }: PendingPaymentsCar
               </span>
             )}
           </p>
-          <PendingPaymentsList requests={requests} showClient limit={expanded ? undefined : limit} />
-          <p className="pay-card__foot row row--between">
-            <span>Přijetí potvrďte podle variabilního symbolu na výpisu z účtu.</span>
-            {canExpand && (
-              <button type="button" className="link pay-card__toggle" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-                {expanded ? 'Zobrazit méně' : `Zobrazit všechny (${formatNumber(requests.length)})`}
-              </button>
-            )}
-          </p>
+          <PendingPaymentsList requests={requests} showClient limit={limit} />
+          <p className="pay-card__foot">Přijetí potvrďte podle variabilního symbolu na výpisu z účtu.</p>
         </>
       )}
     </Card>

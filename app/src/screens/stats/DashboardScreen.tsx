@@ -35,6 +35,7 @@ import { addDays, dateOf, diffMinutes, minutesOf } from '../../engine/time';
 import { ToneDot } from '../../components/domain';
 import { QrPaymentDialog, VisitSourceBadge } from '../../components/payments';
 import { GroupsFreeSpotsCard } from '../groups';
+import { PendingPaymentsCard } from '../payments';
 import { pendingRequestFor, qrReady } from '../../engine/qr';
 import { visitPaymentInfo } from '../../engine/visits';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
@@ -758,6 +759,7 @@ export function DashboardScreen(): JSX.Element {
         </div>
 
         <aside className="split__aside" aria-label="Upozornění">
+          <PendingPaymentsCard className="st-card" />
           <GroupsFreeSpotsCard />
           <Card as="section" aria-label="Upozornění" className="st-card">
             <CardHeader
