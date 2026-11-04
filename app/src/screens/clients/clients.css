@@ -478,6 +478,41 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-debt__sub { font-size: var(--text-sm); color: var(--text-muted); }
 .cli-debt__amount { font-size: var(--text-base); color: var(--danger-fg); white-space: nowrap; }
 .cli-debt__actions { display: inline-flex; gap: var(--space-1); }
+.cli-debt__qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-1-5);
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+/* Čekající QR platby klienta */
+.cli-qrwait { container-type: inline-size; }
+.cli-qrwait__list { padding: var(--space-1) var(--space-4); }
+@container (max-width: 520px) {
+  .cli-qrwait .pqr__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .cli-qrwait .pqr__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+.cli-qrwait__total { color: var(--text); font-weight: var(--weight-semibold); }
+
+/* Zdroj platby v seznamech termínů: štítek + krátká podrobnost */
+.cli-pay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  min-width: 0;
+}
+.cli-pay__note {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
 
 /* =========================================================================
    Nadcházející termíny
@@ -719,6 +754,21 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
 .cli-to strong { color: var(--text); }
 .cli-price { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: var(--text-sm); white-space: nowrap; }
 .cli-price strong { font-size: var(--text-base); color: var(--text); }
+.cli-field-date { max-width: 300px; }
+
+/* Způsob platby: přepínač přes celou šířku, na úzkém displeji se zalomí do dvou řádků */
+.cli-paymethod { min-width: 0; container-type: inline-size; }
+.cli-paymethod .segmented {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  overflow: visible;
+}
+.cli-paymethod .segmented__item { flex: 1 1 auto; }
+/* čtyři volby na telefonu: dvě a dvě místo tří a jedné */
+@container (max-width: 400px) {
+  .cli-paymethod--n4 .segmented__item { flex-basis: calc(50% - 2px); }
+}
 
 /* Pole se štítky */
 .cli-tags {

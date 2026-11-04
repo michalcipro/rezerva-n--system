@@ -191,6 +191,85 @@
 }
 .set-slot--more { border-style: dashed; }
 
+/* ---------- Platby (QR Platba) ---------- */
+.set-iban {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--success-fg);
+  overflow-wrap: anywhere;
+}
+.set-iban .icon { flex: none; }
+.set-count { color: var(--text-muted); font-size: var(--text-sm); }
+.set-pay__demo { margin: var(--space-1) 0 var(--space-3); }
+
+.set-pay {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  padding-top: var(--space-3-5);
+  border-top: 1px solid var(--border-subtle);
+}
+@container (min-width: 860px) {
+  .set-pay { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+.set-pay__preview,
+.set-pay__how {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.set-pay__label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.set-pay__card {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+/* Ukázkový účet hlásí upozornění nad náhledem – v náhledu se neopakuje. */
+.set-pay__card .callout { display: none; }
+.set-pay__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 120px;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.set-pay__empty .icon { flex: none; }
+.set-pay__how {
+  padding: var(--space-3) var(--space-4) var(--space-3-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+.set-pay__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.15em;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.set-pay__steps li::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.set-pay__how .set-footnote { padding-top: var(--space-1); }
+
 /* ---------- Náhled e-mailu ---------- */
 .set-mailpreview {
   display: flex;

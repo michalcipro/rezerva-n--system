@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Booking, Client, ClientConsents, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { addClinicalNote, setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatDateTimeShort, formatDayShort, formatMoney, formatTime } from '../../engine/format';
+import { pendingPaymentRequests } from '../../engine/qr';
 import { bookingsOfClient, getBooking, getService, getTherapist, packageUsage, packagesOfClient, therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { TherapistAvatar } from '../../components/domain';
@@ -22,7 +23,7 @@ import {
   Textarea,
   cx,
 } from '../../ui';
-import { DebtPanel, PackageBlock } from './balances';
+import { DebtPanel, PackageBlock, PendingQrCard } from './balances';
 import {
   auditOfClient,
   debtItems,
@@ -188,12 +189,14 @@ export function FinanceTab({
   );
   const makeups = makeupsOfClient(clinic, client.id);
   const debts = debtItems(clinic, client.id);
+  const pendingQr = useMemo(() => pendingPaymentRequests(clinic, client.id), [clinic, client.id]);
   const ledgerPage = usePaged(ledger, 15, client.id);
   const payPage = usePaged(payments, 15, client.id);
 
   return (
     <div className="cli-stack">
       <DebtPanel items={debts} onSettle={onSettle} onWaive={onWaive} />
+      <PendingQrCard requests={pendingQr} />
 
       <Card padding="none" as="section" aria-label="Permanentky">
         <CardHeader
@@ -306,7 +309,10 @@ export function FinanceTab({
                     <td className="nowrap">{formatDateTimeShort(p.at)}</td>
                     <td className="nowrap">{PAYMENT_PURPOSE_LABEL[p.purpose]}</td>
                     <td className="nowrap secondary">{MONEY_METHOD_LABEL[p.method]}</td>
-                    <td className="secondary">{p.note}</td>
+                    <td className="secondary">
+                      {p.note}
+                      {p.vs && <span className="cli-cell-sub">VS {p.vs}</span>}
+                    </td>
                     <td className="num">{formatMoney(p.amount)}</td>
                   </tr>
                 ))}

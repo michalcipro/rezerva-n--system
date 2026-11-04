@@ -1,9 +1,12 @@
-import type { Client, ClientPackage, LocalDateTime, MakeupRight } from '../../domain/types';
+import type { Client, ClientPackage, LocalDateTime, MakeupRight, PaymentRequest } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, plural } from '../../engine/format';
+import { pendingRequestFor } from '../../engine/qr';
 import { getBooking, getPackageTemplate, getService, type PackageUsage } from '../../engine/selectors';
 import { dateOf, daysBetween } from '../../engine/time';
-import { useClinic } from '../../store/hooks';
+import { PendingPaymentsList } from '../../components/payments';
+import { useClinic, useNow } from '../../store/hooks';
 import { Badge, Button, Card, CardHeader, Icon, StackedBar, cx } from '../../ui';
+import { requestDueText } from '../payments/qrStaff';
 import {
   clientExcuses,
   daysLeftLabel,
@@ -291,11 +294,39 @@ export function ExcusesCard({
 }
 
 /* ------------------------------------------------------------------ */
+/* Čekající QR platby                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Platební výzvy klienta, které čekají na připsání (potvrzení podle VS, QR, zrušení v dialogu). */
+export function PendingQrCard({ requests }: { requests: PaymentRequest[] }): JSX.Element | null {
+  if (!requests.length) return null;
+  const total = requests.reduce((sum, r) => sum + r.amount, 0);
+  return (
+    <Card padding="none" as="section" className="cli-qrwait" aria-label="Čekající QR platby">
+      <CardHeader
+        divided
+        icon="clock"
+        title="Čekající QR platby"
+        meta={
+          <>
+            {countLabel(requests.length, ['platba', 'platby', 'plateb'])} · <strong className="cli-qrwait__total">{formatMoney(total)}</strong>
+          </>
+        }
+      />
+      <div className="cli-qrwait__list">
+        <PendingPaymentsList requests={requests} />
+      </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Dluh                                                                */
 /* ------------------------------------------------------------------ */
 
 export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onSettle: (i: DebtItem) => void; onWaive: (i: DebtItem) => void }): JSX.Element | null {
   const clinic = useClinic();
+  const now = useNow();
   if (!items.length) return null;
   const total = items.reduce((s, i) => s + i.amount, 0);
   return (
@@ -309,6 +340,7 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
       <ul className="cli-debt__list">
         {items.map((item) => {
           const svc = getService(clinic, item.booking.serviceId);
+          const request = pendingRequestFor(clinic, item.booking.id, item.kind === 'fee' ? 'storno_fee' : 'booking');
           return (
             <li key={item.kind + item.booking.id} className="cli-debt__item">
               <span className="cli-debt__text">
@@ -317,6 +349,16 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
                   {svc?.name ?? 'Termín'} · {formatDayShort(item.booking.start)}
                   {item.kind === 'fee' && item.booking.fee ? ` · ${formatPercent(item.booking.fee.pct)} z ceny` : ''}
                 </span>
+                {request && (
+                  <span className="cli-debt__qr tnum">
+                    <Badge tone={request.dueAt < now ? 'danger' : 'warning'} size="sm" dot="ring">
+                      Čeká na QR platbu
+                    </Badge>
+                    <span>
+                      VS {request.vs} · {requestDueText(request, now)}
+                    </span>
+                  </span>
+                )}
               </span>
               <strong className="cli-debt__amount tnum">{formatMoney(item.amount)}</strong>
               <span className="cli-debt__actions">

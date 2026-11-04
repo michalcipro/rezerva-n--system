@@ -219,6 +219,7 @@ export function SettingRow({
   label,
   hint,
   error,
+  status,
   children,
   group,
   wide,
@@ -227,6 +228,8 @@ export function SettingRow({
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
+  /** Průběžný výsledek pod prvkem (např. dopočítaný IBAN); čte se čtečkou při změně. Chyba má přednost. */
+  status?: ReactNode;
   children: ReactNode;
   /** Složený ovládací prvek – obalí se do role="group" s popiskem. */
   group?: boolean;
@@ -238,9 +241,10 @@ export function SettingRow({
   const labelId = `${id}l`;
   const hintId = hint != null ? `${id}h` : undefined;
   const errorId = error ? `${id}e` : undefined;
+  const statusId = !error && status ? `${id}s` : undefined;
   const child = !group && isValidElement<ControlA11y>(children) ? children : null;
   const controlId = child?.props.id ?? `${id}c`;
-  const describedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined;
+  const describedBy = [errorId, statusId, hintId].filter(Boolean).join(' ') || undefined;
   const control = child
     ? cloneElement(child, { id: controlId, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })
     : children;
@@ -275,6 +279,11 @@ export function SettingRow({
             <span>{error}</span>
           </span>
         ) : null}
+        {status !== undefined && (
+          <span id={statusId} className="set-row__status" aria-live="polite">
+            {error ? null : status}
+          </span>
+        )}
       </div>
     </div>
   );
