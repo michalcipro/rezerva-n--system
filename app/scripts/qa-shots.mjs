@@ -74,6 +74,13 @@ const shots = [
   { name: '15-portal-moje', session: { role: 'client', clientId: martinId, portalRoute: { name: 'moje' } }, viewport: { width: 390, height: 844 } },
   { name: '16-portal-ucet-tmavy', session: { role: 'client', clientId: martinId, portalRoute: { name: 'ucet' }, theme: 'dark' }, viewport: { width: 390, height: 844 } },
   { name: '17-kalendar-mobil', session: { route: { name: 'kalendar' } }, viewport: { width: 390, height: 844 } },
+  { name: '18-vstupy', session: { route: { name: 'vstupy' } } },
+  { name: '19-vstupy-terapeut', session: { role: 'therapist', therapistId: 't_kos', route: { name: 'vstupy' } } },
+  { name: '20-vstupy-mobil', session: { route: { name: 'vstupy' } }, viewport: { width: 390, height: 844 } },
+  { name: '21-skupiny', session: { route: { name: 'skupiny' } } },
+  { name: '22-skupiny-tmavy', session: { route: { name: 'skupiny' }, theme: 'dark' } },
+  { name: '23-skupiny-mobil', session: { route: { name: 'skupiny' } }, viewport: { width: 390, height: 844 } },
+  { name: '24-prehled-mobil', session: { route: { name: 'prehled' } }, viewport: { width: 390, height: 844 } },
 ];
 
 for (const s of shots) {

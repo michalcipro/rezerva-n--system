@@ -33,6 +33,9 @@ import {
 import { daySummary } from '../../engine/stats';
 import { addDays, dateOf, diffMinutes, minutesOf } from '../../engine/time';
 import { ToneDot } from '../../components/domain';
+import { QrPaymentDialog, VisitSourceBadge } from '../../components/payments';
+import { pendingRequestFor, qrReady } from '../../engine/qr';
+import { visitPaymentInfo } from '../../engine/visits';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import {
@@ -119,12 +122,15 @@ function ArrivalRow({
   mode,
   onDetail,
   onNoShow,
+  onQr,
 }: {
   booking: Booking;
   now: LocalDateTime;
   mode: RowMode;
   onDetail: (id: Id) => void;
   onNoShow: (id: Id) => void;
+  /** Otevřít QR platbu k termínu (dialog je na úrovni obrazovky – řádek po zápisu docházky zmizí). */
+  onQr: (id: Id) => void;
 }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
@@ -136,8 +142,10 @@ function ArrivalRow({
   const started = booking.start <= now;
   const duration = Math.max(1, diffMinutes(booking.end, booking.start));
   const elapsed = Math.min(duration, Math.max(0, diffMinutes(now, booking.start)));
-  const onsiteDue = booking.payment.method === 'onsite' && !booking.payment.paid;
+  const onsiteDue = (booking.payment.method === 'onsite' || booking.payment.method === 'qr') && !booking.payment.paid;
   const due = Math.max(0, booking.price - booking.payment.paidAmount);
+  const qrRequest = onsiteDue ? pendingRequestFor(clinic, booking.id) : undefined;
+  const source = onsiteDue ? null : visitPaymentInfo(clinic, booking, dateOf(now), now);
 
   const complete = (settleWith: MoneyMethod | 'credit' | null): void => {
     run(
@@ -152,6 +160,16 @@ function ArrivalRow({
     { type: 'label', label: `Úhrada na místě ${formatMoney(due)}` },
     { id: 'card', label: 'Zaplaceno kartou', icon: 'card', onSelect: () => complete('card') },
     { id: 'cash', label: 'Zaplaceno hotově', icon: 'cash', onSelect: () => complete('cash') },
+    {
+      id: 'qr',
+      label: qrRequest ? 'QR platba (čeká na připsání)…' : 'QR platba…',
+      icon: 'smartphone',
+      disabled: !qrRequest && !qrReady(clinic.settings.payments),
+      onSelect: () => {
+        const r = run(markCompleted, { bookingId: booking.id, settleWith: null }, { quiet: true });
+        if (r.ok) onQr(booking.id);
+      },
+    },
     {
       id: 'credit',
       label: 'Z kreditu',
@@ -213,11 +231,17 @@ function ArrivalRow({
           )}
         </span>
         <span className="st-arrival__badges">
-          {onsiteDue && (
+          {onsiteDue && !qrRequest && (
             <Badge tone="warning" size="sm" dot="square">
               Platba na místě {formatMoney(due)}
             </Badge>
           )}
+          {qrRequest && (
+            <Badge tone="warning" size="sm" dot="ring">
+              Čeká na QR platbu {formatMoney(qrRequest.amount)} · VS {qrRequest.vs}
+            </Badge>
+          )}
+          {source && <VisitSourceBadge info={source} hideOnsite />}
           {booking.makeupForBookingId && (
             <Badge tone="accent" size="sm" dot="ring">
               Náhradní termín
@@ -401,6 +425,9 @@ export function DashboardScreen(): JSX.Element {
   const [newClient, setNewClient] = useState(false);
   const [drawerId, setDrawerId] = useState<Id | null>(null);
   const [noShowId, setNoShowId] = useState<Id | null>(null);
+  const [qrBookingId, setQrBookingId] = useState<Id | null>(null);
+  const qrBooking = qrBookingId ? getBooking(clinic, qrBookingId) : undefined;
+  const qrService = qrBooking ? getService(clinic, qrBooking.serviceId) : undefined;
 
   const summary = useMemo(() => daySummary(clinic, today, now), [clinic, today, now]);
   const lists = useMemo(() => dayLists(clinic, today, now, scope), [clinic, today, now, scope]);
@@ -643,7 +670,7 @@ export function DashboardScreen(): JSX.Element {
                   <SessionRow key={x.session.id} item={x} now={now} mode="now" />
                 ))}
                 {lists.inProgress.map((b) => (
-                  <ArrivalRow key={b.id} booking={b} now={now} mode="now" onDetail={setDrawerId} onNoShow={setNoShowId} />
+                  <ArrivalRow key={b.id} booking={b} now={now} mode="now" onDetail={setDrawerId} onNoShow={setNoShowId} onQr={setQrBookingId} />
                 ))}
               </ul>
             )}
@@ -652,7 +679,7 @@ export function DashboardScreen(): JSX.Element {
                 <span className="st-section-label">Skončilo – čeká na zápis docházky</span>
                 <ul className="st-arrivals">
                   {lists.unmarked.map((b) => (
-                    <ArrivalRow key={b.id} booking={b} now={now} mode="unmarked" onDetail={setDrawerId} onNoShow={setNoShowId} />
+                    <ArrivalRow key={b.id} booking={b} now={now} mode="unmarked" onDetail={setDrawerId} onNoShow={setNoShowId} onQr={setQrBookingId} />
                   ))}
                 </ul>
               </>
@@ -683,7 +710,7 @@ export function DashboardScreen(): JSX.Element {
                   })),
                   ...lists.next.map((b) => ({
                     start: b.start,
-                    el: <ArrivalRow key={b.id} booking={b} now={now} mode="next" onDetail={setDrawerId} onNoShow={setNoShowId} />,
+                    el: <ArrivalRow key={b.id} booking={b} now={now} mode="next" onDetail={setDrawerId} onNoShow={setNoShowId} onQr={setQrBookingId} />,
                   })),
                 ]
                   .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
@@ -756,6 +783,19 @@ export function DashboardScreen(): JSX.Element {
         onCreated={(id) => navigate({ name: 'klient', clientId: id })}
       />
       <BookingDrawer bookingId={drawerId} onClose={() => setDrawerId(null)} />
+      <QrPaymentDialog
+        open={!!qrBooking}
+        onClose={() => setQrBookingId(null)}
+        draft={
+          qrBooking
+            ? {
+                input: { clientId: qrBooking.clientId, purpose: 'booking', bookingId: qrBooking.id },
+                label: `${qrService?.name ?? 'Termín'} ${formatDayShort(qrBooking.start)} ${formatTime(qrBooking.start)}`,
+                amount: Math.max(0, qrBooking.price - qrBooking.payment.paidAmount),
+              }
+            : undefined
+        }
+      />
       <ConfirmDialog
         open={!!noShowBooking}
         onClose={() => setNoShowId(null)}
