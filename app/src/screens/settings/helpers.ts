@@ -16,6 +16,7 @@ import type {
   LocalDate,
   LocalDateTime,
   PackageTemplate,
+  PaymentSettings,
   Service,
   Settings,
   Therapist,
@@ -37,6 +38,7 @@ import {
   plural,
 } from '../../engine/format';
 import type { CancellationEvaluation } from '../../engine/policy';
+import { parseAccount } from '../../engine/qr';
 import {
   getService,
   indexById,
@@ -553,10 +555,16 @@ export function validateBonusRules(rules: readonly CreditBonusRule[]): BonusRowI
 /* Nastavení – koncept, změny, kontrola                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Upravitelná část nastavení plateb. IBAN a příznak ukázkového účtu dopočítá engine při uložení,
+ * proto v konceptu nejsou (jinak by se koncept po uložení lišil od uloženého stavu).
+ */
+export type PaymentsDraft = Pick<PaymentSettings, 'qrEnabled' | 'accountNumber' | 'recipientName' | 'qrDueHours'>;
+
 export type SettingsDraft = Pick<
   Settings,
   'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders'
->;
+> & { payments: PaymentsDraft };
 
 export function settingsDraftOf(s: Settings): SettingsDraft {
   return clone({
@@ -568,10 +576,19 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
     policy: s.policy,
     waitlist: s.waitlist,
     reminders: s.reminders,
+    payments: {
+      qrEnabled: s.payments.qrEnabled,
+      accountNumber: s.payments.accountNumber,
+      recipientName: s.payments.recipientName,
+      qrDueHours: s.payments.qrDueHours,
+    },
   });
 }
 
-export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'clinic';
+/** Nejdelší jméno příjemce v QR Platbě (formát SPAYD). */
+export const RECIPIENT_MAX = 35;
+
+export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'clinic';
 
 export function dirtySections(draft: SettingsDraft, base: SettingsDraft): SectionId[] {
   const out: SectionId[] = [];
@@ -582,6 +599,7 @@ export function dirtySections(draft: SettingsDraft, base: SettingsDraft): Sectio
   if (!deepEqual(dEx, bEx)) out.push('excuses');
   if (!deepEqual(draft.waitlist, base.waitlist)) out.push('waitlist');
   if (!deepEqual(draft.reminders, base.reminders)) out.push('reminders');
+  if (!deepEqual(draft.payments, base.payments)) out.push('payments');
   if (
     draft.clinicName !== base.clinicName ||
     draft.clinicTagline !== base.clinicTagline ||
@@ -603,6 +621,10 @@ export function normalizeDraft(d: SettingsDraft): SettingsDraft {
   n.clinicTagline = n.clinicTagline.trim();
   n.senderName = n.senderName.trim();
   n.senderEmail = n.senderEmail.trim();
+  // stejně jako engine: ořezaný účet a příjemce (max. 35 znaků), splatnost v celých hodinách
+  n.payments.accountNumber = n.payments.accountNumber.trim();
+  n.payments.recipientName = n.payments.recipientName.trim().slice(0, RECIPIENT_MAX);
+  n.payments.qrDueHours = Math.round(n.payments.qrDueHours);
   return n;
 }
 
@@ -652,6 +674,14 @@ export function validateSettings(d: SettingsDraft): SettingsErrors {
   const r = d.bookingRules;
   if (!(r.horizonDays >= 1 && r.horizonDays <= 365)) e['booking.horizonDays'] = 'Horizont rezervací musí být 1–365 dní.';
   if (!(r.maxUpcomingPerClient >= 1)) e['booking.maxUpcomingPerClient'] = 'Zadejte alespoň 1.';
+  const pay = d.payments;
+  const account = pay.accountNumber.trim();
+  if (account) {
+    const parsed = parseAccount(account);
+    if (!parsed.ok) e['payments.accountNumber'] = parsed.error;
+  }
+  if (pay.recipientName.trim().length > RECIPIENT_MAX) e['payments.recipientName'] = `Nejvýše ${RECIPIENT_MAX} znaků.`;
+  if (!(pay.qrDueHours >= 1 && pay.qrDueHours <= 720)) e['payments.qrDueHours'] = 'Zadejte 1–720 hodin.';
   if (!d.clinicName.trim()) e['clinic.clinicName'] = 'Zadejte název kliniky.';
   if (!d.senderName.trim()) e['clinic.senderName'] = 'Zadejte jméno odesílatele.';
   if (!isEmail(d.senderEmail)) e['clinic.senderEmail'] = 'Zadejte platný e-mail, např. rezervace@klinika.cz.';

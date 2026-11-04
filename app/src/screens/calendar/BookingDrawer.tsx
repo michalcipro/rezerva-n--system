@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Booking, ClinicState, Id, LocalDateTime, MoneyMethod } from '../../domain/types';
-import { cancelSession, markCompleted, markNoShow, payFee, settleBooking, updateBookingNote, waiveFee } from '../../engine/commands';
+import type { Booking, ClinicState, Id, LocalDate, LocalDateTime, MoneyMethod } from '../../domain/types';
+import {
+  cancelSession,
+  confirmPaymentRequest,
+  markCompleted,
+  markNoShow,
+  payFee,
+  settleBooking,
+  updateBookingNote,
+  waiveFee,
+} from '../../engine/commands';
 import {
   countLabel,
   formatDate,
@@ -12,8 +21,9 @@ import {
   formatSpan,
   formatTimeRange,
 } from '../../engine/format';
-import { paymentLabel } from '../../engine/messages';
 import { evaluateCancellation, type CancellationEvaluation } from '../../engine/policy';
+import { pendingRequestFor } from '../../engine/qr';
+import { VISIT_PAY_STATE_LABEL, VISIT_STATUSES, visitPaymentInfo, type VisitPaymentInfo } from '../../engine/visits';
 import {
   bookingsOfSession,
   clientCredit,
@@ -31,6 +41,7 @@ import {
 import { addHours, diffMinutes } from '../../engine/time';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
 import { ClientAvatar } from '../../components/domain';
+import { QrPaymentDialog, VisitSourceBadge, type QrPaymentDraft } from '../../components/payments';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import {
@@ -53,6 +64,7 @@ import {
   type DescriptionItem,
   type MenuEntry,
 } from '../../ui';
+import { QrRequestCallout, bookingQrDraft, feeQrDraft, qrMenuItem } from '../payments/qrStaff';
 import { CancelBookingDialog } from './CancelBookingDialog';
 import { NewBookingDialog, type NewBookingInitial } from './NewBookingDialog';
 import { RescheduleDialog } from './RescheduleDialog';
@@ -60,6 +72,9 @@ import { activeOfferGroups, isFirstVisit, noShowLabel, packageEntry, paymentHint
 import './calendar.css';
 
 type DialogKind = 'cancel' | 'clinic' | 'reschedule' | 'noshow' | 'waive' | 'rebook' | 'makeup';
+
+/** Otevřený dialog QR platby: nová platba (koncept) nebo existující výzva. */
+type QrDialogState = { draft: QrPaymentDraft } | { requestId: Id };
 
 const CHANNEL_LABEL: Record<Booking['channel'], string> = { online: 'Online', recepce: 'Recepce', telefon: 'Telefon' };
 const MONEY_LABEL: Record<MoneyMethod | 'credit' | 'package_entry', string> = {
@@ -103,6 +118,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const actor = useActor();
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [waiveReason, setWaiveReason] = useState('');
+  const [qr, setQr] = useState<QrDialogState | null>(null);
 
   const client = getClient(clinic, b.clientId);
   const svc = getService(clinic, b.serviceId);
@@ -114,17 +130,26 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const inProgress = b.status === 'confirmed' && started && b.end > now;
   const credit = clientCredit(clinic, b.clientId);
   const showFinance = actor.role !== 'therapist';
-  const unpaidOnsite = b.payment.method === 'onsite' && !b.payment.paid;
+  // Cenu termínu platí klient u nás (na místě nebo QR převodem) a ještě nezaplatil.
+  const awaitingPayment = (b.payment.method === 'onsite' || b.payment.method === 'qr') && !b.payment.paid;
   const due = Math.max(0, b.price - b.payment.paidAmount);
   const feeDue = b.fee?.status === 'due';
   const feeWaivable = !!b.fee && b.fee.status === 'paid' && b.fee.amount > 0 && b.fee.settledBy !== 'package_entry';
   const openMakeup = clinic.makeups.find((m) => m.sourceBookingId === b.id && m.status === 'open' && m.validUntil > now);
   const noShowText = noShowLabel(client);
   const offer = isOccupying(b.status) ? undefined : activeOfferGroups(clinic, now).find((g) => g.therapistId === b.therapistId && g.start === b.start);
+  // Čekající QR výzvy k ceně termínu a k poplatku (klient platí převodem podle VS).
+  const bookingRequest = showFinance ? pendingRequestFor(clinic, b.id, 'booking') : undefined;
+  const feeRequest = showFinance ? pendingRequestFor(clinic, b.id, 'storno_fee') : undefined;
 
   /* ---------- akce ---------- */
   const complete = (method: MoneyMethod | 'credit' | null): void => {
     run(markCompleted, { bookingId: b.id, settleWith: method }, { success: method ? `Proběhlo · zaplaceno ${MONEY_LABEL[method]}` : 'Zapsáno: proběhlo' });
+  };
+  /** Proběhlo + QR: docházka se zapíše hned, platbu pak potvrdí dialog (nebo zůstane k úhradě). */
+  const completeWithQr = (): void => {
+    const r = run(markCompleted, { bookingId: b.id, settleWith: null }, { success: 'Zapsáno: proběhlo' });
+    if (r.ok) setQr({ draft: bookingQrDraft(clinic, b) });
   };
   const settle = (method: MoneyMethod | 'credit'): void => {
     run(settleBooking, { bookingId: b.id, method }, { success: `Zaplaceno ${MONEY_LABEL[method]} · ${formatMoney(due)}` });
@@ -132,6 +157,10 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const pay = (method: MoneyMethod | 'credit'): void => {
     run(payFee, { bookingId: b.id, method }, { success: `Poplatek uhrazen ${MONEY_LABEL[method]}` });
   };
+  const confirmRequest = (requestId: Id): void => {
+    run(confirmPaymentRequest, { requestId }, { success: (v) => v.message });
+  };
+  const feeDraft = feeQrDraft(b);
   const openClient = (): void => {
     onClose();
     navigate({ name: 'klient', clientId: b.clientId });
@@ -142,15 +171,18 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
     onClose();
   };
 
-  const moneyItems = (fn: (m: MoneyMethod | 'credit') => void, amount: number, later?: () => void): MenuEntry[] => {
+  const moneyItems = (fn: (m: MoneyMethod | 'credit') => void, amount: number, opts: { qr?: () => void; later?: () => void } = {}): MenuEntry[] => {
     const items: MenuEntry[] = [
       { type: 'label', label: `K úhradě ${formatMoney(amount)}` },
       { id: 'card', label: 'Kartou', icon: 'card', onSelect: () => fn('card') },
       { id: 'cash', label: 'Hotově', icon: 'cash', onSelect: () => fn('cash') },
+    ];
+    if (opts.qr) items.push(qrMenuItem(clinic.settings.payments, opts.qr));
+    items.push(
       { id: 'transfer', label: 'Převodem', icon: 'receipt', onSelect: () => fn('transfer') },
       { id: 'credit', label: `Z kreditu (zůstatek ${formatMoney(credit)})`, icon: 'wallet', disabled: credit < amount, onSelect: () => fn('credit') },
-    ];
-    if (later) items.push({ type: 'separator', id: 'sep' }, { id: 'later', label: 'Zaplatí později', icon: 'clock', onSelect: later });
+    );
+    if (opts.later) items.push({ type: 'separator', id: 'sep' }, { id: 'later', label: 'Zaplatí později', icon: 'clock', onSelect: opts.later });
     return items;
   };
 
@@ -166,7 +198,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
     );
   } else if (b.status === 'confirmed') {
     footer.push(
-      unpaidOnsite && showFinance ? (
+      awaitingPayment && showFinance ? (
         <Menu
           key="done"
           align="start"
@@ -176,7 +208,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
               Proběhlo
             </Button>
           }
-          items={moneyItems((m) => complete(m), due, () => complete(null))}
+          items={moneyItems((m) => complete(m), due, { qr: completeWithQr, later: () => complete(null) })}
         />
       ) : (
         <Button key="done" variant="primary" icon="check" onClick={() => complete(null)}>
@@ -188,7 +220,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
       </Button>,
     );
   } else if (b.status === 'completed') {
-    if (unpaidOnsite && showFinance)
+    if (awaitingPayment && showFinance)
       footer.push(
         <Menu
           key="settle"
@@ -199,7 +231,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
               Přijmout platbu
             </Button>
           }
-          items={moneyItems(settle, due)}
+          items={moneyItems(settle, due, { qr: () => setQr({ draft: bookingQrDraft(clinic, b) }) })}
         />,
       );
     footer.push(
@@ -219,7 +251,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
               Uhradit poplatek
             </Button>
           }
-          items={moneyItems(pay, b.fee.amount)}
+          items={moneyItems(pay, b.fee.amount, { qr: feeDraft ? () => setQr({ draft: feeDraft }) : undefined })}
         />,
         <Button key="waive" variant="secondary" onClick={() => setDialog('waive')}>
           Odpustit
@@ -262,7 +294,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   if (feeWaivable && showFinance) menu.push({ type: 'separator', id: 's4' }, { id: 'waive', label: 'Odpustit poplatek (vrátit na kredit)', icon: 'undo', onSelect: () => setDialog('waive') });
 
   /* ---------- údaje ---------- */
-  const details = buildDetails({ b, clinic, now, showFinance, credit, ev });
+  const details = buildDetails({ b, clinic, now, showFinance, credit, ev, qrCallout: !!bookingRequest });
   const rebookInitial: NewBookingInitial = { clientId: b.clientId, serviceId: svc?.kind === 'group' ? undefined : b.serviceId, therapistId: b.therapistId };
 
   return (
@@ -302,7 +334,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
           {isFirstVisit(clinic, b) && isOccupying(b.status) && <Badge tone="accent">Nový klient</Badge>}
           {b.fee?.status === 'due' && <Badge tone="warning">Poplatek {formatMoney(b.fee.amount)} k úhradě</Badge>}
           {b.fee?.status === 'waived' && b.fee.amount > 0 && <Badge tone="neutral">Poplatek odpuštěn</Badge>}
-          {b.status === 'completed' && unpaidOnsite && <Badge tone="warning">Čeká na platbu</Badge>}
+          {b.status === 'completed' && awaitingPayment && !bookingRequest && <Badge tone="warning">Čeká na platbu</Badge>}
           {b.makeupForBookingId && <Badge tone="info">Náhradní termín</Badge>}
           {b.fromWaitlist && <Badge tone="accent">Z čekací listiny</Badge>}
           {b.rescheduledFrom && (
@@ -316,6 +348,19 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
             </Badge>
           )}
         </div>
+
+        {bookingRequest && (
+          <QrRequestCallout request={bookingRequest} now={now} onShowQr={() => setQr({ requestId: bookingRequest.id })} onConfirm={() => confirmRequest(bookingRequest.id)} />
+        )}
+        {feeRequest && (
+          <QrRequestCallout
+            request={feeRequest}
+            now={now}
+            title="Poplatek čeká na QR platbu"
+            onShowQr={() => setQr({ requestId: feeRequest.id })}
+            onConfirm={() => confirmRequest(feeRequest.id)}
+          />
+        )}
 
         {ev && <PolicySection ev={ev} now={now} start={b.start} />}
 
@@ -342,6 +387,12 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
         <History booking={b} now={now} />
       </div>
 
+      <QrPaymentDialog
+        open={!!qr}
+        requestId={qr && 'requestId' in qr ? qr.requestId : undefined}
+        draft={qr && 'draft' in qr ? qr.draft : undefined}
+        onClose={() => setQr(null)}
+      />
       <CancelBookingDialog bookingId={b.id} open={dialog === 'cancel' || dialog === 'clinic'} initialOption={dialog === 'clinic' ? 'clinic' : undefined} onClose={() => setDialog(null)} />
       <RescheduleDialog bookingId={b.id} open={dialog === 'reschedule'} onClose={() => setDialog(null)} />
       <NewBookingDialog open={dialog === 'rebook'} onClose={() => setDialog(null)} initial={rebookInitial} />
@@ -462,6 +513,7 @@ function buildDetails({
   showFinance,
   credit,
   ev,
+  qrCallout,
 }: {
   b: Booking;
   clinic: ClinicState;
@@ -469,61 +521,14 @@ function buildDetails({
   showFinance: boolean;
   credit: number;
   ev: CancellationEvaluation | null;
+  /** Nad údaji je upozornění na čekající QR platbu (VS a splatnost se pak neopakují). */
+  qrCallout: boolean;
 }): DescriptionItem[] {
   const items: DescriptionItem[] = [];
-  const today = now.slice(0, 10);
   const client = getClient(clinic, b.clientId);
 
   // Platba
-  let pay: ReactNode = <span className="cal-strong">{capitalize(paymentLabel(clinic, b))}</span>;
-  if (b.payment.method === 'package') {
-    const e = packageEntry(clinic, b, today);
-    if (e) {
-      pay = (
-        <div className="cal-pay">
-          <span className="cal-strong">
-            Permanentka {e.name}
-            {e.index > 0 && <span className="cal-soft"> — vstup {e.index}/{e.total}</span>}
-          </span>
-          <StackedBar
-            cells
-            size="sm"
-            legend={false}
-            segments={[
-              { value: e.used, tone: 'neutral', label: 'absolvováno' },
-              { value: e.forfeited, tone: 'danger', label: 'propadlo' },
-              { value: e.reserved, tone: 'accent', label: 'rezervováno' },
-              { value: e.free, tone: 'empty', label: 'volné' },
-            ]}
-          />
-          <span className="cal-soft">
-            platnost do {formatDate(e.validUntil)} · {countLabel(e.free, ['volný vstup', 'volné vstupy', 'volných vstupů'])}
-          </span>
-        </div>
-      );
-    }
-  } else if (b.payment.method === 'onsite') {
-    pay = b.payment.paid ? (
-      <span>
-        <span className="cal-strong">Zaplaceno {b.payment.settledBy ? MONEY_LABEL[b.payment.settledBy] : ''}</span> · {formatMoney(b.payment.paidAmount)}
-        {b.payment.paidAt ? <span className="cal-soft"> · {formatDateTimeShort(b.payment.paidAt)}</span> : null}
-      </span>
-    ) : (
-      <span>
-        <span className="cal-strong">Na místě · {formatMoney(b.price)}</span>{' '}
-        <span className={b.status === 'completed' ? 'text-warning' : 'cal-soft'}>{b.status === 'completed' ? '· zatím nezaplaceno' : '· platí se při návštěvě'}</span>
-      </span>
-    );
-  } else if (b.payment.method === 'makeup') {
-    const src = b.makeupForBookingId ? getBooking(clinic, b.makeupForBookingId) : undefined;
-    pay = (
-      <span>
-        <span className="cal-strong">Náhrada za omluvený termín</span>
-        {src && <span className="cal-soft"> {formatDayShort(src.start)}</span>}
-      </span>
-    );
-  }
-  if (showFinance || b.payment.method === 'package') items.push({ term: 'Platba', detail: pay });
+  if (showFinance || b.payment.method === 'package') items.push({ term: 'Platba', detail: <PaymentDetail b={b} clinic={clinic} now={now} qrCallout={qrCallout} /> });
 
   // Poplatek
   if (b.fee) {
@@ -629,7 +634,65 @@ function buildDetails({
   return items;
 }
 
-const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/**
+ * Platba termínu: odkud se platí (permanentka / kredit / jednorázově / náhrada / zdarma), stav úhrady
+ * a částka. Poplatek má vlastní řádek a čekající QR platbu ukazuje upozornění nad údaji – tady se neopakují.
+ */
+function PaymentDetail({ b, clinic, now, qrCallout }: { b: Booking; clinic: ClinicState; now: LocalDateTime; qrCallout: boolean }): JSX.Element {
+  const today: LocalDate = now.slice(0, 10);
+  const visit = VISIT_STATUSES.includes(b.status);
+  const missed = b.status === 'no_show' || b.status === 'late_cancelled';
+  const raw = visitPaymentInfo(clinic, b, today, now);
+
+  let detail = raw.detail;
+  if (missed && b.fee) {
+    const cut = detail.lastIndexOf(' · ');
+    if (cut > 0) detail = detail.slice(0, cut);
+  }
+  // U zrušeného termínu na stavu úhrady nezáleží – zůstane jen to, odkud a jak se platilo.
+  const info: VisitPaymentInfo = { ...raw, detail, payState: visit ? raw.payState : 'paid' };
+  const prepaidMoney = b.payment.paid && b.payment.paidAmount > 0 && (info.kind === 'single' || info.kind === 'credit');
+  let withDetail: boolean;
+  if (!visit) withDetail = info.kind === 'package' || info.kind === 'makeup' || prepaidMoney;
+  else if (missed && info.kind === 'single') withDetail = false;
+  else if (info.payState === 'qr_pending') withDetail = !qrCallout;
+  else withDetail = !!detail && detail.toLocaleLowerCase('cs') !== VISIT_PAY_STATE_LABEL[info.payState].toLocaleLowerCase('cs');
+
+  let amount: number | null = null;
+  if (!visit) amount = prepaidMoney ? b.payment.paidAmount : null;
+  else if (!missed && info.kind === 'credit') amount = b.payment.paidAmount || b.price;
+  else if (!missed && info.kind === 'single') amount = b.payment.paid ? b.payment.paidAmount || b.price : Math.max(0, b.price - b.payment.paidAmount);
+  const paidAtDesk = visit && b.payment.paid && b.payment.paidAt && b.payment.settledBy && b.payment.settledBy !== 'online' ? b.payment.paidAt : null;
+  const pkg = b.payment.method === 'package' ? packageEntry(clinic, b, today) : null;
+
+  return (
+    <div className="cal-pay">
+      <div className="cal-pay__head">
+        <VisitSourceBadge info={info} withDetail={withDetail} />
+        {amount !== null && <span className="cal-pay__amount tnum">{formatMoney(amount)}</span>}
+      </div>
+      {pkg && (
+        <>
+          <StackedBar
+            cells
+            size="sm"
+            legend={false}
+            segments={[
+              { value: pkg.used, tone: 'neutral', label: 'absolvováno' },
+              { value: pkg.forfeited, tone: 'danger', label: 'propadlo' },
+              { value: pkg.reserved, tone: 'accent', label: 'rezervováno' },
+              { value: pkg.free, tone: 'empty', label: 'volné' },
+            ]}
+          />
+          <span className="cal-soft">
+            platnost do {formatDate(pkg.validUntil)} · {countLabel(pkg.free, ['volný vstup', 'volné vstupy', 'volných vstupů'])}
+          </span>
+        </>
+      )}
+      {paidAtDesk && <span className="cal-soft tnum">zaplaceno {formatDateTimeShort(paidAtDesk)}</span>}
+    </div>
+  );
+}
 
 function reminderText(clinic: ClinicState, b: Booking, now: LocalDateTime): ReactNode {
   const msgs = clinic.messages.filter((m) => m.bookingId === b.id && m.kind === 'reminder');
@@ -803,7 +866,7 @@ export function SessionPanel({
                   <button type="button" className={cx('cal-person', x.id === currentBookingId && 'is-current')} onClick={() => onOpenBooking(x.id)} aria-current={x.id === currentBookingId || undefined}>
                     <ClientAvatar client={c} size="xs" />
                     <span className="cal-person__name">{clientName(c)}</span>
-                    <span className="cal-person__meta">{x.status === 'confirmed' ? paymentHint(clinic, x, today) : ''}</span>
+                    <span className="cal-person__meta">{x.status === 'confirmed' ? participantPayHint(clinic, x, today) : ''}</span>
                     {x.status !== 'confirmed' && <StatusPill status={x.status} appearance="plain" label={x.status === 'no_show' ? noShowLabel(c) : undefined} />}
                   </button>
                 </li>
@@ -886,6 +949,12 @@ export function SessionPanel({
       </ConfirmDialog>
     </section>
   );
+}
+
+/** Krátký popis platby účastníka lekce; QR platba předem, která ještě nedorazila, není „na místě“. */
+function participantPayHint(s: ClinicState, b: Booking, today: LocalDate): string {
+  if (b.payment.method === 'qr' && !b.payment.paid) return 'čeká na QR platbu';
+  return paymentHint(s, b, today);
 }
 
 /** Detail skupinové lekce (klik na lekci v kalendáři). */

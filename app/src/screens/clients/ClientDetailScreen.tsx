@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Client, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatMoney, plural } from '../../engine/format';
+import { pendingPaymentRequests } from '../../engine/qr';
 import { activePackages, bookingsOfClient, clientSummary, getBooking, getClient, packageUsage } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -23,7 +24,7 @@ import {
   type TabItem,
 } from '../../ui';
 import { BookingDrawer, NewBookingDialog } from '../calendar';
-import { CreditCard, DebtPanel, ExcusesCard, PackagesCard } from './balances';
+import { CreditCard, DebtPanel, ExcusesCard, PackagesCard, PendingQrCard } from './balances';
 import { EditClientDialog, TagsDialog } from './ClientForm';
 import {
   AdjustCreditDialog,
@@ -106,6 +107,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
     [clinic, client.id, today],
   );
   const debts = useMemo(() => (perms.finance ? debtItems(clinic, client.id) : []), [clinic, client.id, perms.finance]);
+  const pendingQr = useMemo(() => (perms.finance ? pendingPaymentRequests(clinic, client.id) : []), [clinic, client.id, perms.finance]);
   const bookingCount = bookingsOfClient(clinic, client.id).length;
   const messageCount = useMemo(() => messagesOfClient(clinic, client.id).length, [clinic, client.id]);
 
@@ -183,6 +185,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
         <div className="split">
           <div className="split__main">
             <DebtPanel items={debts} onSettle={(item) => setDlg({ kind: 'settle', item })} onWaive={(item) => setDlg({ kind: 'waive', item })} />
+            <PendingQrCard requests={pendingQr} />
             <div className="cli-balances-wrap">
             <div className="cli-balances">
               <PackagesCard

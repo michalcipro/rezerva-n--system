@@ -1,0 +1,53 @@
+/* QR platby na straně personálu (prefix .pay-) – barvy jen přes tokeny */
+
+/* ---------- Upozornění „Čeká na QR platbu“ ---------- */
+.pay-callout__line {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.pay-callout__line strong { font-weight: var(--weight-semibold); }
+.pay-callout__overdue {
+  color: var(--danger-fg);
+  font-weight: var(--weight-semibold);
+}
+.pay-callout__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-1-5);
+  margin-top: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* ---------- Karta „Čekající QR platby“ (přehled) ---------- */
+/* Karta může stát v úzkém bočním sloupci – řádky seznamu se skládají podle šířky karty, ne okna. */
+.pay-card { min-width: 0; container-type: inline-size; }
+@container (max-width: 520px) {
+  .pay-card .pqr__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .pay-card .pqr__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+.pay-card__stats { margin: 0; }
+.pay-card__overdue,
+.pay-card__overdue strong { color: var(--danger-fg); }
+.pay-card__empty {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+}
+.pay-card__empty .icon { flex: none; margin-top: 1px; }
+.pay-card__empty .link { white-space: nowrap; }
+.pay-card__foot {
+  margin: 0;
+  padding-top: var(--space-2-5);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.pay-card__toggle { font-size: var(--text-sm); white-space: nowrap; }

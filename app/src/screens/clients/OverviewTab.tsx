@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { Booking, Client, Id, LocalDateTime } from '../../domain/types';
 import { countLabel, formatDayShort, formatTime, formatTimeRange } from '../../engine/format';
 import {
@@ -11,10 +12,13 @@ import {
   upcomingBookingsOfClient,
 } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
+import { VISIT_STATUSES, visitPaymentInfo, type VisitContext } from '../../engine/visits';
 import { ToneDot } from '../../components/domain';
+import { VisitSourceBadge } from '../../components/payments';
 import { useClinic } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Card, CardHeader, EmptyState, Icon, IconButton, Menu, StatusPill, Table, cx } from '../../ui';
+import { visitContextOf } from '../payments/qrStaff';
 import { bookingMoneyNote, messageKindLabel, messagesOfClient, policyBar, policyLines, stornoChip, upcomingPaymentNote } from './model';
 import { CONSENT_META, ConsentState, consentDate, DateBlock, Eyebrow, StornoChipView, type Permissions } from './parts';
 
@@ -27,7 +31,31 @@ export function openInCalendar(start: LocalDateTime): void {
 /* Nadcházející termíny                                                */
 /* ------------------------------------------------------------------ */
 
-export function UpcomingRow({ booking: b, now, finance, onOpen }: { booking: Booking; now: LocalDateTime; finance: boolean; onOpen: (id: Id) => void }): JSX.Element {
+/** Zdroj platby (štítek) a krátká podrobnost – částka, pořadí vstupu, variabilní symbol. */
+function PaymentCell({ booking: b, now, vc, note, className }: { booking: Booking; now: LocalDateTime; vc: VisitContext; note: string; className?: string }): JSX.Element {
+  const clinic = useClinic();
+  const visit = VISIT_STATUSES.includes(b.status);
+  return (
+    <span className={cx('cli-pay', className)}>
+      {visit && <VisitSourceBadge info={visitPaymentInfo(clinic, b, dateOf(now), now, vc)} hideOnsite />}
+      {note && <span className="cli-pay__note">{note}</span>}
+    </span>
+  );
+}
+
+export function UpcomingRow({
+  booking: b,
+  now,
+  finance,
+  onOpen,
+  vc,
+}: {
+  booking: Booking;
+  now: LocalDateTime;
+  finance: boolean;
+  onOpen: (id: Id) => void;
+  vc: VisitContext;
+}): JSX.Element {
   const clinic = useClinic();
   const svc = getService(clinic, b.serviceId);
   const therapist = getTherapist(clinic, b.therapistId);
@@ -58,7 +86,7 @@ export function UpcomingRow({ booking: b, now, finance, onOpen }: { booking: Boo
           {b.makeupForBookingId ? ' · náhradní termín' : ''}
         </span>
       </div>
-      {finance && <span className="cli-up__pay">{upcomingPaymentNote(clinic, b)}</span>}
+      {finance && <PaymentCell booking={b} now={now} vc={vc} note={upcomingPaymentNote(clinic, b)} className="cli-up__pay" />}
       <span className="cli-up__chip">
         <StornoChipView chip={chip} />
       </span>
@@ -91,6 +119,7 @@ export function UpcomingCard({
 }): JSX.Element {
   const clinic = useClinic();
   const list = upcomingBookingsOfClient(clinic, client.id, now);
+  const vc = useMemo(() => visitContextOf(clinic), [clinic]);
   return (
     <Card padding="none" as="section" aria-label="Nadcházející rezervace">
       <CardHeader
@@ -119,7 +148,7 @@ export function UpcomingCard({
       ) : (
         <ul className="cli-uplist">
           {list.map((b) => (
-            <UpcomingRow key={b.id} booking={b} now={now} finance={finance} onOpen={onOpen} />
+            <UpcomingRow key={b.id} booking={b} now={now} finance={finance} onOpen={onOpen} vc={vc} />
           ))}
         </ul>
       )}
@@ -146,8 +175,9 @@ export function BookingTable({
 }): JSX.Element {
   const clinic = useClinic();
   const year = now.slice(0, 4);
+  const vc = useMemo(() => (finance ? visitContextOf(clinic) : null), [clinic, finance]);
   return (
-    <Table caption={caption} hover minWidth={finance ? 720 : 560} wrapperClassName="cli-tablewrap">
+    <Table caption={caption} hover minWidth={finance ? 760 : 560} wrapperClassName="cli-tablewrap">
       <thead>
         <tr>
           <th scope="col">Datum</th>
@@ -189,8 +219,10 @@ export function BookingTable({
                 <StatusPill status={b.status} appearance="plain" />
                 {b.status === 'confirmed' && b.end <= now && <span className="cli-cell-sub">čeká na docházku</span>}
               </td>
-              {finance && (
-                <td className={cx('secondary', b.fee?.status === 'due' && 'cli-cell-due')}>{bookingMoneyNote(clinic, b)}</td>
+              {finance && vc && (
+                <td className={cx('secondary', b.fee?.status === 'due' && 'cli-cell-due')}>
+                  <PaymentCell booking={b} now={now} vc={vc} note={bookingMoneyNote(clinic, b)} />
+                </td>
               )}
             </tr>
           );

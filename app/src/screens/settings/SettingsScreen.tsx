@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, ReminderSettings, WaitlistSettings } from '../../domain/types';
+import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
+import { formatIban, nextVs, parseAccount } from '../../engine/qr';
 import { therapistName } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
+import { QrPaymentCard } from '../../components/payments';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import {
@@ -25,6 +27,8 @@ import {
   type IconName,
 } from '../../ui';
 import {
+  PREVIEW_CLIENT_ID,
+  RECIPIENT_MAX,
   byOrder,
   cx,
   dirtySections,
@@ -34,6 +38,7 @@ import {
   settingsDraftOf,
   tierWarning,
   validateSettings,
+  type PaymentsDraft,
   type SectionId,
   type SettingsDraft,
   type SettingsErrors,
@@ -50,12 +55,14 @@ const SECTIONS: { id: SectionId; label: string; icon: IconName }[] = [
   { id: 'excuses', label: 'Omluvenky a náhrady', icon: 'refresh' },
   { id: 'waitlist', label: 'Čekací listina', icon: 'hourglass' },
   { id: 'reminders', label: 'Připomínky', icon: 'bell' },
+  { id: 'payments', label: 'Platby', icon: 'card' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
 ];
 
 const SECTION_OF_ERROR = (key: string): SectionId => {
   if (key.startsWith('booking.')) return 'booking';
   if (key.startsWith('excuses.')) return 'excuses';
+  if (key.startsWith('payments.')) return 'payments';
   if (key.startsWith('clinic.')) return 'clinic';
   return 'policy';
 };
@@ -146,6 +153,7 @@ export function SettingsScreen(): JSX.Element {
     setDraft((d) => ({ ...d, policy: { ...d.policy, excuses: { ...d.policy.excuses, ...patch } } }));
   const setWaitlist = (patch: Partial<WaitlistSettings>): void => setDraft((d) => ({ ...d, waitlist: { ...d.waitlist, ...patch } }));
   const setReminders = (patch: Partial<ReminderSettings>): void => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }));
+  const setPayments = (patch: Partial<PaymentsDraft>): void => setDraft((d) => ({ ...d, payments: { ...d.payments, ...patch } }));
   const setText = (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string): void =>
     setDraft((d) => ({ ...d, [key]: value }));
 
@@ -163,6 +171,13 @@ export function SettingsScreen(): JSX.Element {
     if (changed.includes('policy') || changed.includes('excuses')) patch.policy = n.policy;
     if (changed.includes('waitlist')) patch.waitlist = n.waitlist;
     if (changed.includes('reminders')) patch.reminders = n.reminders;
+    if (changed.includes('payments')) {
+      const p = n.payments;
+      const payments: NonNullable<SettingsPatch['payments']> = { qrEnabled: p.qrEnabled, recipientName: p.recipientName, qrDueHours: p.qrDueHours };
+      // účet posíláme jen při změně – uložení beze změny účtu by zrušilo označení ukázkového účtu
+      if (p.accountNumber !== base.payments.accountNumber.trim()) payments.accountNumber = p.accountNumber;
+      patch.payments = payments;
+    }
     if (changed.includes('clinic')) {
       patch.clinicName = n.clinicName;
       patch.clinicTagline = n.clinicTagline;
@@ -179,7 +194,7 @@ export function SettingsScreen(): JSX.Element {
 
   return (
     <div className="page set-page set-settings-page">
-      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky a údaje kliniky" />
+      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky, platby a údaje kliniky" />
       {restored && dirty && (
         <Callout tone="info" title="Rozpracované změny">
           Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(sectionLabel).join(', ')}). Uložte je, nebo je zahoďte.
@@ -243,6 +258,10 @@ export function SettingsScreen(): JSX.Element {
 
           <Section id="reminders" title="Připomínky" subtitle="Automatická zpráva klientovi před termínem snižuje počet nedostavení.">
             <RemindersSection reminders={draft.reminders} onChange={setReminders} clinic={clinic} />
+          </Section>
+
+          <Section id="payments" title="Platby" subtitle="QR Platba: klient naskenuje kód v bankovní aplikaci a převod má předvyplněný – účet, částku i variabilní symbol.">
+            <PaymentsSection payments={draft.payments} onChange={setPayments} errors={visibleErrors} saved={clinic.settings.payments} />
           </Section>
 
           <Section id="clinic" title="Klinika" subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
@@ -875,6 +894,184 @@ function RemindersSection({
           <Button variant="secondary" size="sm" iconRight="arrowRight" onClick={() => navigate({ name: 'komunikace' })}>
             Upravit text
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Platby                                                              */
+/* ------------------------------------------------------------------ */
+
+const DUE_PRESETS = [24, 48, 72, 168];
+const PREVIEW_AMOUNT = 1190;
+
+function PaymentsSection({
+  payments,
+  onChange,
+  errors,
+  saved,
+}: {
+  payments: PaymentsDraft;
+  onChange: (patch: Partial<PaymentsDraft>) => void;
+  errors: SettingsErrors;
+  /** Uložené nastavení (IBAN a ukázkový účet dopočítává engine). */
+  saved: PaymentSettings;
+}): JSX.Element {
+  const clinic = useClinic();
+  const now = useNow();
+  const account = payments.accountNumber.trim();
+  const parsed = account ? parseAccount(account) : null;
+  const iban = parsed?.ok ? parsed.iban : null;
+  // Ukázkový účet z testovacích dat platí, dokud ho nepřepíšete skutečným.
+  const demo = saved.demoAccount && account === saved.accountNumber.trim();
+  const previewVs = useMemo(() => nextVs(clinic, now), [clinic, now]);
+  // Náhled pracuje s rozpracovanými údaji – tak, jak je uvidí klient po uložení.
+  const preview: ClinicState | null = iban
+    ? {
+        ...clinic,
+        settings: {
+          ...clinic.settings,
+          payments: { ...saved, ...payments, accountNumber: account, iban, recipientName: payments.recipientName.trim(), demoAccount: demo },
+        },
+      }
+    : null;
+
+  let accountStatus: ReactNode = null;
+  if (iban) {
+    accountStatus = (
+      <span className="set-iban">
+        <Icon name="checkCircle" size={14} />
+        <span>
+          IBAN <span className="tnum">{formatIban(iban)}</span>
+        </span>
+      </span>
+    );
+  } else if (!account && payments.qrEnabled) {
+    accountStatus = (
+      <span className="set-warn-text">
+        <Icon name="alert" size={14} /> Bez čísla účtu se QR platba nenabízí.
+      </span>
+    );
+  }
+
+  return (
+    <div className="set-rows">
+      <div className="set-row set-row--switch">
+        <Switch
+          checked={payments.qrEnabled}
+          onChange={(v) => onChange({ qrEnabled: v })}
+          label="Nabízet platbu QR kódem"
+          description="Recepce ukáže QR kód u pultu – za termín, permanentku, dobití kreditu i poplatek. Klienti mohou v portálu zaplatit převodem předem."
+        />
+      </div>
+      <fieldset className={cx('set-fieldset', !payments.qrEnabled && 'is-disabled')} disabled={!payments.qrEnabled}>
+        <legend className="visually-hidden">Údaje pro QR platbu</legend>
+        <SettingRow
+          label="Číslo účtu"
+          hint="Ve tvaru 2000145399/0800, s předčíslím 19-2000145399/0800, nebo jako IBAN."
+          error={errors['payments.accountNumber']}
+          status={accountStatus}
+        >
+          <Input
+            className="set-ctl-lg"
+            value={payments.accountNumber}
+            maxLength={50}
+            placeholder="např. 2000145399/0800"
+            autoComplete="off"
+            spellCheck={false}
+            onValueChange={(v) => onChange({ accountNumber: v })}
+          />
+        </SettingRow>
+        <SettingRow
+          label="Příjemce"
+          hint={
+            <>
+              Jméno, které klient uvidí v bankovní aplikaci. Když ho nevyplníte, použije se odesílatel <span className="nowrap">e-mailů</span>.
+            </>
+          }
+          error={errors['payments.recipientName']}
+        >
+          <Input
+            className="set-ctl-lg"
+            value={payments.recipientName}
+            maxLength={RECIPIENT_MAX}
+            placeholder={clinic.settings.senderName}
+            suffix={<span className="set-count tnum">{`${payments.recipientName.length}/${RECIPIENT_MAX}`}</span>}
+            onValueChange={(v) => onChange({ recipientName: v })}
+          />
+        </SettingRow>
+        <SettingRow
+          label="Splatnost QR platby z portálu"
+          hint="Kolik času má klient na zaplacení, když v portálu zvolí QR platbu. U termínu nejpozději do jeho začátku."
+          error={errors['payments.qrDueHours']}
+          group
+        >
+          <div className="set-inline">
+            <NumberInput
+              className="set-ctl-sm"
+              value={payments.qrDueHours}
+              min={1}
+              max={720}
+              suffix="h"
+              aria-label="Splatnost QR platby v hodinách"
+              onChange={(v) => onChange({ qrDueHours: v })}
+            />
+            <ChoiceChips
+              aria-label="Rychlá volba splatnosti"
+              value={DUE_PRESETS.includes(payments.qrDueHours) ? String(payments.qrDueHours) : null}
+              onChange={(v) => onChange({ qrDueHours: Number(v) })}
+              options={DUE_PRESETS.map((h) => ({
+                value: String(h),
+                label: countLabel(h / 24, ['den', 'dny', 'dní']),
+                ariaLabel: `${countLabel(h, ['hodina', 'hodiny', 'hodin'])} (${countLabel(h / 24, ['den', 'dny', 'dní'])})`,
+              }))}
+            />
+          </div>
+        </SettingRow>
+      </fieldset>
+
+      {demo && (
+        <Callout tone="warning" title="Ukázkový účet" className="set-pay__demo">
+          Ukázkový účet z testovacích dat – nahraďte ho skutečným účtem kliniky. Do té doby nese QR kód ve zprávě pro příjemce upozornění, aby nikdo neplatil doopravdy.
+        </Callout>
+      )}
+
+      <div className="set-pay">
+        <div className="set-pay__preview">
+          <span className="set-pay__label">Náhled QR platby</span>
+          {preview ? (
+            <QrPaymentCard
+              clinic={preview}
+              clientId={PREVIEW_CLIENT_ID}
+              amount={PREVIEW_AMOUNT}
+              vs={previewVs}
+              label="Ukázka platby"
+              qrSize={164}
+              className="set-pay__card"
+            />
+          ) : (
+            <p className="set-pay__empty">
+              <Icon name="grid" size={16} />
+              {account ? 'Náhled se zobrazí, až bude číslo účtu platné.' : 'Náhled QR kódu se zobrazí po zadání čísla účtu.'}
+            </p>
+          )}
+        </div>
+        <div className="set-pay__how">
+          <span className="set-pay__label">Jak to funguje</span>
+          <ol className="set-pay__steps">
+            <li>Klient naskenuje QR kód v bankovní aplikaci – účet, částka i variabilní symbol se vyplní samy.</li>
+            <li>
+              Kód ukážete u pultu, nebo ho klient dostane <span className="nowrap">e-mailem</span> či v portálu, když platí předem.
+            </li>
+            <li>Až peníze dorazí, potvrdíte přijetí podle variabilního symbolu na výpisu z účtu – v detailu termínu, na kartě klienta nebo na přehledu.</li>
+            <li>Teprve potom je termín zaplacený, permanentka aktivní a kredit připsaný.</li>
+          </ol>
+          <p className="set-footnote">
+            <Icon name="info" size={14} />
+            <span>Automatické párování plateb s bankou není součástí testovací verze – platby se potvrzují ručně.</span>
+          </p>
         </div>
       </div>
     </div>

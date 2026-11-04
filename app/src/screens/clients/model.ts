@@ -21,6 +21,7 @@ import type {
 } from '../../domain/types';
 import { countLabel, formatDayShort, formatMoney, formatPercent, formatTime } from '../../engine/format';
 import { evaluateCancellation } from '../../engine/policy';
+import { pendingRequestFor } from '../../engine/qr';
 import {
   bookingsOfClient,
   getBooking,
@@ -31,6 +32,10 @@ import {
   type PackageUsage,
 } from '../../engine/selectors';
 import { addDays, dateOf, daysBetween } from '../../engine/time';
+import { VISIT_STATUSES } from '../../engine/visits';
+
+/** Cenu termínu platí klient u nás – na místě nebo QR převodem (ne permanentka, kredit, online…). */
+export const paysAtClinic = (b: Booking): boolean => b.payment.method === 'onsite' || b.payment.method === 'qr';
 
 /* ------------------------------------------------------------------ */
 /* Text a hledání                                                      */
@@ -129,7 +134,7 @@ export function buildClientRows(s: ClinicState, now: LocalDateTime): ClientRow[]
     if (b.status === 'completed') {
       r.visits++;
       if (!r.lastVisit || b.start > r.lastVisit) r.lastVisit = b.start;
-      if (!b.payment.paid && b.payment.method === 'onsite') r.debt += b.price - b.payment.paidAmount;
+      if (!b.payment.paid && paysAtClinic(b)) r.debt += b.price - b.payment.paidAmount;
     } else if (b.status === 'confirmed' && b.end > now) {
       if (!r.next || b.start < r.next.start) r.next = b;
     } else if (b.status === 'no_show' && b.start >= d90) {
@@ -289,15 +294,35 @@ export const MONEY_METHOD_LABEL: Record<MoneyMethod | 'credit', string> = {
   credit: 'z kreditu',
 };
 
-/** Krátký popis platby a dopadů pro tabulky („permanentka 4/10“, „−545 Kč z kreditu (50 %)“). */
+/** „Fyzio 10 · vstup 4/10“ – permanentka a pořadí vstupu. */
+function packageNote(pkg: ClientPackage | undefined, entry: { n: number; total: number } | null): string {
+  return [pkg?.name, entry ? `vstup ${entry.n}/${entry.total}` : ''].filter(Boolean).join(' · ');
+}
+
+/** Částka termínu placeného u nás: zaplaceno jak / čeká na QR platbu (VS) / k úhradě / na místě. */
+function clinicPaymentNote(s: ClinicState, b: Booking): string {
+  if (b.payment.paid) return `${formatMoney(b.payment.paidAmount || b.price)} ${b.payment.settledBy ? MONEY_METHOD_LABEL[b.payment.settledBy] : 'zaplaceno'}`;
+  const due = b.price - b.payment.paidAmount;
+  const request = pendingRequestFor(s, b.id, 'booking');
+  if (request) return `${formatMoney(due)} · VS ${request.vs}`;
+  return b.status === 'completed' ? `${formatMoney(due)} k úhradě` : `na místě ${formatMoney(due)}`;
+}
+
+/**
+ * Krátký popis platby a dopadů pro tabulky („Fyzio 10 · vstup 4/10“, „−545 Kč z kreditu (50 %)“).
+ * U proběhlých a plánovaných termínů doplňuje štítek zdroje platby (VisitSourceBadge), proto
+ * neopakuje „permanentka“ / „kredit“ a uvádí hlavně částku, pořadí vstupu nebo variabilní symbol.
+ */
 export function bookingMoneyNote(s: ClinicState, b: Booking): string {
   const parts: string[] = [];
   const entry = packageEntryNumber(s, b);
   const pkg = b.payment.packageId ? getPackage(s, b.payment.packageId) : undefined;
+  const withBadge = VISIT_STATUSES.includes(b.status);
 
   if (b.makeupForBookingId) {
     const src = getBooking(s, b.makeupForBookingId);
-    parts.push(src ? `náhradní termín za ${formatDayShort(src.start)}` : 'náhradní termín');
+    if (withBadge) parts.push(src ? `za ${formatDayShort(src.start)}` : '');
+    else parts.push(src ? `náhradní termín za ${formatDayShort(src.start)}` : 'náhradní termín');
   }
 
   switch (b.status) {
@@ -329,12 +354,13 @@ export function bookingMoneyNote(s: ClinicState, b: Booking): string {
       } else if (fee.settledBy === 'package_entry') {
         parts.push(b.payment.method === 'makeup' ? 'náhrada propadla' : 'vstup propadl');
       } else if (fee.status === 'due') {
-        parts.push(`poplatek ${formatMoney(fee.amount)} k úhradě`);
+        const request = pendingRequestFor(s, b.id, 'storno_fee');
+        parts.push(request ? `poplatek ${formatMoney(fee.amount)} čeká na QR platbu (VS ${request.vs})` : `poplatek ${formatMoney(fee.amount)} k úhradě`);
       } else {
         const how = fee.settledBy ? ' ' + MONEY_METHOD_LABEL[fee.settledBy] : '';
         parts.push(`−${formatMoney(fee.amount)}${how} (${formatPercent(fee.pct)})`);
       }
-      return parts.join(' · ');
+      return parts.filter(Boolean).join(' · ');
     }
     default:
       break;
@@ -342,47 +368,49 @@ export function bookingMoneyNote(s: ClinicState, b: Booking): string {
 
   switch (b.payment.method) {
     case 'package':
-      parts.push(entry ? `permanentka ${entry.n}/${entry.total}` : 'permanentka');
+      parts.push(packageNote(pkg, entry));
       break;
     case 'makeup':
-      if (entry) parts.push(`${entry.n}/${entry.total}`);
+      if (entry) parts.push(`vstup ${entry.n}/${entry.total}`);
       else if (b.payment.paidAmount > 0 && b.payment.paidAmount < b.price) parts.push(`doplatek ${formatMoney(b.price - b.payment.paidAmount)}`);
       break;
     case 'credit':
-      parts.push(`${formatMoney(b.payment.paidAmount || b.price)} z kreditu`);
+      parts.push(formatMoney(b.payment.paidAmount || b.price));
       break;
     case 'online':
       parts.push(`${formatMoney(b.payment.paidAmount || b.price)} online`);
       break;
     case 'free':
-      parts.push('zdarma');
       break;
     case 'onsite':
+    case 'qr':
     default:
-      if (b.payment.paid) parts.push(`${formatMoney(b.price)} ${b.payment.settledBy ? MONEY_METHOD_LABEL[b.payment.settledBy] : 'zaplaceno'}`);
-      else if (b.status === 'completed') parts.push(`${formatMoney(b.price - b.payment.paidAmount)} neuhrazeno`);
-      else parts.push(`na místě ${formatMoney(b.price)}`);
+      parts.push(clinicPaymentNote(s, b));
       break;
   }
-  return parts.join(' · ');
+  return parts.filter(Boolean).join(' · ');
 }
 
-/** Popis platby u nadcházejícího termínu („permanentka (vstup 5/10)“, „platba na místě 1 090 Kč“). */
+/**
+ * Popis platby u nadcházejícího termínu vedle štítku zdroje platby
+ * („vstup 5/10“, „na místě 1 090 Kč“, „1 090 Kč · VS 26110001“).
+ */
 export function upcomingPaymentNote(s: ClinicState, b: Booking): string {
   const entry = packageEntryNumber(s, b);
   switch (b.payment.method) {
     case 'package':
-      return entry ? `permanentka (vstup ${entry.n}/${entry.total})` : 'permanentka';
+      return entry ? `vstup ${entry.n}/${entry.total}` : '';
     case 'makeup':
-      return entry ? `náhrada (vstup ${entry.n}/${entry.total})` : 'náhradní termín';
+      if (entry) return `vstup ${entry.n}/${entry.total}`;
+      return b.payment.paidAmount > 0 && b.payment.paidAmount < b.price ? `doplatek ${formatMoney(b.price - b.payment.paidAmount)} na místě` : '';
     case 'credit':
-      return `z kreditu ${formatMoney(b.payment.paidAmount)}`;
+      return formatMoney(b.payment.paidAmount || b.price);
     case 'online':
-      return `zaplaceno online ${formatMoney(b.payment.paidAmount)}`;
+      return `${formatMoney(b.payment.paidAmount || b.price)} online`;
     case 'free':
-      return 'zdarma';
+      return '';
     default:
-      return `platba na místě ${formatMoney(b.price)}`;
+      return clinicPaymentNote(s, b);
   }
 }
 
@@ -437,7 +465,10 @@ export interface DebtItem {
   label: string;
 }
 
-/** Neuhrazené poplatky a neuhrazené proběhlé termíny (stejná definice jako `clientSummary.debt`). */
+/**
+ * Neuhrazené poplatky a neuhrazené proběhlé termíny (jako `clientSummary.debt`, navíc i termíny,
+ * které klient platí QR převodem a peníze ještě nedorazily).
+ */
 export function debtItems(s: ClinicState, clientId: Id): DebtItem[] {
   const out: DebtItem[] = [];
   for (const b of bookingsOfClient(s, clientId)) {
@@ -450,7 +481,7 @@ export function debtItems(s: ClinicState, clientId: Id): DebtItem[] {
         label: `${b.fee.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} · ${svc} ${formatDayShort(b.start)}`,
       });
     }
-    if (b.status === 'completed' && b.payment.method === 'onsite' && !b.payment.paid) {
+    if (b.status === 'completed' && paysAtClinic(b) && !b.payment.paid) {
       out.push({ kind: 'visit', booking: b, amount: b.price - b.payment.paidAmount, label: `Neuhrazený termín · ${svc} ${formatDayShort(b.start)}` });
     }
   }

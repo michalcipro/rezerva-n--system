@@ -14,8 +14,10 @@ import {
   waiveFee,
 } from '../../engine/commands';
 import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '../../engine/format';
+import { pendingRequestFor } from '../../engine/qr';
 import { clientCredit, getService, packageUsage } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
+import { QrPaymentDialog, type QrPaymentDraft } from '../../components/payments';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import {
   Badge,
@@ -33,16 +35,47 @@ import {
   Segmented,
   Textarea,
 } from '../../ui';
+import { bookingQrDraft, feeQrDraft, packageQrDraft, qrUnavailableReason, topUpQrDraft } from '../payments/qrStaff';
 import type { DebtItem } from './model';
 
 type PayMethod = MoneyMethod | 'credit';
 
-const PAY_OPTIONS: { value: PayMethod; label: string }[] = [
-  { value: 'card', label: 'Kartou' },
-  { value: 'cash', label: 'Hotově' },
-  { value: 'transfer', label: 'Převodem' },
-  { value: 'credit', label: 'Z kreditu' },
-];
+const PAY_LABEL: Record<PayMethod, string> = {
+  card: 'Kartou',
+  cash: 'Hotově',
+  qr: 'QR platba',
+  transfer: 'Převodem',
+  credit: 'Z kreditu',
+  online: 'Online',
+};
+
+/** Způsob platby. Na úzkém displeji se volby zalomí do dvou řádků (žádná se neschová). */
+function PayMethodPicker<M extends PayMethod>({
+  methods,
+  value,
+  onChange,
+  disabled = [],
+}: {
+  methods: M[];
+  value: M;
+  onChange: (m: M) => void;
+  disabled?: PayMethod[];
+}): JSX.Element {
+  return (
+    <div className={`cli-paymethod cli-paymethod--n${methods.length}`}>
+      <Segmented aria-label="Způsob platby" value={value} onChange={onChange} options={methods.map((m) => ({ value: m, label: PAY_LABEL[m], disabled: disabled.includes(m) }))} />
+    </div>
+  );
+}
+
+/** Co se stane po zvolení QR platby (proč teď nejde, říká nápověda pod výběrem platby). */
+function QrNote({ children }: { children: string }): JSX.Element {
+  return (
+    <Callout tone="info" icon="grid" title="Platba QR kódem">
+      {children}
+    </Callout>
+  );
+}
 
 function DialogFooter({ onClose, submitLabel, formId, disabled, tone = 'primary' }: { onClose: () => void; submitLabel: string; formId: string; disabled?: boolean; tone?: 'primary' | 'danger' }): JSX.Element {
   return (
@@ -157,9 +190,12 @@ export function SellPackageDialog({ client, open, onClose }: { client: Client; o
   const today = dateOf(now);
   const templates = useMemo(() => clinic.packageTemplates.filter((t) => t.active).sort((a, b) => a.order - b.order), [clinic.packageTemplates]);
   const credit = clientCredit(clinic, client.id);
+  const qrReason = qrUnavailableReason(clinic.settings.payments);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>('card');
   const [startDate, setStartDate] = useState(today);
+  // QR platba: dialog prodeje se zavře a otevře se QR (permanentka vznikne až po zaplacení).
+  const [qrDraft, setQrDraft] = useState<QrPaymentDraft | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -170,11 +206,18 @@ export function SellPackageDialog({ client, open, onClose }: { client: Client; o
 
   const tpl = templates.find((t) => t.id === templateId);
   const creditShort = !!tpl && method === 'credit' && credit < tpl.priceCzk;
+  const byQr = method === 'qr';
+  const qrBlocked = byQr && !!qrReason;
   const validStart = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : today;
 
   const submit = (e: FormEvent): void => {
     e.preventDefault();
-    if (!tpl || creditShort) return;
+    if (!tpl || creditShort || qrBlocked) return;
+    if (byQr) {
+      setQrDraft(packageQrDraft(client.id, tpl));
+      onClose();
+      return;
+    }
     const r = run(
       sellPackage,
       { clientId: client.id, templateId: tpl.id, paidBy: method, startDate: validStart },
@@ -183,72 +226,84 @@ export function SellPackageDialog({ client, open, onClose }: { client: Client; o
     if (r.ok) onClose();
   };
 
+  const submitLabel = !tpl ? 'Prodat' : byQr ? `Zobrazit QR · ${formatMoney(tpl.priceCzk)}` : `Prodat za ${formatMoney(tpl.priceCzk)}`;
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title="Prodat permanentku"
-      description={`${client.firstName} ${client.lastName}`}
-      size="lg"
-      footer={<DialogFooter onClose={onClose} submitLabel={tpl ? `Prodat za ${formatMoney(tpl.priceCzk)}` : 'Prodat'} formId={formId} disabled={!tpl || creditShort} />}
-    >
-      <form id={formId} className="cli-form" onSubmit={submit} noValidate>
-        {templates.length === 0 ? (
-          <Callout tone="info">V nabídce není žádná aktivní permanentka. Přidejte ji v části Permanentky a kredity.</Callout>
-        ) : (
-          <RadioCards
-            legend="Permanentka"
-            value={templateId}
-            onChange={setTemplateId}
-            columns={2}
-            options={templates.map((t) => {
-              const services = t.serviceIds.map((id) => getService(clinic, id)?.name).filter(Boolean) as string[];
-              const unit = Math.round(t.priceCzk / Math.max(1, t.entries));
-              const single = Math.max(0, ...t.serviceIds.map((id) => getService(clinic, id)?.priceCzk ?? 0));
-              const saving = single > 0 ? Math.round((1 - unit / single) * 100) : 0;
-              return {
-                value: t.id,
-                title: t.name,
-                badge: saving >= 5 ? <Badge tone="success">−{saving} %</Badge> : undefined,
-                description: (
-                  <>
-                    {countLabel(t.entries, ['vstup', 'vstupy', 'vstupů'])} · platnost {countLabel(t.validityDays, ['den', 'dny', 'dní'])} ·{' '}
-                    {countLabel(t.excusesAllowed, ['omluvenka', 'omluvenky', 'omluvenek'])}
-                    <br />
-                    <span className="muted">{services.slice(0, 3).join(', ')}{services.length > 3 ? ' a další' : ''}</span>
-                  </>
-                ),
-                aside: (
-                  <span className="cli-price">
-                    <strong className="tnum">{formatMoney(t.priceCzk)}</strong>
-                    <span className="muted tnum">{formatMoney(unit)} / vstup</span>
-                  </span>
-                ),
-              };
-            })}
-          />
-        )}
-        <div className="cli-form-grid">
-          <Field label="Platba">
-            <Segmented
-              aria-label="Způsob platby"
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title="Prodat permanentku"
+        description={`${client.firstName} ${client.lastName}`}
+        size="lg"
+        footer={<DialogFooter onClose={onClose} submitLabel={submitLabel} formId={formId} disabled={!tpl || creditShort || qrBlocked} />}
+      >
+        <form id={formId} className="cli-form" onSubmit={submit} noValidate>
+          {templates.length === 0 ? (
+            <Callout tone="info">V nabídce není žádná aktivní permanentka. Přidejte ji v části Permanentky a kredity.</Callout>
+          ) : (
+            <RadioCards
+              legend="Permanentka"
+              value={templateId}
+              onChange={setTemplateId}
+              columns={2}
+              options={templates.map((t) => {
+                const services = t.serviceIds.map((id) => getService(clinic, id)?.name).filter(Boolean) as string[];
+                const unit = Math.round(t.priceCzk / Math.max(1, t.entries));
+                const single = Math.max(0, ...t.serviceIds.map((id) => getService(clinic, id)?.priceCzk ?? 0));
+                const saving = single > 0 ? Math.round((1 - unit / single) * 100) : 0;
+                return {
+                  value: t.id,
+                  title: t.name,
+                  badge: saving >= 5 ? <Badge tone="success">−{saving} %</Badge> : undefined,
+                  description: (
+                    <>
+                      {countLabel(t.entries, ['vstup', 'vstupy', 'vstupů'])} · platnost {countLabel(t.validityDays, ['den', 'dny', 'dní'])} ·{' '}
+                      {countLabel(t.excusesAllowed, ['omluvenka', 'omluvenky', 'omluvenek'])}
+                      <br />
+                      <span className="muted">{services.slice(0, 3).join(', ')}{services.length > 3 ? ' a další' : ''}</span>
+                    </>
+                  ),
+                  aside: (
+                    <span className="cli-price">
+                      <strong className="tnum">{formatMoney(t.priceCzk)}</strong>
+                      <span className="muted tnum">{formatMoney(unit)} / vstup</span>
+                    </span>
+                  ),
+                };
+              })}
+            />
+          )}
+          <Field label="Platba" hint={qrReason ?? undefined}>
+            <PayMethodPicker
+              methods={['card', 'cash', 'qr', 'transfer', 'credit']}
               value={method}
               onChange={setMethod}
-              options={PAY_OPTIONS.map((o) => ({ ...o, disabled: o.value === 'credit' && credit <= 0 }))}
+              disabled={[...(credit <= 0 ? (['credit'] as const) : []), ...(qrReason ? (['qr'] as const) : [])]}
             />
           </Field>
-          <Field label="Platnost od" hint={tpl ? `Platí do ${formatDate(addDays(validStart, tpl.validityDays))}` : undefined}>
-            <Input type="date" value={startDate} min={today} onValueChange={setStartDate} />
+          <Field
+            label="Platnost od"
+            className="cli-field-date"
+            hint={byQr ? 'Platí ode dne, kdy potvrdíte přijetí platby.' : tpl ? `Platí do ${formatDate(addDays(validStart, tpl.validityDays))}` : undefined}
+          >
+            <Input type="date" value={byQr ? today : startDate} min={today} disabled={byQr} onValueChange={setStartDate} />
           </Field>
-        </div>
-        {method === 'credit' && tpl && (
-          <Callout tone={creditShort ? 'danger' : 'neutral'} icon="wallet">
-            Na kreditu je {formatMoney(credit)}
-            {creditShort ? ` – na permanentku za ${formatMoney(tpl.priceCzk)} nestačí.` : `, po nákupu zůstane ${formatMoney(credit - tpl.priceCzk)}.`}
-          </Callout>
-        )}
-      </form>
-    </Dialog>
+          {method === 'credit' && tpl && (
+            <Callout tone={creditShort ? 'danger' : 'neutral'} icon="wallet">
+              Na kreditu je {formatMoney(credit)}
+              {creditShort ? ` – na permanentku za ${formatMoney(tpl.priceCzk)} nestačí.` : `, po nákupu zůstane ${formatMoney(credit - tpl.priceCzk)}.`}
+            </Callout>
+          )}
+          {byQr && !qrReason && (
+            <QrNote>
+              Ukážete klientovi QR kód s částkou a variabilním symbolem. Permanentka se vydá, až potvrdíte přijetí platby – hned u pultu, nebo později podle výpisu z účtu.
+            </QrNote>
+          )}
+        </form>
+      </Dialog>
+      <QrPaymentDialog open={!!qrDraft} draft={qrDraft ?? undefined} onClose={() => setQrDraft(null)} />
+    </>
   );
 }
 
@@ -379,6 +434,7 @@ export function TopUpCreditDialog({ client, open, onClose }: { client: Client; o
   const formId = useId();
   const [amount, setAmount] = useState(1000);
   const [method, setMethod] = useState<MoneyMethod>('card');
+  const [qrDraft, setQrDraft] = useState<QrPaymentDraft | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -391,59 +447,70 @@ export function TopUpCreditDialog({ client, open, onClose }: { client: Client; o
   const rules = [...clinic.settings.creditBonus].sort((a, b) => a.minTopup - b.minTopup);
   const nextRule = rules.find((r) => r.minTopup > amount);
   const invalid = amount < 100 || amount > 100000;
+  const qrReason = qrUnavailableReason(clinic.settings.payments);
+  const byQr = method === 'qr';
+  const qrBlocked = byQr && !!qrReason;
 
   const submit = (e: FormEvent): void => {
     e.preventDefault();
-    if (invalid) return;
+    if (invalid || qrBlocked) return;
+    if (byQr) {
+      // kredit (i s bonusem) se připíše až po zaplacení
+      setQrDraft(topUpQrDraft(client.id, amount));
+      onClose();
+      return;
+    }
     const r = run(topUpCredit, { clientId: client.id, amount, method }, { success: `Kredit dobit o ${formatMoney(amount)}` });
     if (r.ok) onClose();
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title="Dobít kredit"
-      description={`Současný zůstatek ${formatMoney(balance)}`}
-      footer={<DialogFooter onClose={onClose} submitLabel={`Dobít ${formatMoney(amount)}`} formId={formId} disabled={invalid} />}
-    >
-      <form id={formId} className="cli-form" onSubmit={submit} noValidate>
-        <Field label="Částka" error={invalid ? 'Dobít lze 100 až 100 000 Kč.' : undefined}>
-          <NumberInput value={amount} onChange={setAmount} min={0} max={100000} step={100} suffix="Kč" />
-        </Field>
-        <ChoiceChips
-          aria-label="Rychlá volba částky"
-          value={String(amount)}
-          onChange={(v) => setAmount(Number(v))}
-          options={[500, 1000, 2000, 3000, 5000].map((n) => ({ value: String(n), label: formatMoney(n) }))}
-        />
-        <Field label="Platba">
-          <Segmented
-            aria-label="Způsob platby"
-            value={method}
-            onChange={setMethod}
-            options={[
-              { value: 'card', label: 'Kartou' },
-              { value: 'cash', label: 'Hotově' },
-              { value: 'transfer', label: 'Převodem' },
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title="Dobít kredit"
+        description={`Současný zůstatek ${formatMoney(balance)}`}
+        footer={
+          <DialogFooter onClose={onClose} submitLabel={byQr ? `Zobrazit QR · ${formatMoney(amount)}` : `Dobít ${formatMoney(amount)}`} formId={formId} disabled={invalid || qrBlocked} />
+        }
+      >
+        <form id={formId} className="cli-form" onSubmit={submit} noValidate>
+          <Field label="Částka" error={invalid ? 'Dobít lze 100 až 100 000 Kč.' : undefined}>
+            <NumberInput value={amount} onChange={setAmount} min={0} max={100000} step={100} suffix="Kč" />
+          </Field>
+          <ChoiceChips
+            aria-label="Rychlá volba částky"
+            value={String(amount)}
+            onChange={(v) => setAmount(Number(v))}
+            options={[500, 1000, 2000, 3000, 5000].map((n) => ({ value: String(n), label: formatMoney(n) }))}
+          />
+          <Field label="Platba" hint={qrReason ?? undefined}>
+            <PayMethodPicker methods={['card', 'cash', 'qr', 'transfer']} value={method} onChange={setMethod} disabled={qrReason ? ['qr'] : []} />
+          </Field>
+          <DescriptionList
+            termWidth={150}
+            items={[
+              { term: 'Dobití', detail: <span className="tnum">{formatMoney(amount)}</span> },
+              { term: 'Bonus', detail: <span className="tnum">{bonus > 0 ? formatSignedMoney(bonus) : 'bez bonusu'}</span> },
+              {
+                term: byQr ? 'Zůstatek po zaplacení' : 'Nový zůstatek',
+                detail: <strong className="tnum">{formatMoney(balance + (invalid ? 0 : amount + bonus))}</strong>,
+              },
             ]}
           />
-        </Field>
-        <DescriptionList
-          termWidth={150}
-          items={[
-            { term: 'Dobití', detail: <span className="tnum">{formatMoney(amount)}</span> },
-            { term: 'Bonus', detail: <span className="tnum">{bonus > 0 ? formatSignedMoney(bonus) : 'bez bonusu'}</span> },
-            { term: 'Nový zůstatek', detail: <strong className="tnum">{formatMoney(balance + (invalid ? 0 : amount + bonus))}</strong> },
-          ]}
-        />
-        {nextRule && (
-          <p className="cli-hint">
-            Při dobití od {formatMoney(nextRule.minTopup)} získá klient bonus {formatPercent(nextRule.pct)}.
-          </p>
-        )}
-      </form>
-    </Dialog>
+          {nextRule && (
+            <p className="cli-hint">
+              Při dobití od {formatMoney(nextRule.minTopup)} získá klient bonus {formatPercent(nextRule.pct)}.
+            </p>
+          )}
+          {byQr && !qrReason && (
+            <QrNote>Ukážete klientovi QR kód s částkou a variabilním symbolem. Kredit se připíše (i s bonusem), až potvrdíte přijetí platby.</QrNote>
+          )}
+        </form>
+      </Dialog>
+      <QrPaymentDialog open={!!qrDraft} draft={qrDraft ?? undefined} onClose={() => setQrDraft(null)} />
+    </>
   );
 }
 
@@ -523,18 +590,32 @@ export function SettleDebtDialog({ item, open, onClose }: { item: DebtItem | nul
   const run = useCommand();
   const formId = useId();
   const [method, setMethod] = useState<PayMethod>('card');
+  // QR dialog musí přežít zavření tohoto dialogu (rodič pak pošle item = null)
+  const [qrDraft, setQrDraft] = useState<QrPaymentDraft | null>(null);
 
   useEffect(() => {
     if (open) setMethod('card');
   }, [open]);
 
-  if (!item) return null;
+  const qrDialog = <QrPaymentDialog open={!!qrDraft} draft={qrDraft ?? undefined} onClose={() => setQrDraft(null)} />;
+  if (!item) return qrDialog;
   const credit = clientCredit(clinic, item.booking.clientId);
   const creditShort = method === 'credit' && credit < item.amount;
+  const qrReason = qrUnavailableReason(clinic.settings.payments);
+  const byQr = method === 'qr';
+  const qrBlocked = byQr && !!qrReason;
+  const existing = pendingRequestFor(clinic, item.booking.id, item.kind === 'fee' ? 'storno_fee' : 'booking');
 
   const submit = (e: FormEvent): void => {
     e.preventDefault();
-    if (creditShort) return;
+    if (creditShort || qrBlocked) return;
+    if (byQr) {
+      const draft = item.kind === 'fee' ? feeQrDraft(item.booking) : bookingQrDraft(clinic, item.booking);
+      if (!draft) return;
+      setQrDraft(draft);
+      onClose();
+      return;
+    }
     const r =
       item.kind === 'fee'
         ? run(payFee, { bookingId: item.booking.id, method }, { success: `Poplatek ${formatMoney(item.amount)} uhrazen` })
@@ -543,26 +624,42 @@ export function SettleDebtDialog({ item, open, onClose }: { item: DebtItem | nul
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={item.kind === 'fee' ? 'Uhradit poplatek' : 'Uhradit termín'}
-      description={item.label}
-      size="sm"
-      footer={<DialogFooter onClose={onClose} submitLabel={`Přijmout ${formatMoney(item.amount)}`} formId={formId} disabled={creditShort} />}
-    >
-      <form id={formId} className="cli-form" onSubmit={submit} noValidate>
-        <Field label="Způsob úhrady">
-          <Segmented aria-label="Způsob úhrady" value={method} onChange={setMethod} options={PAY_OPTIONS.map((o) => ({ ...o, disabled: o.value === 'credit' && credit <= 0 }))} />
-        </Field>
-        {method === 'credit' && (
-          <Callout tone={creditShort ? 'danger' : 'neutral'} icon="wallet">
-            Na kreditu je {formatMoney(credit)}
-            {creditShort ? ' – na úhradu nestačí.' : `, po úhradě zůstane ${formatMoney(credit - item.amount)}.`}
-          </Callout>
-        )}
-      </form>
-    </Dialog>
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title={item.kind === 'fee' ? 'Uhradit poplatek' : 'Uhradit termín'}
+        description={item.label}
+        footer={
+          <DialogFooter onClose={onClose} submitLabel={byQr ? `Zobrazit QR · ${formatMoney(item.amount)}` : `Přijmout ${formatMoney(item.amount)}`} formId={formId} disabled={creditShort || qrBlocked} />
+        }
+      >
+        <form id={formId} className="cli-form" onSubmit={submit} noValidate>
+          <Field label="Způsob úhrady" hint={qrReason ?? undefined}>
+            <PayMethodPicker
+              methods={['card', 'cash', 'qr', 'transfer', 'credit']}
+              value={method}
+              onChange={setMethod}
+              disabled={[...(credit <= 0 ? (['credit'] as const) : []), ...(qrReason ? (['qr'] as const) : [])]}
+            />
+          </Field>
+          {method === 'credit' && (
+            <Callout tone={creditShort ? 'danger' : 'neutral'} icon="wallet">
+              Na kreditu je {formatMoney(credit)}
+              {creditShort ? ' – na úhradu nestačí.' : `, po úhradě zůstane ${formatMoney(credit - item.amount)}.`}
+            </Callout>
+          )}
+          {byQr && !qrReason && (
+            <QrNote>
+              {existing
+                ? `Klient už platební údaje má (VS ${existing.vs}) – ukážete mu stejný QR kód. Úhrada se zapíše, až potvrdíte přijetí platby.`
+                : 'Ukážete klientovi QR kód s částkou a variabilním symbolem. Úhrada se zapíše, až potvrdíte přijetí platby.'}
+            </QrNote>
+          )}
+        </form>
+      </Dialog>
+      {qrDialog}
+    </>
   );
 }
 

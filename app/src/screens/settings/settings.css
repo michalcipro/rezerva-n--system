@@ -415,6 +415,13 @@
   max-width: 100%;
 }
 .set-row__control > .field__error { max-width: 340px; }
+.set-row__status {
+  max-width: 340px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+/* prázdná oblast zůstává v DOM kvůli aria-live, ale nesmí přidat mezeru */
+.set-row__status:empty { margin-top: calc(-1 * var(--space-1-5)); }
 .set-row--wide { grid-template-columns: minmax(0, 1fr); }
 .set-row--wide .set-row__control { align-items: stretch; }
 .set-row--switch { display: block; }
