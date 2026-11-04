@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import type { ClientConsents, ClientPackage, LedgerEntry, Message } from '../domain/types';
+import type { ClientConsents, ClientPackage, Id, LedgerEntry, Message } from '../domain/types';
 import { ClientAvatar } from '../components/domain';
-import { creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient } from '../engine/commands';
+import { createPaymentRequest, creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient } from '../engine/commands';
 import {
   countLabel,
   formatDate,
@@ -35,9 +35,10 @@ import {
 } from '../ui';
 import { usePortal, type AccountView } from './context';
 import { BlockedNotice } from './HomeScreen';
-import { clientMessages, MONEY_LABEL, packageSavings, packageServicesLabel, zPrep } from './logic';
+import { clientMessages, clientPendingRequests, MONEY_LABEL, packageSavings, packageServicesLabel, QR_ICON, qrAvailable, zPrep } from './logic';
 import { PolicyList, SimulatedPaymentNote, useSimulatedPayment } from './payment';
 import { ListRow, Screen, SectionTitle, Sheet } from './parts';
+import { PendingPaymentsSection, QR_HINT, QrStep, useQrStep } from './QrPay';
 import { markInboxSeen } from './storage';
 
 export function AccountScreen(): JSX.Element {
@@ -73,8 +74,13 @@ export function AccountScreen(): JSX.Element {
 function AccountRoot(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
-  const { client, setAccountView } = usePortal();
+  const { client, setAccountView, accountAction, clearAccountAction } = usePortal();
   const today = dateOf(now);
+  // z domovské obrazovky „Zobrazit QR“ → rovnou na čekající platby
+  const [focusPayments] = useState(accountAction === 'platby');
+  useEffect(() => {
+    if (accountAction === 'platby') clearAccountAction();
+  }, []);
   const stats = useMemo(() => {
     const pkgs = packagesOfClient(clinic, client.id).map((p) => ({ p, u: packageUsage(clinic, p, today) }));
     const active = pkgs.filter(({ u }) => !u.expired && u.free + u.reserved > 0);
@@ -106,6 +112,8 @@ function AccountRoot(): JSX.Element {
 
       {client.blocked && <BlockedNotice />}
 
+      <PendingPaymentsSection title="Čekající platby" focusOnMount={focusPayments} />
+
       <div className="por-quick">
         <button type="button" className="por-tile por-tile--button" onClick={() => go('kredit')}>
           <span className="por-tile__label">Kredit</span>
@@ -131,7 +139,13 @@ function AccountRoot(): JSX.Element {
           <ListRow icon="ticket" label="Permanentky" hint="Aktivní i prošlé, nákup online" onClick={() => go('permanentky')} />
         </div>
         <div role="listitem">
-          <ListRow icon="wallet" label="Kredit a platby" hint="Zůstatek, pohyby, dobití kartou" value={formatMoney(stats.credit)} onClick={() => go('kredit')} />
+          <ListRow
+            icon="wallet"
+            label="Kredit a platby"
+            hint={qrAvailable(clinic) ? 'Zůstatek, pohyby, dobití kartou nebo QR' : 'Zůstatek, pohyby, dobití kartou'}
+            value={formatMoney(stats.credit)}
+            onClick={() => go('kredit')}
+          />
         </div>
         <div role="listitem">
           <ListRow
@@ -344,6 +358,7 @@ function PackagesView({ onBack }: { onBack: () => void }): JSX.Element {
         ) : undefined
       }
     >
+      <PendingPaymentsSection title="Čeká na zaplacení" purpose="package" />
       {lists.active.length ? (
         lists.active.map(({ p }) => <PackageCard key={p.id} pkg={p} />)
       ) : (
@@ -430,6 +445,8 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
   );
 }
 
+type PackagePay = 'online' | 'credit' | 'qr';
+
 function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
@@ -437,20 +454,43 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const { client } = usePortal();
   const templates = useMemo(() => clinic.packageTemplates.filter((t) => t.active).sort((a, b) => a.order - b.order), [clinic.packageTemplates]);
   const [tplId, setTplId] = useState<string | null>(templates[0]?.id ?? null);
-  const [method, setMethod] = useState<'online' | 'credit'>('online');
+  const [method, setMethod] = useState<PackagePay>('online');
+  const [qrRequestId, setQrRequestId] = useState<Id | null>(null);
   const pay = useSimulatedPayment();
   const tpl = templates.find((t) => t.id === tplId);
   const credit = clientCredit(clinic, client.id);
   const enoughCredit = !!tpl && credit >= tpl.priceCzk;
-  const effMethod = method === 'credit' && !enoughCredit ? 'online' : method;
+  const qrOn = qrAvailable(clinic);
+  const effMethod: PackagePay = (method === 'credit' && !enoughCredit) || (method === 'qr' && !qrOn) ? 'online' : method;
+  // na stejnou permanentku už může QR platba čekat – ukážeme ji místo nové
+  const waiting = tpl ? clientPendingRequests(clinic, client.id, 'package').find((r) => r.packageTemplateId === tpl.id) : undefined;
 
   const buy = (): void => {
     if (!tpl) return;
-    pay.run(effMethod === 'online', () => {
-      const r = run(sellPackage, { clientId: client.id, templateId: tpl.id, paidBy: effMethod }, { success: `Permanentka ${tpl.name} je aktivní` });
+    if (effMethod === 'qr') {
+      if (waiting) {
+        setQrRequestId(waiting.id);
+        return;
+      }
+      const r = run(createPaymentRequest, { clientId: client.id, purpose: 'package', packageTemplateId: tpl.id }, { quiet: true });
+      if (r.ok) setQrRequestId(r.value.requestId);
+      return;
+    }
+    const paidBy = effMethod;
+    pay.run(paidBy === 'online', () => {
+      const r = run(sellPackage, { clientId: client.id, templateId: tpl.id, paidBy }, { success: `Permanentka ${tpl.name} je aktivní` });
       if (r.ok) onClose();
     });
   };
+
+  const qrStep = useQrStep(qrRequestId, 'Permanentka je aktivní', onClose);
+  if (qrStep && qrRequestId) {
+    return (
+      <Sheet open onClose={onClose} title={qrStep.title} footer={qrStep.footer}>
+        <QrStep requestId={qrRequestId} hint={QR_HINT.package} />
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet
@@ -459,7 +499,15 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
       title="Koupit permanentku"
       footer={
         <Button variant="primary" size="lg" full loading={pay.paying} disabled={!tpl} onClick={buy}>
-          {pay.paying ? 'Probíhá platba…' : tpl ? `Zaplatit ${formatMoney(tpl.priceCzk)}${effMethod === 'credit' ? ' z kreditu' : ''}` : 'Vyberte permanentku'}
+          {pay.paying
+            ? 'Probíhá platba…'
+            : !tpl
+              ? 'Vyberte permanentku'
+              : effMethod === 'qr'
+                ? waiting
+                  ? 'Zobrazit čekající QR platbu'
+                  : `Zaplatit ${formatMoney(tpl.priceCzk)} QR kódem`
+                : `Zaplatit ${formatMoney(tpl.priceCzk)}${effMethod === 'credit' ? ' z kreditu' : ''}`}
         </Button>
       }
     >
@@ -479,12 +527,21 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
             };
           })}
         />
-        <RadioCards<'online' | 'credit'>
+        <RadioCards<PackagePay>
           legend="Platba"
           value={effMethod}
           onChange={setMethod}
           options={[
             { value: 'online', title: 'Kartou online', description: 'Platba proběhne hned (v ukázce jen simulace).' },
+            ...(qrOn
+              ? [
+                  {
+                    value: 'qr' as const,
+                    title: 'QR platba',
+                    description: 'Převodem z bankovní aplikace – naskenujete QR kód. Permanentka se aktivuje po připsání platby.',
+                  },
+                ]
+              : []),
             {
               value: 'credit',
               title: 'Z kreditu',
@@ -498,10 +555,17 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
           ]}
         />
         {effMethod === 'online' && tpl && <SimulatedPaymentNote amount={formatMoney(tpl.priceCzk)} />}
+        {effMethod === 'qr' && waiting && (
+          <Callout tone="info" icon={QR_ICON}>
+            Na tuto permanentku už čeká QR platba (VS {waiting.vs}). Ukážeme vám ji znovu, ať neplatíte dvakrát.
+          </Callout>
+        )}
         {tpl && (
           <p className="por-note">
-            Permanentka začne platit hned a platí do {formatDate(addDays(dateOf(now), tpl.validityDays))}. Vstupy využijete na:{' '}
-            {packageServicesLabel(clinic, tpl.serviceIds)}.
+            {effMethod === 'qr'
+              ? `Permanentka začne platit po připsání platby a platí ${countLabel(tpl.validityDays, ['den', 'dny', 'dní'])}.`
+              : `Permanentka začne platit hned a platí do ${formatDate(addDays(dateOf(now), tpl.validityDays))}.`}{' '}
+            Vstupy využijete na: {packageServicesLabel(clinic, tpl.serviceIds)}.
           </p>
         )}
       </div>
@@ -583,6 +647,8 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
         </span>
       </Card>
 
+      <PendingPaymentsSection title="Čeká na zaplacení" purpose="credit_topup" />
+
       <section className="por-stack por-stack--tight" aria-labelledby="por-ledger">
         <SectionTitle id="por-ledger">Pohyby kreditu</SectionTitle>
         {ledger.length ? (
@@ -623,7 +689,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
             {payments.map((p) => (
               <div key={p.id} className="por-ledger">
                 <span className="por-ledger__icon" aria-hidden="true">
-                  <Icon name={p.method === 'cash' ? 'cash' : 'card'} size={16} />
+                  <Icon name={p.method === 'cash' ? 'cash' : p.method === 'qr' ? QR_ICON : 'card'} size={16} />
                 </span>
                 <span className="por-ledger__body">
                   <span className="por-ledger__label">{PURPOSE_LABEL[p.purpose] ?? 'Platba'}</span>
@@ -649,7 +715,11 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const run = useCommand();
   const { client } = usePortal();
   const [amount, setAmount] = useState<number>(1000);
+  const [method, setMethod] = useState<'online' | 'qr'>('online');
+  const [qrRequestId, setQrRequestId] = useState<Id | null>(null);
   const pay = useSimulatedPayment();
+  const qrOn = qrAvailable(clinic);
+  const effMethod = method === 'qr' && qrOn ? 'qr' : 'online';
   const valid = Number.isFinite(amount) && amount >= 100 && amount <= 100000;
   const bonus = valid ? creditBonusFor(clinic, amount) : 0;
   const rules = [...clinic.settings.creditBonus].filter((r) => r.pct > 0).sort((a, b) => a.minTopup - b.minTopup);
@@ -658,11 +728,30 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
 
   const submit = (): void => {
     if (!valid) return;
+    if (effMethod === 'qr') {
+      const r = run(createPaymentRequest, { clientId: client.id, purpose: 'credit_topup', amount }, { quiet: true });
+      if (r.ok) setQrRequestId(r.value.requestId);
+      return;
+    }
     pay.run(true, () => {
       const r = run(topUpCredit, { clientId: client.id, amount, method: 'online' }, { success: `Kredit dobit o ${formatMoney(amount)}` });
       if (r.ok) onClose();
     });
   };
+
+  const qrStep = useQrStep(qrRequestId, 'Kredit je dobitý', onClose);
+  if (qrStep && qrRequestId) {
+    const requested = clinic.paymentRequests.find((r) => r.id === qrRequestId);
+    const requestBonus = requested ? creditBonusFor(clinic, requested.amount) : 0;
+    return (
+      <Sheet open onClose={onClose} title={qrStep.title} footer={qrStep.footer}>
+        <QrStep
+          requestId={qrRequestId}
+          hint={requestBonus > 0 ? `Kredit se připíše po připsání platby, i s bonusem ${formatMoney(requestBonus)}.` : QR_HINT.credit_topup}
+        />
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet
@@ -671,7 +760,7 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
       title="Dobít kredit"
       footer={
         <Button variant="primary" size="lg" full loading={pay.paying} disabled={!valid} onClick={submit}>
-          {pay.paying ? 'Probíhá platba…' : `Zaplatit ${formatMoney(valid ? amount : 0)}`}
+          {pay.paying ? 'Probíhá platba…' : `Zaplatit ${formatMoney(valid ? amount : 0)}${effMethod === 'qr' ? ' QR kódem' : ''}`}
         </Button>
       }
     >
@@ -709,7 +798,18 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
             Od {formatMoney(nextRule.minTopup)} je bonus {formatPercent(nextRule.pct)}.
           </p>
         )}
-        <SimulatedPaymentNote />
+        {qrOn && (
+          <RadioCards<'online' | 'qr'>
+            legend="Platba"
+            value={effMethod}
+            onChange={setMethod}
+            options={[
+              { value: 'online', title: 'Kartou online', description: 'Kredit se připíše hned (v ukázce jen simulace).' },
+              { value: 'qr', title: 'QR platba', description: 'Převodem z bankovní aplikace – naskenujete QR kód. Kredit se připíše po připsání platby.' },
+            ]}
+          />
+        )}
+        {effMethod === 'online' && <SimulatedPaymentNote />}
       </div>
     </Sheet>
   );

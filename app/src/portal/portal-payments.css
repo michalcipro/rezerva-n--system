@@ -1,0 +1,461 @@
+/*
+ * Klientský portál – QR platby (prefixy por-qr…, por-pp…).
+ * Jen tokeny – světlý i tmavý motiv. QR kód sám zůstává tmavý na bílé (kvůli čtečkám bank).
+ */
+
+/* Sdílená karta QR Platby je v portálu vždy úzká: QR nahoře, údaje pod ním
+   (i na počítači, kde je portál v rámu telefonu a okna mají 420 px). */
+.por-device .qrpay,
+.por-sheet .qrpay {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.por-device .qrpay__code,
+.por-sheet .qrpay__code {
+  justify-self: center;
+}
+
+/* =========================================================================
+   QR karta výzvy
+   ========================================================================= */
+.por-qr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+/* Platební údaje: kopírovací tlačítka (36 px) nesmí rozhodit řádky – term i hodnota na střed */
+.por-qr .dl__row {
+  align-items: center;
+  min-height: 36px;
+}
+.por-qr .dl__term {
+  flex-basis: 64px;
+}
+.por-qr .qrpay__copy .btn--icon {
+  --btn-h: 36px;
+  flex: none;
+}
+.por-qr .qrpay__hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  line-height: 18px;
+}
+.por-qr__hint {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.por-qr__tip {
+  font-size: var(--text-sm);
+  line-height: 17px;
+  color: var(--text-muted);
+}
+.por-qr .qrpay__actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+.por-qr__sent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+}
+.por-qr__sent:focus {
+  outline: none;
+}
+.por-qr__sent-text {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.por-qr-done {
+  align-self: stretch;
+}
+
+/* Testovací simulace – zřetelně oddělená od skutečných akcí */
+.por-qrtest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px dashed var(--border-dashed);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.por-qrtest__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--warning-fg);
+}
+.por-qrtest__note {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+
+/* =========================================================================
+   Panel „Čeká na QR platbu“ (detail termínu)
+   ========================================================================= */
+.por-qrp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3-5);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+.por-qrp.is-overdue {
+  border-color: var(--danger-border);
+}
+.por-qrp__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.por-qrp__icon,
+.por-pp__icon,
+.por-qrnotice__icon,
+.por-qroffer__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+}
+.por-qrp__icon {
+  background: var(--warning-soft);
+  color: var(--warning-fg);
+}
+.por-qrp.is-overdue .por-qrp__icon {
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+.por-qrp__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.por-qrp__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+}
+.por-qrp__meta {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.por-qrp__meta.is-overdue {
+  color: var(--danger-fg);
+  font-weight: var(--weight-semibold);
+}
+.por-qrp__amount {
+  flex: none;
+  font-size: var(--text-lg);
+  line-height: 22px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.por-qrp__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.por-qrp__toggle:hover {
+  border-color: var(--border-strong);
+}
+.por-qrp__toggle > .icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+/* QR uvnitř panelu nebo položky seznamu: bez vlastního rámečku; částku, stav a popis
+   už ukazuje hlavička panelu / položky */
+.por-qrp .por-qr,
+.por-pp .por-qr {
+  padding: 0;
+  border: 0;
+}
+.por-qrp .qrpay__head,
+.por-qrp .qrpay__label,
+.por-pp .qrpay__head,
+.por-pp .qrpay__label {
+  display: none;
+}
+.por-qrp__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   Čekající platby (účet)
+   ========================================================================= */
+.por-pps {
+  scroll-margin-top: 72px;
+}
+.por-pps .por-sect__title:focus {
+  outline: none;
+}
+.por-pps__count {
+  letter-spacing: 0;
+}
+.por-pplist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.por-pp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-3-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.por-pp.is-overdue {
+  border-color: var(--danger-border);
+}
+.por-pp.is-paid {
+  border-color: var(--success-border);
+  background: var(--success-soft);
+}
+.por-pp > .por-state {
+  align-self: flex-start;
+}
+.por-pp__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.por-pp__icon {
+  background: var(--accent-subtle);
+  color: var(--accent-fg);
+}
+.por-pp.is-overdue .por-pp__icon {
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+.por-pp.is-paid .por-pp__icon {
+  background: var(--surface);
+  color: var(--success-fg);
+}
+.por-pp__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.por-pp__eyebrow {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.por-pp.is-paid .por-pp__eyebrow {
+  color: var(--success-fg);
+}
+.por-pp__title {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.por-pp__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+.por-pp__overdue {
+  color: var(--danger-fg);
+  font-weight: var(--weight-semibold);
+}
+.por-pp__amount {
+  flex: none;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.por-pp__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* =========================================================================
+   Domů: „Čeká na zaplacení“
+   ========================================================================= */
+.por-qrnotice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2-5) var(--space-3);
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-xl);
+  background: var(--warning-soft);
+}
+.por-qrnotice.is-overdue {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+.por-qrnotice__icon {
+  background: var(--surface);
+  color: var(--warning-fg);
+}
+.por-qrnotice.is-overdue .por-qrnotice__icon {
+  color: var(--danger-fg);
+}
+.por-qrnotice__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+.por-qrnotice__title {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.por-qrnotice__text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.por-qrnotice__btn.btn {
+  grid-column: 2;
+  justify-self: start;
+}
+
+/* =========================================================================
+   Detail termínu: zaplatit předem QR kódem
+   ========================================================================= */
+.por-qroffer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2-5) var(--space-3);
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px dashed var(--accent-border);
+  border-radius: var(--radius-xl);
+  background: var(--accent-subtle);
+}
+.por-qroffer__icon {
+  background: var(--surface);
+  color: var(--accent-fg);
+}
+.por-qroffer__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+.por-qroffer__title {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+}
+.por-qroffer__text {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}
+.por-qroffer > .btn {
+  grid-column: 2;
+  justify-self: start;
+}
+
+/* Domů: víc poplatků k úhradě – každý s tlačítkem */
+.por-feeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-1) 0;
+}
+.por-feeline > .btn {
+  flex: none;
+}
+
+/* Detail termínu: barevný podřádek platby */
+.por-dd__sub--warning {
+  color: var(--warning-fg);
+}
+.por-dd__sub--danger {
+  color: var(--danger-fg);
+  font-weight: var(--weight-semibold);
+}
+.por-dd__sub--success {
+  color: var(--success-fg);
+}
+
+/* Štítky v řádku termínu (storno + platba) */
+.por-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  max-width: 100%;
+}
+
+/* Sheety s QR platbou (permanentka, kredit) */
+.por-qrstep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.por-qrstep:focus {
+  outline: none;
+}
+.por-qrstep__lead {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  color: var(--text-secondary);
+}

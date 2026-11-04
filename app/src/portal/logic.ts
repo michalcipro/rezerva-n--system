@@ -12,12 +12,15 @@ import type {
   Message,
   PackageTemplate,
   PaymentMethod,
+  PaymentPurpose,
+  PaymentRequest,
   Service,
   Settings,
   Therapist,
   WaitlistEntry,
 } from '../domain/types';
 import { availableSlots, workingIntervals, type Slot } from '../engine/availability';
+import { qrReady } from '../engine/qr';
 import {
   countLabel,
   formatDate,
@@ -32,6 +35,7 @@ import {
   MONTH_NOMINATIVE,
 } from '../engine/format';
 import type { IconName } from '../ui';
+import { paymentLabel } from '../engine/messages';
 import { evaluateCancellation, type CancellationEvaluation } from '../engine/policy';
 import {
   bookingsOfClient,
@@ -51,7 +55,7 @@ import {
   therapistName,
   type ExcuseStatus,
 } from '../engine/selectors';
-import { addDays, addMinutes, dateOf, daysBetween, diffMinutes, minutesOf, timeOf } from '../engine/time';
+import { addDays, addHours, addMinutes, dateOf, daysBetween, diffMinutes, minStr, minutesOf, timeOf } from '../engine/time';
 
 /* ------------------------------------------------------------------ */
 /* Oslovení                                                            */
@@ -379,6 +383,20 @@ export function paymentOptions(
     total: `K úhradě kartou ${formatMoney(price)}`,
     icon: 'card',
   });
+  if (qrAvailable(s) && price > 0) {
+    out.push({
+      key: 'qr',
+      payment: { method: 'qr' },
+      title: 'QR platba předem',
+      description: 'Převodem z bankovní aplikace – naskenujete QR kód. Termín je rezervovaný hned, platba se potvrdí po připsání.',
+      aside: formatMoney(price),
+      disabled: false,
+      amount: price,
+      summary: `QR platbou předem (${formatMoney(price)})`,
+      total: `QR platbou ${formatMoney(price)} · splatné do ${formatDateTimeShort(qrDueAt(s, q.start, q.now))}`,
+      icon: QR_ICON,
+    });
+  }
   out.push({
     key: 'onsite',
     payment: { method: 'onsite' },
@@ -392,6 +410,99 @@ export function paymentOptions(
     icon: 'cash',
   });
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* QR platba (převod naskenovaným QR kódem)                            */
+/* ------------------------------------------------------------------ */
+
+/** Ikona QR platby (čtverce připomínají QR kód). */
+export const QR_ICON: IconName = 'grid';
+
+/** Nabízí klinika QR platbu (zapnutá a s platným účtem)? */
+export function qrAvailable(s: ClinicState): boolean {
+  return qrReady(s.settings.payments);
+}
+
+/** Splatnost QR platby, jak ji určí engine: za `qrDueHours`, u termínu nejpozději jeho začátek. */
+export function qrDueAt(s: ClinicState, start: LocalDateTime | null, now: LocalDateTime): LocalDateTime {
+  const due = addHours(now, s.settings.payments.qrDueHours);
+  return start && start > now ? minStr(due, start) : due;
+}
+
+/** „1 platba“, „2 platby“, „5 plateb“. */
+export function paymentsCount(n: number): string {
+  return countLabel(n, ['platba', 'platby', 'plateb']);
+}
+
+/** Čekající QR platby klienta (volitelně jen jednoho účelu), nejbližší splatnost první. */
+export function clientPendingRequests(s: ClinicState, clientId: Id, purpose?: PaymentPurpose): PaymentRequest[] {
+  return s.paymentRequests
+    .filter((r) => r.status === 'pending' && r.clientId === clientId && (!purpose || r.purpose === purpose))
+    .sort((a, b) => (a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0));
+}
+
+/** Nejnovější výzva k termínu (v jakémkoli stavu). */
+export function latestRequestFor(s: ClinicState, bookingId: Id, purpose: 'booking' | 'storno_fee'): PaymentRequest | undefined {
+  let hit: PaymentRequest | undefined;
+  for (const r of s.paymentRequests) if (r.bookingId === bookingId && r.purpose === purpose && (!hit || r.at >= hit.at)) hit = r;
+  return hit;
+}
+
+export const isOverdue = (r: Pick<PaymentRequest, 'status' | 'dueAt'>, now: LocalDateTime): boolean => r.status === 'pending' && r.dueAt < now;
+
+/** Potvrzený termín, který čeká na QR platbu. */
+export function awaitsQr(b: Booking): boolean {
+  return b.payment.method === 'qr' && !b.payment.paid && (b.status === 'confirmed' || b.status === 'completed');
+}
+
+/** Termín zaplacený QR platbou (předem, nebo QR kódem na recepci). */
+export function paidByQr(b: Booking): boolean {
+  return b.payment.paid && (b.payment.method === 'qr' || b.payment.settledBy === 'qr');
+}
+
+/** Lze nezaplacený termín na místě zaplatit předem QR kódem? */
+export function canPayAheadByQr(s: ClinicState, b: Booking, now: LocalDateTime): boolean {
+  return (
+    qrAvailable(s) &&
+    b.status === 'confirmed' &&
+    b.start > now &&
+    b.payment.method === 'onsite' &&
+    !b.payment.paid &&
+    b.price - b.payment.paidAmount > 0
+  );
+}
+
+export interface PaymentInfo {
+  label: string;
+  sub?: string;
+  tone?: 'success' | 'warning' | 'danger';
+}
+
+/** Platba termínu pro klienta – s rozlišením QR platby čekající / zaplacené. */
+export function bookingPaymentInfo(s: ClinicState, b: Booking, now: LocalDateTime): PaymentInfo {
+  const p = b.payment;
+  if (paidByQr(b)) {
+    return {
+      label: 'Zaplaceno QR platbou',
+      sub: `${formatMoney(p.paidAmount || b.price)}${p.paidAt ? ` · ${formatDateTimeShort(p.paidAt)}` : ''}`,
+      tone: 'success',
+    };
+  }
+  if (p.method === 'qr') {
+    const label = `QR platba předem (${formatMoney(b.price)})`;
+    if (!awaitsQr(b)) return { label, sub: 'zrušena spolu s termínem' };
+    const req = s.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === b.id && r.purpose === 'booking');
+    if (!req) return { label, sub: 'čeká na připsání', tone: 'warning' };
+    if (isOverdue(req, now)) return { label, sub: `po splatnosti (${formatDateTimeShort(req.dueAt)})`, tone: 'danger' };
+    if (req.clientNotifiedAt) return { label, sub: 'oznámili jste odeslání · čeká na připsání', tone: 'warning' };
+    return { label, sub: `čeká na připsání · splatné do ${formatDateTimeShort(req.dueAt)}`, tone: 'warning' };
+  }
+  if (p.method === 'onsite') {
+    if (p.paid) return { label: 'Zaplaceno na místě', sub: `${formatMoney(p.paidAmount || b.price)}${p.settledBy ? ' ' + (MONEY_LABEL[p.settledBy] ?? '') : ''}`.trim() };
+    return { label: `na místě (${formatMoney(b.price)})`, sub: b.status === 'confirmed' ? 'kartou nebo hotově na recepci' : undefined };
+  }
+  return { label: paymentLabel(s, b) };
 }
 
 /** „zůstanou 3 vstupy“, „zůstane 5 vstupů“, „poslední vstup“. */
@@ -454,7 +565,8 @@ export function draftBooking(
       method,
       packageId: q.payment.packageId ?? makeup?.packageId,
       makeupId: q.payment.makeupId,
-      paid: method !== 'onsite',
+      // na místě i QR platba předem: dokud peníze nedorazí, je termín nezaplacený
+      paid: method !== 'onsite' && method !== 'qr',
       paidAmount,
     },
     note: '',

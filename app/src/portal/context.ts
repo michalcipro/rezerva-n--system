@@ -5,8 +5,11 @@ import type { PortalRoute } from '../store/session';
 /** Podstránky účtu (portál má v relaci jen route „ucet“, podstránky drží sám). */
 export type AccountView = 'root' | 'udaje' | 'permanentky' | 'kredit' | 'zpravy' | 'souhlasy' | 'podminky';
 
-/** Akce, kterou má účet po otevření rovnou spustit (např. dobití kreditu z domovské obrazovky). */
-export type AccountAction = 'topup' | 'buy';
+/**
+ * Akce, kterou má účet po otevření rovnou spustit (např. dobití kreditu z domovské obrazovky);
+ * `platby` = posunout na čekající QR platby.
+ */
+export type AccountAction = 'topup' | 'buy' | 'platby';
 
 export interface PortalContextValue {
   client: Client;

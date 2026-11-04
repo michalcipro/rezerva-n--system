@@ -52,6 +52,7 @@ import { usePortal } from './context';
 import {
   activeTherapistsFor,
   bookableServices,
+  bookingPaymentInfo,
   bookingTitle,
   calendarText,
   dayInfo,
@@ -59,10 +60,14 @@ import {
   draftBooking,
   excuseSentence,
   groupByDayPart,
+  latestRequestFor,
   monthRangeLabel,
   nearestFreeDate,
+  paidByQr,
   paymentOptions,
   placeLabel,
+  qrAvailable,
+  qrDueAt,
   relativeDay,
   slotsFor,
   termsInfo,
@@ -74,6 +79,7 @@ import {
   type DayQuery,
 } from './logic';
 import { PaymentPicker, PolicySheet, SimulatedPaymentNote, TermsBox, useSimulatedPayment } from './payment';
+import { QrChoiceNote, QrRequestCard } from './QrPay';
 import { CopyBlock, DateBadge, MetaLine, ResultHero, Screen, SectionTitle, Sheet, StateChip, StepProgress } from './parts';
 
 type Step = 'sluzba' | 'terapeut' | 'termin' | 'souhrn' | 'hotovo';
@@ -357,7 +363,15 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           <span className="por-sum__when tnum">{slot ? `${formatDayShort(slot.start)} · ${formatTimeRange(slot.start, slot.end)}` : 'Vyberte čas'}</span>
           {slotTherapist && <span className="por-sum__who">{therapistName(slotTherapist)}</span>}
         </div>
-        {slot && original && <span className="por-sum__line">Platba zůstává: {paymentLabel(clinic, original)}</span>}
+        {slot && original && (
+          <span className="por-sum__line">
+            {flow.useExcuse
+              ? isPrepaid(original)
+                ? 'Platba: náhrada za omluvený termín'
+                : `Platba: na místě (${formatMoney(original.price)})`
+              : `Platba zůstává: ${paymentLabel(clinic, original)}`}
+          </span>
+        )}
         {slot && payment && <span className="por-sum__line">Platba: {payment.summary}</span>}
         <span className="por-sum__policy">
           <Icon name="clock" size={14} />
@@ -430,6 +444,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
     ignoreBookingId: original?.id,
   });
   const online = payment?.payment.method === 'online';
+  const qr = payment?.payment.method === 'qr';
   const canConfirm = check.ok && (original ? true : !!payment && agree);
   const ctaLabel = original
     ? flow.useExcuse
@@ -437,7 +452,9 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
       : 'Přesunout termín'
     : online && payment
       ? `Zaplatit ${formatMoney(payment.amount)} a rezervovat`
-      : 'Potvrdit rezervaci';
+      : qr
+        ? 'Rezervovat a zobrazit QR'
+        : 'Potvrdit rezervaci';
 
   const confirm = (): void => {
     if (original) {
@@ -471,7 +488,9 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
 
   const totalLine = original
     ? flow.useExcuse
-      ? 'Nový termín uhradí náhrada za omluvený termín'
+      ? isPrepaid(original)
+        ? 'Nový termín uhradí náhrada za omluvený termín'
+        : `Nový termín zaplatíte na místě (${formatMoney(original.price)})`
       : `Platba zůstává: ${paymentLabel(clinic, original)}`
     : payment
       ? payment.total
@@ -504,6 +523,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
         <>
           <PaymentPicker options={payOpts} value={effectivePayKey} onChange={setPayKey} />
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
+          {qr && payment && <QrChoiceNote amount={payment.amount} dueAt={qrDueAt(clinic, slot.start, now)} />}
           <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
             <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. bolest kolene po běhu" />
           </Field>
@@ -530,10 +550,15 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   );
 }
 
-/** Nový termín po přesunu – po lhůtě se platí náhradou za omluvený termín. */
+/** Předplacený termín (permanentka nebo zaplaceno) – po omluvě vzniká náhrada. */
+function isPrepaid(b: Booking): boolean {
+  return b.payment.method === 'package' || (b.payment.paid && b.payment.paidAmount > 0);
+}
+
+/** Nový termín po přesunu – po lhůtě se předplacený platí náhradou za omluvený termín, jinak na místě. */
 function rescheduledDraft(original: Booking, slot: Slot, useExcuse: boolean): Booking {
   const p = original.payment;
-  const prepaid = p.method === 'package' || (p.paid && p.paidAmount > 0);
+  const prepaid = isPrepaid(original);
   return {
     ...original,
     start: slot.start,
@@ -604,10 +629,14 @@ function RescheduleNote({ flow }: { flow: Flow }): JSX.Element {
   const now = useNow();
   if (!flow.original) return <></>;
   const ev = evaluateCancellation(clinic, flow.original, now, 'client');
+  const prepaid = isPrepaid(flow.original);
+  const qrPending = flow.original.payment.method === 'qr' && !flow.original.payment.paid;
   return flow.useExcuse ? (
     <Callout tone="warning" title="Přesun s omluvenkou">
-      Bezplatná lhůta uplynula, proto se původní termín omluví ({excuseSentence(clinic, ev.excuse)}). Nový termín uhradíte náhradou za
-      omluvený termín{flow.original.payment.method === 'package' ? ' z permanentky' : ''}.
+      Bezplatná lhůta uplynula, proto se původní termín omluví ({excuseSentence(clinic, ev.excuse)}).{' '}
+      {prepaid
+        ? `Nový termín uhradíte náhradou za omluvený termín${flow.original.payment.method === 'package' ? ' z permanentky' : ''}.`
+        : `Nový termín zaplatíte na místě${qrAvailable(clinic) ? ', nebo předem QR kódem v jeho detailu' : ''}.${qrPending ? ' Čekající QR platbu k původnímu termínu zrušíme.' : ''}`}
     </Callout>
   ) : (
     <Callout tone="success" icon="checkCircle" title="Přesun zdarma">
@@ -1334,6 +1363,9 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
   const t = getTherapist(clinic, b.therapistId);
   const emailed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'email');
   const smsed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'sms');
+  // QR platba předem: výzva vznikla s rezervací (u přesunu ji ukazuje detail termínu)
+  const qrRequest = !rescheduledFrom && (b.payment.method === 'qr' || paidByQr(b)) ? latestRequestFor(clinic, b.id, 'booking') : undefined;
+  const pay = bookingPaymentInfo(clinic, b, now);
   return (
     <Screen
       title={rescheduledFrom ? 'Přesun termínu' : 'Rezervace'}
@@ -1353,6 +1385,12 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
           {bookingTitle(clinic, b)} · {whenLabel(b.start, now)}
         </span>
       </ResultHero>
+      {qrRequest && qrRequest.status !== 'cancelled' && (
+        <section className="por-stack por-stack--tight" aria-labelledby="por-done-qr">
+          <SectionTitle id="por-done-qr">{qrRequest.status === 'paid' ? 'Platba' : 'Zaplaťte QR kódem'}</SectionTitle>
+          <QrRequestCard requestId={qrRequest.id} />
+        </section>
+      )}
       <Card padding="md" className="por-dlcard">
         <DescriptionList
           termWidth={92}
@@ -1360,7 +1398,15 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
             { term: 'Kdy', detail: <span className="tnum">{`${formatDateLong(b.start, { capital: true })}, ${formatTimeRange(b.start, b.end)}`}</span> },
             { term: b.sessionId ? 'Lektor' : 'Terapeut', detail: therapistName(t) },
             { term: 'Místo', detail: placeLabel(clinic, b) || '—' },
-            { term: 'Platba', detail: paymentLabel(clinic, b) },
+            {
+              term: 'Platba',
+              detail: (
+                <span className="por-dd">
+                  <span>{pay.label}</span>
+                  {pay.sub && <span className={cx('por-dd__sub', pay.tone && `por-dd__sub--${pay.tone}`)}>{pay.sub}</span>}
+                </span>
+              ),
+            },
             ...(rescheduledFrom ? [{ term: 'Původně', detail: <span className="por-strike tnum">{`${formatDayShort(rescheduledFrom.start)} ${formatTime(rescheduledFrom.start)}`}</span> }] : []),
           ]}
         />
