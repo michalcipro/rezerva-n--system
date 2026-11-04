@@ -759,7 +759,7 @@ export function DashboardScreen(): JSX.Element {
         </div>
 
         <aside className="split__aside" aria-label="Upozornění">
-          <PendingPaymentsCard className="st-card" />
+          <PendingPaymentsCard className="st-card" limit={3} />
           <GroupsFreeSpotsCard />
           <Card as="section" aria-label="Upozornění" className="st-card">
             <CardHeader

@@ -1,5 +1,5 @@
 import type { ClinicState } from '../domain/types';
-import { SCHEMA_VERSION, defaultPaymentSettings } from '../engine/defaults';
+import { DEFAULT_SERVICES, DEMO_ACCOUNT, SCHEMA_VERSION, defaultGroupTemplates, defaultPaymentSettings } from '../engine/defaults';
 import { isoWeekKey, monthKey } from '../engine/time';
 
 /**
@@ -139,7 +139,20 @@ export function normalizeState(s: ClinicState): ClinicState {
   s.cancelledSessions = s.cancelledSessions ?? [];
   s.timeOff = s.timeOff ?? [];
   // data uložená před zavedením QR plateb
-  if (s.settings && !s.settings.payments) s.settings.payments = defaultPaymentSettings();
+  if (s.settings && !s.settings.payments) {
+    s.settings.payments = defaultPaymentSettings();
+    // ukázková data dostanou ukázkový účet, aby šla QR platba hned vyzkoušet
+    if (s.demoSeededAt) s.settings.payments = { ...s.settings.payments, accountNumber: DEMO_ACCOUNT.accountNumber, iban: DEMO_ACCOUNT.iban, demoAccount: true };
+  }
+  // ukázková data z doby před kruhovým tréninkem: doplnit službu, pravidelné termíny a permanentku Skupiny 8
+  if (s.demoSeededAt && s.services && !s.services.some((x) => x.id === 's_g_kruhovy')) {
+    const svc = DEFAULT_SERVICES.find((x) => x.id === 's_g_kruhovy');
+    if (svc) s.services.push({ ...svc, therapistIds: [...svc.therapistIds], order: s.services.length });
+    const from = s.groupTemplates?.[0]?.validFrom ?? '2025-01-01';
+    for (const t of defaultGroupTemplates(from)) if (t.serviceId === 's_g_kruhovy' && !s.groupTemplates.some((x) => x.id === t.id)) s.groupTemplates.push(t);
+    const pkg = s.packageTemplates?.find((x) => x.id === 'pt_skupiny8');
+    if (pkg && !pkg.serviceIds.includes('s_g_kruhovy')) pkg.serviceIds.push('s_g_kruhovy');
+  }
   sortBy(s.bookings, (b) => b.start + b.id);
   sortBy(s.ledger, (e) => e.at + e.id);
   sortBy(s.payments, (p) => p.at + p.id);

@@ -20,6 +20,7 @@ import { createBaseState, DEMO_ACCOUNT } from '../src/engine/defaults';
 import { fillOf, groupSessionsOverview, groupTotals } from '../src/engine/groups';
 import { buildSpayd, formatIban, isValidIban, nextVs, parseAccount, paymentSpayd, spaydText } from '../src/engine/qr';
 import { prepZ } from '../src/engine/format';
+import { normalizeState } from '../src/store/persistence';
 import { clientCredit, packagesOfClient } from '../src/engine/selectors';
 import { visitPaymentInfo, visitsCsv, visitsOverview } from '../src/engine/visits';
 
@@ -243,5 +244,33 @@ describe('skupinové lekce', () => {
 describe('předložka z/ze před číslem', () => {
   it('ze 2, ze 12, z 10, z 50, ze 100 až 199, z 1000', () => {
     expect([2, 12, 10, 50, 100, 168, 200, 1000].map(prepZ)).toEqual(['ze', 'ze', 'z', 'z', 'ze', 'ze', 'ze', 'z']);
+  });
+});
+
+describe('převod starších uložených dat', () => {
+  const oldState = (demo: boolean): ClinicState => {
+    const s = JSON.parse(JSON.stringify(createBaseState('2026-08-01'))) as Omit<ClinicState, 'paymentRequests'> & { paymentRequests?: unknown };
+    s.services = s.services.filter((x) => x.id !== 's_g_kruhovy');
+    s.groupTemplates = s.groupTemplates.filter((t) => t.serviceId !== 's_g_kruhovy');
+    s.packageTemplates.forEach((t) => (t.serviceIds = t.serviceIds.filter((id) => id !== 's_g_kruhovy')));
+    delete (s.settings as Partial<ClinicState['settings']>).payments;
+    delete s.paymentRequests;
+    s.demoSeededAt = demo ? '2026-10-14T10:00' : null;
+    return s as unknown as ClinicState;
+  };
+
+  it('ukázková data dostanou kruhový trénink a ukázkový účet', () => {
+    const s = normalizeState(oldState(true));
+    expect(s.paymentRequests).toEqual([]);
+    expect(s.settings.payments).toMatchObject({ qrEnabled: true, iban: DEMO_ACCOUNT.iban, demoAccount: true });
+    expect(s.services.some((x) => x.id === 's_g_kruhovy')).toBe(true);
+    expect(s.groupTemplates.filter((t) => t.serviceId === 's_g_kruhovy').map((t) => t.validFrom)).toEqual(['2026-08-01', '2026-08-01', '2026-08-01']);
+    expect(s.packageTemplates.find((t) => t.id === 'pt_skupiny8')?.serviceIds).toContain('s_g_kruhovy');
+  });
+
+  it('vlastní data zůstanou bez ukázkového účtu i bez nové služby', () => {
+    const s = normalizeState(oldState(false));
+    expect(s.settings.payments).toMatchObject({ accountNumber: '', iban: '', demoAccount: false });
+    expect(s.services.some((x) => x.id === 's_g_kruhovy')).toBe(false);
   });
 });
