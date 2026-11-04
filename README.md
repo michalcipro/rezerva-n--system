@@ -26,6 +26,13 @@ Co umí:
   spolupráce, doba ve fázi). Specifikace: [`app/docs/CRM.md`](app/docs/CRM.md).
 - **Kalendář** po 15 minutách s různými délkami služeb, sloupce terapeutů, týdenní pohled, přetahování termínů,
   rezervy po službách, pauzy, nepřítomnosti, skupinové lekce s kapacitou.
+- **Vstupy**: přehled vstupů všech zaměstnanců s tím, zda jsou z permanentky / kreditu, nebo placené
+  jednorázově (případně čekají na QR platbu či jsou nezaplacené) – souhrn po zaměstnancích, filtry, export CSV.
+- **Skupinové lekce**: volná místa v termínech (obsazenost, plné termíny, čekací listina), přihlášení klienta
+  a seznam účastníků; widget volných míst na Přehledu a sekce „Skupinové lekce tento týden“ v portálu.
+- **QR platba** (česká QR Platba, SPAYD): na recepci (dokončení termínu, poplatek, permanentka, kredit, dluh)
+  i v portálu (rezervace, permanentka, dobití kreditu); čekající platby personál potvrzuje podle VS z výpisu.
+  Číslo účtu se nastavuje v Nastavení → Platby. Specifikace: [`app/docs/VSTUPY-SKUPINY-QR.md`](app/docs/VSTUPY-SKUPINY-QR.md).
 - **Klienti**: permanentky (vstupy absolvované / rezervované / volné, platnost, prodloužení), kredit (peněženka
   s bonusem za dobití), omluvenky a náhradní termíny, poplatky, souhlasy GDPR, historie.
 - **Storno a omluvenky**: bezplatná lhůta, stupně poplatků (např. 24–12 h 50 %, méně než 12 h 100 %),
@@ -33,7 +40,7 @@ Co umí:
   blokace po opakovaném nedostavení – vše nastavitelné, se živým náhledem.
 - **Čekací listina**: uvolněný termín se automaticky nabídne čekajícím, potvrdí první.
 - **Klientský portál** (mobil): rezervace po 15 minutách, zrušení / omluva s jasnými podmínkami, náhrady,
-  přijetí nabídky z čekací listiny, nákup permanentky a dobití kreditu (simulace platby).
+  přijetí nabídky z čekací listiny, nákup permanentky a dobití kreditu (simulace platby kartou nebo QR platba).
 - **Statistiky**: obsazenost, tržby, storna, nedostavení, noví klienti, rebooking, heatmapa, závazky z permanentek.
 - **Komunikace**: automatické e-maily a SMS (potvrzení, připomínka, omluvenka…), newslettery se segmentací
   a kontrolou souhlasů (odesílání je v testovací verzi simulované).
@@ -58,7 +65,8 @@ npm run build    # produkční build + dist/artifact.html
 ```
 
 Architektura a pravidla vývoje: [`app/docs/ARCHITECTURE.md`](app/docs/ARCHITECTURE.md), specifikace obrazovek:
-[`app/docs/SCREENS.md`](app/docs/SCREENS.md), CRM vrstva: [`app/docs/CRM.md`](app/docs/CRM.md).
+[`app/docs/SCREENS.md`](app/docs/SCREENS.md), CRM vrstva: [`app/docs/CRM.md`](app/docs/CRM.md), vstupy, skupiny
+a QR platba: [`app/docs/VSTUPY-SKUPINY-QR.md`](app/docs/VSTUPY-SKUPINY-QR.md).
 
 Publikace jako claude.ai artefakt (`dist/artifact.html`) musí deklarovat `capabilities: { db: {}, assets: {},
 downloads: true }` – sdílená databáze, úložiště souborů klientů a stahování souborů.

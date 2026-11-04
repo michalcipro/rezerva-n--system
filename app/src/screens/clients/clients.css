@@ -929,3 +929,50 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
   .cli-fucard > .card-header .card-header__meta { display: none; }
   .cli-toolbar__select--stage { flex-basis: 100%; }
 }
+
+/* =========================================================================
+   QR platba a zdroj platby (karta klienta)
+   ========================================================================= */
+.cli-debt__qr {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--info-fg);
+}
+.cli-debt__qr.text-warning { color: var(--warning-fg); }
+
+.cli-qrpay__body { padding: var(--space-1) var(--space-4) var(--space-2); }
+
+.cli-paycell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.cli-paycell__note { overflow-wrap: anywhere; }
+
+/* Výběr způsobu platby: s QR platbou má až 5 voleb – na úzké šířce se zalomí místo skrytého posuvu. */
+.cli-paymethods.segmented {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+/* Hlavička karty Rezervace na úzkém displeji: nadpis na vlastním řádku, počet a tlačítko pod ním
+   (jinak se „Rezervace“ lámala uprostřed slova). */
+@media (max-width: 480px) {
+  .cli-bookhead {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+
+  .cli-bookhead .card-header__titles {
+    flex: 1 0 100%;
+  }
+
+  .cli-bookhead .card-header__actions {
+    margin-left: auto;
+  }
+}

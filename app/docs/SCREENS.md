@@ -8,11 +8,13 @@ Vizuální předloha: varianta „1 · Klinik" (klidná klinická přesnost). Re
 Společné: obrazovka začíná komponentou `PageHeader` (titulek, podtitul, akce). Obsah je v kartách (`Card`) jen
 tam, kde je to potřeba. Sekční popisky 11 px, verzálky, prostrkané. Časy a částky `tnum`. Vše česky.
 
-**Menu administrace** (`src/app/AdminApp.tsx`, trasy v `store/session.ts`): Přehled · Kalendář · Klienti ·
-**Pipeline** · **Follow-upy** · Permanentky a kredity · Služby a ceník · Tým a směny · Komunikace · Statistiky ·
-Nastavení. Majitelka vidí vše; recepce Přehled, Kalendář, Klienti, Pipeline, Follow-upy, Permanentky, Služby,
-Tým a Komunikaci; terapeut (kouč) Přehled, Kalendář, Klienty, Pipeline a Follow-upy. CRM vrstvu (fáze
-spolupráce, poznámky, soubory, follow-upy) popisuje `docs/CRM.md`.
+**Menu administrace** (`src/app/AdminApp.tsx`, trasy v `store/session.ts`): Přehled · Kalendář · **Skupinové
+lekce** · Klienti · **Pipeline** · **Follow-upy** · **Vstupy** · Permanentky a kredity · Služby a ceník · Tým a směny ·
+Komunikace · Statistiky · Nastavení. Majitelka vidí vše; recepce Přehled, Kalendář, Skupinové lekce, Klienti,
+Pipeline, Follow-upy, Vstupy, Permanentky, Služby, Tým a Komunikaci; terapeut (kouč) Přehled, Kalendář, Skupinové
+lekce, Klienty, Pipeline, Follow-upy a Vstupy (jen své). CRM vrstvu (fáze spolupráce, poznámky, soubory,
+follow-upy) popisuje `docs/CRM.md`; přehled vstupů, volná místa ve skupinách a QR platbu `docs/VSTUPY-SKUPINY-QR.md`
+(obrazovky I–K níže).
 
 ---
 
@@ -23,6 +25,9 @@ Exporty v `index.ts`:
 - `NewBookingDialog({ open, onClose, initial?: { clientId?, serviceId?, therapistId?, start?, sessionId? } })`
 - `BookingDrawer({ bookingId: Id | null, onClose })`
 - `CancelBookingDialog({ bookingId, open, onClose })`, `RescheduleDialog({ bookingId, open, onClose })`
+- `useQrOption()` → `{ available, setupHint }` – zda nabízet volbu „QR platba“ v platebních nabídkách personálu
+  (používá i karta klienta). QR vypnutá → volba skrytá všem; zapnutá bez platného účtu → majitelka vidí zakázanou
+  volbu s nápovědou „Pro QR platbu doplňte číslo účtu v Nastavení → Platby.“, ostatní role nic.
 
 Obsah:
 1. Hlavička: datum („Středa 14. října 2026"), šipky předchozí/další den (týden), „Dnes", přepínač Den / Týden,
@@ -74,6 +79,14 @@ Obsah:
    jako `RadioCards` (titulek, popis, částka), důvod (výběr + text), potvrzení → `cancelBooking`.
 9. `RescheduleDialog`: datum + volné časy (stejný výběr jako v nové rezervaci, `ignoreBookingId`), terapeut,
    info o pravidlech; → `rescheduleBooking` (staff může s `override`).
+10. **QR platba v kalendáři** (docs/VSTUPY-SKUPINY-QR.md): v `BookingDrawer` mají nabídky „Proběhlo“, „Přijmout
+   platbu“ a „Uhradit poplatek“ volbu „QR platba“ → `QrPaymentDialog` (vezme čekající výzvu k termínu nebo ji
+   vystaví; „Platba přijata“ ji potvrdí). „Proběhlo → QR platba“ nejdřív zapíše docházku bez vyrovnání, pak
+   otevře QR. Menu ⋯ má „QR platba předem“ (výzva k budoucímu termínu placenému na místě). Detail ukazuje
+   upozornění „Čeká na QR platbu“ (částka, VS, splatnost, po splatnosti, z portálu / z recepce) s „Zobrazit QR
+   kód“, totéž u poplatku, a u zrušené výzvy „QR platba zrušena“ s „Vystavit novou QR platbu“. Nový řádek
+   **Zdroj platby** (`VisitSourceBadge` s detailem; terapeut bez částky). Blok v mřížce má štítek „Čeká na QR
+   platbu“. `NewBookingDialog` nabízí „QR platba převodem“ (`createBooking` s `'qr'`, pak `QrPaymentDialog`).
 
 ---
 
@@ -114,6 +127,12 @@ Exporty: `ClientsScreen()`, `ClientDetailScreen({ clientId, tab? })` – `tab` o
      s datem udělení → `setConsent`; GDPR nelze odebrat), **Historie změn** (audit klienta).
    - Role: Přehled, Follow-upy a změnu fáze vidí celý personál. Poznámky a Soubory a fotky jen majitelka
      a terapeut (recepce vidí zámek). Terapeut nevidí finance (permanentky, kredit, omluvenky, dluhy, útrata).
+   - **QR platba** (přes `useQrOption()` z kalendáře): prodej permanentky, dobití kreditu a vyrovnání dluhu
+     nabízí „QR platba“ → `QrPaymentDialog`; permanentka a kredit vzniknou až po potvrzení platby. Dluhy
+     s čekající výzvou ukazují „Čeká na QR platbu · VS …“ s tlačítkem QR. Karta **Čekající QR platby**
+     (`PendingPaymentsList` klienta) je na Přehledu, když nějaké jsou, a vždy na kartě Permanentky a kredit
+     (s prázdným stavem). Tabulka rezervací má sloupec se štítkem **zdroje platby** (`VisitSourceBadge`; finanční
+     role i s poznámkou o platbě, ostatní jen štítek „Zdroj platby“; u zrušených termínů bez štítku).
 
 ---
 
@@ -151,6 +170,11 @@ Exporty: `ServicesScreen()`, `TeamScreen()`, `PackagesScreen()`, `SettingsScreen
    platnost nabídky v minutách, kolika lidem současně); **Připomínky** (zapnuto, kolik hodin předem);
    **Klinika** (název, podtitul, odesílatel e-mailů). Uložení přes `updateSettings` (tlačítko „Uložit změny"
    aktivní jen při změně, potvrzení toastem).
+   **Platby** (sekce `payments`): přepínač „Nabízet QR platbu“, číslo účtu v českém tvaru s průběžnou kontrolou
+   (zelená fajfka u platného, chyba až u úplného čísla, po opuštění pole nebo při uložení), vypočtený IBAN
+   (`czechAccountToIban`, jen pro čtení), jméno příjemce (max. 35 znaků), splatnost QR platby v hodinách se
+   zkratkami 1 / 2 / 3 / 7 dní; varování, když je QR zapnutá bez platného účtu. Náhled: uložené nastavení
+   přes `QrPaymentCard` s ukázkovou částkou a příštím VS, při neuložených změnách živý `QrCode` z konceptu.
 
 ---
 
@@ -185,6 +209,13 @@ Exporty: `StatsScreen()`, `DashboardScreen()`. CRM části: `StagesSection.tsx` 
    3 řádky na skupinu + „Zobrazit všechny", „+" otevře `FollowUpDialog`, odkaz „Všechny follow-upy";
    terapeut vidí jen své; odškrtnutý úkol zůstane přeškrtnutý až do odchodu z Přehledu) a v pravém sloupci
    **Fáze spolupráce** (pruh v barvách fází + řádek s počtem za každou fázi; řádek otevře Pipeline).
+   Widgety k docs/VSTUPY-SKUPINY-QR.md (`DashboardWidgets.tsx`): v pravém sloupci **Volná místa na skupinových
+   lekcích** (`GroupSpotsCard` – dnešní a zítřejší termíny s volnými místy, kompaktní `OccupancyMeter`, tlačítko
+   „Přihlásit klienta“ otevře `NewBookingDialog` s termínem; bez volných míst poradí nejbližší volný termín do
+   14 dní; terapeut jen své lekce; skryje se bez skupinových lekcí; odkaz „Všechny skupinové lekce“) a v hlavním
+   sloupci za Follow-upy **Čekající QR platby** (`PendingQrCard`, jen majitelka a recepce – 3 výzvy podle
+   splatnosti bez rozbalování, počet v hlavičce, „Celkem čeká …“, odkaz „Vstupy a platby“; skryje se, když je QR
+   vypnutá a nic nečeká).
 
 ---
 
@@ -244,6 +275,23 @@ na pozadí `--bg`). Předlohy V1-Rezervace a V1-Omluvenka. Klient = `session.cli
    kredit a jeho pohyby, dobít kredit online (simulace → `topUpCredit` method 'online', bonus podle pravidel),
    zprávy od kliniky (inbox: zprávy klienta z `messages`), storno podmínky kliniky (text z nastavení).
    Zablokovaný klient (`blocked`) vidí vysvětlení a kontakt na recepci místo rezervace.
+5. **QR platba** (jen když `qrAvailable()` – zapnuto a platný účet): volba „QR platba převodem“ v průvodci
+   rezervací, při přijetí nabídky z čekací listiny, při nákupu permanentky a dobití kreditu (bez simulace karty).
+   Rezervace vznikne nezaplacená s výzvou (`createBooking` s `'qr'`); permanentka a kredit přes
+   `createPaymentRequest` a vzniknou až po potvrzení personálem (opakovaná objednávka téže permanentky ukáže
+   původní QR). Potvrzení ukáže `QrPaymentCard`, očíslovaný postup a splatnost („nejpozději zítra v 7:30“).
+   Čekající platby: v detailu termínu box „Čeká na platbu“ se „Zobrazit QR kód“, „Zaplatit předem QR platbou“
+   u nezaplaceného termínu na místě, „Zaplatit QR platbou“ u poplatku k úhradě, „Zaplatím jinak“ (klient zruší
+   vlastní výzvu po potvrzení); štítek „Čeká na platbu“ v Moje termíny a na kartě příštího termínu; sekce
+   „Čeká na vaši platbu“ na Domů; seznam v Účet → Kredit a platby a Permanentky (po splatnosti zvýrazněné, klepnutí
+   otevře QR). Jednorázový záměr navigace (`PortalIntent` v `portal/context.ts`: `bookSession`, `showQr`) předá
+   další obrazovce vybraný termín lekce nebo otevření QR (platí do další navigace).
+6. **Skupinové lekce tento týden** (Domů, `groupSessionsOverview`): budoucí nezrušené termíny online
+   rezervovatelných skupinových služeb v rezervačním okně; když z týdne nic nezbývá, příští týden s nadpisem
+   „Skupinové lekce příští týden“; bez rezervovatelných lekcí nebo u zablokovaného klienta se sekce skryje.
+   Řádek: datum, čas, název, trenér, místnost, pruh obsazenosti a volná místa („Zbývají 3 místa“, „Plno · čekají
+   2 lidé“); „Rezervovat“ otevře průvodce rovnou na souhrnu s vybraným termínem, plné termíny „Čekací listina“
+   (přihlásit / odhlásit), přihlášený klient „Jste přihlášeni“ s odkazem na detail.
 
 ---
 
@@ -291,3 +339,82 @@ přes `store/files.ts`.
   `kind: 'plaud'`, přepis jako textový soubor (`plaud.transcriptFileId`), volitelně audio a přílohy, nápověda
   k exportu z Plaud.
 - `FileUploadButton`, `FilesPanel({ clientId, onOpenNote? })`, `FileViewerDialog({ file, onClose })`.
+
+---
+
+## I · Vstupy (`src/screens/visits`, prefix `vis-`)
+
+Export: `VisitsScreen()` (bez props), trasa `{ name: 'vstupy' }`. Data z `visitsOverview` (engine/visits.ts),
+výpočet v `useMemo` (nejvýš dvakrát: bez filtru zdroje kvůli počtům v čipech a s ním).
+
+1. **Období**: Tento týden / Tento měsíc / Minulý měsíc / Vlastní (od–do včetně, nejvýš 366 dní) a `PeriodNav`
+   pro posun o období; týden a měsíc jsou celé kalendářní, tedy i s plánovanými vstupy. Na telefonu výběr místo
+   přepínače.
+2. **Filtry**: zaměstnanec (`Select`), služba, stav (Všechny / Proběhlé a účtované / Plánované), zdroj platby
+   (přepínací čipy s počty, víc najednou), „Zrušit filtry“. Volby si pamatuje prohlížeč (localStorage, vše
+   v try/catch).
+3. **Dlaždice**: Vstupy (proběhlé a účtované · plánované), Předplacené (podíl a hodnota), Jednorázově (tržba),
+   Nezaplaceno (po termínu červeně s částkou · plánované · čeká na QR).
+4. **Po zaměstnancích** (`EmployeeSummaryTable`): řádek = zaměstnanec, sloupce celkem, z permanentky, z kreditu,
+   jednorázově, čeká na QR, nezaplaceno, náhrady, zdarma, tržba jednorázově, hodnota předplacených + řádek Celkem
+   (u jediného řádku skrytý). První sloupec zůstává při vodorovném posunu na místě. „Čeká na QR“ je žlutě,
+   „Nezaplaceno“ červeně jen tehdy, když jsou mezi nimi vstupy po termínu (plánované s platbou na místě ne).
+   Klik na řádek (nebo tlačítko se jménem, `aria-pressed`) filtruje seznam vstupů, druhý klik filtr zruší; souhrn
+   dál ukazuje všechny se zvýrazněným řádkem.
+5. **Seznam vstupů**: datum a čas, klient (odkaz na kartu), služba (u skupiny název lekce), zaměstnanec, stav,
+   `VisitSourceBadge` s detailem (nezaplacený plánovaný termín neutrálně), částka, tlačítko detailu
+   (`BookingDrawer` z kalendáře). 25 na stránku; pod 760 px karty místo tabulky.
+6. **Export CSV** (menu): „Seznam vstupů“ (všechny vyfiltrované, ne jen stránka) nebo „Souhrn po zaměstnancích“.
+   Středník, UTF-8 s BOM, CRLF, české hlavičky, datum RRRR-MM-DD, čas HH:mm, částka celé číslo, uvozovky
+   a ochrana proti vzorcům. Stažení přes `downloadBlob` (store/files.ts): v artefaktu capability `downloads`,
+   jinde `<a download>`.
+7. **Čekající QR platby** (`PendingPaymentsList searchable`, 5 + „Zobrazit další“) – jen majitelka a recepce.
+   Hledání podle VS najde i zaplacené a zrušené výzvy; u zrušené „Platba přišla“ (uhradí termín, nebo připíše na kredit).
+8. **Role**: majitelka a recepce vidí všechny; terapeut jen své vstupy (výběr zaměstnance zamčený s „Vidíte jen
+   své vstupy“, souhrn jen jeho řádek). Prázdné stavy: žádná data, nic neodpovídá filtrům, terapeut bez
+   přiřazeného zaměstnance.
+
+---
+
+## J · Skupinové lekce (`src/screens/groups`, prefix `grp-`)
+
+Exporty: `GroupsScreen()` (trasa `{ name: 'skupiny' }`), `OccupancyMeter`, `ParticipantsDrawer`, texty
+`freeShort`, `freeSpotsText`, `occupancyText`, `leadsGroups`. Data z `groupSessionsOverview` (engine/groups.ts).
+
+1. **Rozsah**: Tento týden / Příštích 14 dní / Vlastní (od–do, nejvýš 92 dní); šipky posunou o týden / 14 dní.
+2. **Filtry**: Lekce (skupinové služby), Trenér, přepínače „Jen s volnými místy“ a „Zobrazit proběhlé“; terapeut
+   má navíc „Jen moje lekce“ (výchozí zapnuto; vypnout může, protože do cizích lekcí také přihlašuje klienty).
+   Filtry přežijí v rámci otevřené záložky.
+3. **Souhrn**: termíny, volná místa (s kapacitou a obsazeností %), plné termíny (+ téměř plné), čekající;
+   počítá se po filtrech lekce, trenéra a proběhlých, ale před „Jen s volnými místy“. Řádek s tím, co je skryté.
+4. **Termíny po dnech** (štítky Dnes / Zítra): čas, délka, název lekce, služba, trenér, místnost,
+   `OccupancyMeter` (`role="meter"`, celá věta v `aria-valuetext`; do kapacity 16 políčka míst, jinak pruh;
+   text „7 ze 12 · 5 volných“; barva accent / téměř plno warning / plno danger + štítek „Plno“), počet na čekací
+   listině. Zrušené přeškrtnuté se štítkem „Zrušeno“, proběhlé tlumené „Proběhlo“, právě probíhající „Probíhá“.
+5. **Akce**: „Přihlásit klienta“ (`NewBookingDialog` s `{ sessionId, serviceId }`; u plného termínu „Na čekací
+   listinu“, skryté bez čekací listiny; u proběhlých a zrušených nic) a „Účastníci“ (`ParticipantsDrawer`:
+   účastníci se `VisitSourceBadge` – detail a částka, stav, odkaz na kartu klienta; čekající; tlačítka
+   „V kalendáři“ a přidat klienta).
+6. Prázdné stavy: žádná skupinová služba (odkaz do Služeb), žádné termíny, terapeut žádnou lekci nevede, vše
+   proběhlé, nic volného.
+
+---
+
+## K · Sdílené platební komponenty (`src/components/payments`, prefix `pay-`)
+
+- `QrCode({ value, size?, label? })` – SVG z `qrcode-generator` (okraj 4 moduly, barvy `--qr-fg`/`--qr-bg`:
+  tmavé moduly na bílém v obou motivech).
+- `QrPaymentCard({ request, title?, compact? })` – QR, částka, číslo účtu, IBAN, VS, zpráva, splatnost, tlačítka
+  kopírovat, popisek „QR Platba“. Když se údaje nevejdou vedle QR (pod ~550 px), spadnou pod něj; hodnoty se lámou
+  jen mezi slovy. Bez dostupné QR platby personál vidí výzvu doplnit účet, klient srozumitelnou radu. Zaplacená
+  a zrušená výzva je bez QR kódu, účtu a kopírování.
+- `QrPaymentDialog({ open, onClose, requestId? | create?, onPaid?, onCancelled?, readOnly? })` – dialog `lg`: QR, „Platba přijata“,
+  „Poslat platební údaje e-mailem“, „Zrušit QR platbu“.
+- `PendingPaymentsList({ clientId?, limit?, expandable?, hideClient?, readOnly?, searchable?, emptyText?, hideEmpty? })` –
+  čekající výzvy podle splatnosti; potvrzení s datem připsání (od dne vystavení do dneška) a zrušení jen pro
+  majitelku a recepci; `expandable={false}` vypne „Zobrazit další“ (widget na Přehledu); `searchable` přidá hledání
+  podle VS (všechny stavy, potvrzení i zrušené výzvy).
+- `VisitSourceBadge({ info? | booking?, showDetail?, showAmount? })` – štítek zdroje platby; s předanou rezervací
+  je nezaplacený plánovaný termín neutrální (červeně jen dluh po termínu).
+- `copyToClipboard(text, hláška)`.
+

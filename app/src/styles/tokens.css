@@ -198,6 +198,10 @@
   --scrollbar-thumb: #CBD3D5;
   --scrollbar-thumb-hover: #A9B5B9;
 
+  /* QR kód (QR Platba): vždy tmavé moduly na bílém pozadí – i v tmavém motivu, aby šel naskenovat */
+  --qr-fg: #000000;
+  --qr-bg: #FFFFFF;
+
   /* Derived (theme-aware because they resolve against the active tokens) */
   --heat-0: var(--surface-sunken);
   --heat-1: color-mix(in srgb, var(--accent) 14%, var(--surface));
@@ -320,6 +324,10 @@
     --backdrop: rgba(2, 8, 10, 0.64);
     --scrollbar-thumb: #354A4F;
     --scrollbar-thumb-hover: #50676D;
+
+    /* QR kód: tmavé moduly na bílém i v tmavém motivu */
+    --qr-fg: #000000;
+    --qr-bg: #FFFFFF;
   }
 }
 
@@ -435,4 +443,8 @@
   --backdrop: rgba(2, 8, 10, 0.64);
   --scrollbar-thumb: #354A4F;
   --scrollbar-thumb-hover: #50676D;
+
+  /* QR kód: tmavé moduly na bílém i v tmavém motivu */
+  --qr-fg: #000000;
+  --qr-bg: #FFFFFF;
 }

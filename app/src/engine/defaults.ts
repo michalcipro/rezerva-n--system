@@ -12,8 +12,13 @@ import type {
   WeekSchedule,
 } from '../domain/types';
 import { DEFAULT_TEMPLATES } from './messages';
+import { defaultPaymentSettings } from './payments';
 
-/** 2 = CRM vrstva (fáze spolupráce, poznámky, soubory, follow-upy). */
+/**
+ * 2 = CRM vrstva (fáze spolupráce, poznámky, soubory, follow-upy).
+ * QR platba (settings.payments, kolekce paymentRequests) verzi nemění – chybějící části doplní idempotentní
+ * migrace v normalizeState / migrateMeta a nahlásí ji (stav se po načtení uloží).
+ */
 export const SCHEMA_VERSION = 2;
 
 /** Výchozí fáze spolupráce (docs/CRM.md). */
@@ -276,6 +281,7 @@ export function defaultSettings(): Settings {
       { minTopup: 5000, pct: 10 },
     ],
     stages: defaultStages(),
+    payments: defaultPaymentSettings('Winning Minds'),
     simulatedNow: null,
   };
 }
@@ -308,6 +314,7 @@ export function createBaseState(validFrom = '2025-01-01'): ClinicState {
     notes: [],
     files: [],
     followUps: [],
+    paymentRequests: [],
     demoSeededAt: null,
   };
 }

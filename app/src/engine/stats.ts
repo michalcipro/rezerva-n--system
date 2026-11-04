@@ -1,4 +1,4 @@
-import type { Booking, ClinicState, Id, LocalDate, LocalDateTime, PaymentPurpose, Tone } from '../domain/types';
+import type { Booking, ClinicState, Id, LocalDate, LocalDateTime, MoneyMethod, PaymentPurpose, Tone } from '../domain/types';
 import { bookedMinutes, workingIntervals, workingMinutes } from './availability';
 import {
   bookingsOfClient,
@@ -60,6 +60,8 @@ export interface StatsResult extends StatsCore {
   days: number;
   previous: StatsCore;
   revenueByPurpose: Record<PaymentPurpose, number>;
+  /** Přijaté peníze v období podle způsobu platby (včetně QR platby). */
+  revenueByMethod: Record<MoneyMethod, number>;
   byCategory: { categoryId: Id; name: string; tone: Tone; count: number; value: number }[];
   byTherapist: { therapistId: Id; booked: number; available: number; pct: number; completed: number; value: number }[];
   byChannel: { online: number; recepce: number; telefon: number };
@@ -227,7 +229,12 @@ export function computeStats(s: ClinicState, q: StatsQuery, now: LocalDateTime):
   const list = s.bookings.filter((b) => inPeriod(b.start, q) && matches(s, b, q));
 
   const revenueByPurpose: Record<PaymentPurpose, number> = { booking: 0, package: 0, credit_topup: 0, storno_fee: 0 };
-  for (const p of s.payments) if (inPeriod(p.at, q)) revenueByPurpose[p.purpose] += p.amount;
+  const revenueByMethod: Record<MoneyMethod, number> = { cash: 0, card: 0, online: 0, transfer: 0, qr: 0 };
+  for (const p of s.payments) {
+    if (!inPeriod(p.at, q)) continue;
+    revenueByPurpose[p.purpose] += p.amount;
+    revenueByMethod[p.method] = (revenueByMethod[p.method] ?? 0) + p.amount;
+  }
 
   // kategorie
   const catMap = new Map<Id, { count: number; value: number }>();
@@ -395,6 +402,7 @@ export function computeStats(s: ClinicState, q: StatsQuery, now: LocalDateTime):
     days,
     previous,
     revenueByPurpose,
+    revenueByMethod,
     byCategory,
     byTherapist,
     byChannel,

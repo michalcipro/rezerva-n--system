@@ -19,7 +19,7 @@ import {
   Table,
   cx,
 } from '../../ui';
-import { DebtPanel, PackageBlock } from './balances';
+import { DebtPanel, PackageBlock, PendingQrCard } from './balances';
 import {
   auditOfClient,
   debtItems,
@@ -94,6 +94,7 @@ export function BookingsTab({
     <Card padding="none" as="section" aria-label="Rezervace klienta">
       <CardHeader
         divided
+        className="cli-bookhead"
         title="Rezervace"
         meta={countLabel(all.length, ['termín', 'termíny', 'termínů']) + ' celkem'}
         actions={
@@ -191,6 +192,7 @@ export function FinanceTab({
   return (
     <div className="cli-stack">
       <DebtPanel items={debts} onSettle={onSettle} onWaive={onWaive} />
+      <PendingQrCard clientId={client.id} showEmpty />
 
       <Card padding="none" as="section" aria-label="Permanentky">
         <CardHeader

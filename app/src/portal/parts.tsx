@@ -6,9 +6,9 @@ import { getCategory, getService, getTherapist, therapistName } from '../engine/
 import { weekdayOf } from '../engine/time';
 import { useClinic, useNow } from '../store/hooks';
 import { useSession } from '../store/session';
-import { Button, Drawer, Icon, IconButton, cx, toast, type DrawerProps, type IconName } from '../ui';
+import { Badge, Button, Drawer, Icon, IconButton, cx, toast, type DrawerProps, type IconName } from '../ui';
 import { PortalContext, usePortal } from './context';
-import { bookingTitle, cancelState, clientOffers, placeLabel, type ChipTone } from './logic';
+import { bookingTitle, cancelState, clientOffers, pendingQrOfBooking, placeLabel, type ChipTone } from './logic';
 
 /* ------------------------------------------------------------------ */
 /* Kostra obrazovky: horní lišta, obsah, spodní dok (navigace / akce)   */
@@ -152,6 +152,15 @@ export function StateChip({ tone, icon = 'clock', children }: { tone: ChipTone; 
   );
 }
 
+/** Štítek „Čeká na platbu“ – k termínu nebo poplatku čeká QR platba. */
+export function PendingQrBadge(): JSX.Element {
+  return (
+    <Badge tone="warning" size="sm" icon="qr">
+      Čeká na platbu
+    </Badge>
+  );
+}
+
 /** Řádek termínu v seznamech (klik = detail). */
 export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () => void }): JSX.Element {
   const clinic = useClinic();
@@ -162,6 +171,9 @@ export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () =
   const upcoming = booking.status === 'confirmed' && booking.end > now;
   const cs = upcoming ? cancelState(clinic, booking, now) : null;
   const place = placeLabel(clinic, booking);
+  const pendingQr = pendingQrOfBooking(clinic, booking.id);
+  // u minulého potvrzeného termínu s QR už štítek „Čeká na QR platbu“ ukazují stavové štítky
+  const showQr = !!pendingQr && (upcoming || pendingQr.purpose === 'storno_fee' || booking.status !== 'confirmed');
   return (
     <button type="button" className={cx('por-brow', !upcoming && 'por-brow--past')} onClick={onOpen}>
       <DateBadge date={booking.start} tone={cat?.tone} muted={!upcoming} />
@@ -173,11 +185,12 @@ export function BookingRow({ booking, onOpen }: { booking: Booking; onOpen: () =
           {therapistName(t)}
           {place ? ` · ${place}` : ''}
         </span>
-        {cs && cs.label ? (
-          <StateChip tone={cs.tone}>{cs.label}</StateChip>
-        ) : !upcoming ? (
-          <BookingStatusBadges booking={booking} />
-        ) : null}
+        {(cs?.label || !upcoming || showQr) && (
+          <span className="por-brow__chips">
+            {cs && cs.label ? <StateChip tone={cs.tone}>{cs.label}</StateChip> : !upcoming ? <BookingStatusBadges booking={booking} /> : null}
+            {showQr && <PendingQrBadge />}
+          </span>
+        )}
       </span>
       <Icon name="chevronRight" size={18} className="por-brow__chev" />
     </button>

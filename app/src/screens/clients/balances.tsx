@@ -1,9 +1,13 @@
-import type { Client, ClientPackage, LocalDateTime, MakeupRight } from '../../domain/types';
+import { useMemo, useState } from 'react';
+import type { Client, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, plural } from '../../engine/format';
+import { isPaymentRequestOverdue, pendingPaymentRequests, pendingRequestOfBooking } from '../../engine/payments';
 import { getBooking, getPackageTemplate, getService, type PackageUsage } from '../../engine/selectors';
 import { dateOf, daysBetween } from '../../engine/time';
-import { useClinic } from '../../store/hooks';
-import { Badge, Button, Card, CardHeader, Icon, StackedBar, cx } from '../../ui';
+import { PendingPaymentsList, QrPaymentDialog } from '../../components/payments';
+import { useClinic, useNow } from '../../store/hooks';
+import { Badge, Button, Card, CardHeader, Icon, IconButton, StackedBar, cx } from '../../ui';
+import { useQrOption } from '../calendar';
 import {
   clientExcuses,
   daysLeftLabel,
@@ -296,6 +300,9 @@ export function ExcusesCard({
 
 export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onSettle: (i: DebtItem) => void; onWaive: (i: DebtItem) => void }): JSX.Element | null {
   const clinic = useClinic();
+  const now = useNow();
+  // QR kód už vystavené platby (k termínu nebo poplatku) – „Platba přijata“ v dialogu dluh uhradí.
+  const [qrId, setQrId] = useState<Id | null>(null);
   if (!items.length) return null;
   const total = items.reduce((s, i) => s + i.amount, 0);
   return (
@@ -309,6 +316,8 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
       <ul className="cli-debt__list">
         {items.map((item) => {
           const svc = getService(clinic, item.booking.serviceId);
+          const req = pendingRequestOfBooking(clinic, item.booking.id, item.kind === 'fee' ? 'storno_fee' : 'booking');
+          const overdue = !!req && isPaymentRequestOverdue(req, now);
           return (
             <li key={item.kind + item.booking.id} className="cli-debt__item">
               <span className="cli-debt__text">
@@ -317,9 +326,17 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
                   {svc?.name ?? 'Termín'} · {formatDayShort(item.booking.start)}
                   {item.kind === 'fee' && item.booking.fee ? ` · ${formatPercent(item.booking.fee.pct)} z ceny` : ''}
                 </span>
+                {req && (
+                  <span className={cx('cli-debt__qr tnum', overdue && 'text-warning')}>
+                    <Icon name="qr" size={12} />
+                    Čeká na QR platbu · VS {req.vs}
+                    {overdue ? ' · po splatnosti' : ''}
+                  </span>
+                )}
               </span>
               <strong className="cli-debt__amount tnum">{formatMoney(item.amount)}</strong>
               <span className="cli-debt__actions">
+                {req && <IconButton icon="qr" size="sm" variant="secondary" label={`Zobrazit QR platbu (VS ${req.vs})`} onClick={() => setQrId(req.id)} />}
                 <Button size="sm" variant="secondary" onClick={() => onSettle(item)}>
                   Uhradit
                 </Button>
@@ -333,6 +350,35 @@ export function DebtPanel({ items, onSettle, onWaive }: { items: DebtItem[]; onS
           );
         })}
       </ul>
+      {qrId && <QrPaymentDialog open onClose={() => setQrId(null)} requestId={qrId} />}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Čekající QR platby                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Čekající QR platby klienta (termíny, permanentky, dobití, poplatky) s potvrzením podle výpisu.
+ * Bez čekajících plateb se karta skryje; s `showEmpty` ukáže prázdný stav (když lze QR platbu nabízet).
+ */
+export function PendingQrCard({ clientId, showEmpty }: { clientId: Id; showEmpty?: boolean }): JSX.Element | null {
+  const clinic = useClinic();
+  const qr = useQrOption();
+  const count = useMemo(() => pendingPaymentRequests(clinic, clientId).length, [clinic, clientId]);
+  if (!count && !(showEmpty && qr.available)) return null;
+  return (
+    <Card padding="none" as="section" className="cli-qrpay" aria-label="Čekající QR platby">
+      <CardHeader divided icon="qr" title="Čekající QR platby" meta={count ? countLabel(count, ['platba', 'platby', 'plateb']) : undefined} />
+      <div className="cli-qrpay__body">
+        <PendingPaymentsList
+          clientId={clientId}
+          hideClient
+          limit={5}
+          emptyText="QR platbu vystavíte při prodeji permanentky, dobití kreditu nebo úhradě termínu (volba QR platba). Klient si ji může zvolit i v portálu. Tady počká, dokud ji nepotvrdíte podle výpisu z účtu."
+        />
+      </div>
     </Card>
   );
 }

@@ -291,6 +291,8 @@
 }
 .tb--compact {
   flex-direction: column;
+  /* jednořádkový sloupec: řádky dostanou šířku panelu (při wrap by měly max-content a přetekly 360 px) */
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 6px;
   padding-block: 8px;
@@ -300,6 +302,14 @@
   align-items: center;
   gap: var(--space-1-5);
   min-width: 0;
+}
+/* druhý řádek (čas a data) se raději zalomí, než aby tlačítka ořízla text („−1 h“, „+1 den“) */
+.tb__row + .tb__row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.tb__row + .tb__row > :last-child {
+  margin-left: auto;
 }
 .tb__row .tb__select {
   flex: 1 1 auto;

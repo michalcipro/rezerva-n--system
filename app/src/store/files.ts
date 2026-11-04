@@ -472,6 +472,57 @@ export async function clearLocalFiles(): Promise<void> {
 
 export type DownloadResult = { ok: true } | { ok: false; reason: string; cancelled?: boolean };
 
+/** Proč soubor s příponou `ext` nejde v artefaktu stáhnout (null = jde). */
+function downloadExtensionProblem(ext: string): string | null {
+  if (DOWNLOAD_EXTENSIONS.has(ext)) return null;
+  return ext
+    ? `Soubor typu .${ext} tady stáhnout nejde – stáhnout lze jen obrázky, videa, PDF, texty, dokumenty Office, CSV a ZIP.`
+    : 'Soubor bez přípony tady stáhnout nejde. Přejmenujte ho s příponou (např. .pdf).';
+}
+
+/** Stažení v artefaktu přes capability `downloads` (uživatel stažení potvrdí v dialogu claude.ai). */
+async function saveViaDownloads(filename: string, ext: string, getBlob: () => Promise<Blob>): Promise<DownloadResult> {
+  const downloads = await getDownloads();
+  if (!downloads) return { ok: false, reason: 'Stahování souborů tady není dostupné.' };
+  let blob: Blob;
+  try {
+    blob = await getBlob();
+  } catch (e) {
+    return { ok: false, reason: fileErrorMessage(e) };
+  }
+  try {
+    await downloads.save({ filename, data: blob });
+    return { ok: true };
+  } catch (e) {
+    switch (codeOf(e)) {
+      case 'declined':
+        return { ok: false, reason: 'Stažení bylo zrušeno.', cancelled: true };
+      case 'rate_limited':
+        return { ok: false, reason: 'Už čeká jiné stažení. Chvíli počkejte a zkuste to znovu.' };
+      case 'rejected_extension':
+      case 'extension_not_enabled':
+      case 'not_signed':
+        return { ok: false, reason: `Soubor typu .${ext} tady stáhnout nejde.` };
+      case 'too_large':
+        return { ok: false, reason: 'Soubor je na stažení příliš velký.' };
+      default:
+        return { ok: false, reason: 'Soubor se nepodařilo stáhnout. Zkuste to prosím znovu.' };
+    }
+  }
+}
+
+/** Mimo artefakt: klik na skrytý <a download>. */
+function clickDownloadLink(url: string, filename: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 /**
  * Nabídne soubor ke stažení pod jménem `name`. V artefaktu přes capability `downloads` (uživatel stažení
  * potvrdí; povolené jsou jen některé přípony), jinde klikem na <a download>. Nevyhazuje – vrací důvod.
@@ -480,53 +531,38 @@ export async function downloadFile(rec: Pick<FileRecord, 'storage' | 'ref' | 'mi
   const filename = name.trim() || 'soubor';
   if (storageKind() === 'artifact') {
     const ext = extOf(filename);
-    if (!DOWNLOAD_EXTENSIONS.has(ext)) {
-      return {
-        ok: false,
-        reason: ext
-          ? `Soubor typu .${ext} tady stáhnout nejde – stáhnout lze jen obrázky, videa, PDF, texty, dokumenty Office, CSV a ZIP.`
-          : 'Soubor bez přípony tady stáhnout nejde. Přejmenujte ho s příponou (např. .pdf).',
-      };
-    }
-    const downloads = await getDownloads();
-    if (!downloads) return { ok: false, reason: 'Stahování souborů tady není dostupné.' };
-    let blob: Blob;
-    try {
-      blob = await readBlob(rec);
-    } catch (e) {
-      return { ok: false, reason: fileErrorMessage(e) };
-    }
-    try {
-      await downloads.save({ filename, data: blob });
-      return { ok: true };
-    } catch (e) {
-      switch (codeOf(e)) {
-        case 'declined':
-          return { ok: false, reason: 'Stažení bylo zrušeno.', cancelled: true };
-        case 'rate_limited':
-          return { ok: false, reason: 'Už čeká jiné stažení. Chvíli počkejte a zkuste to znovu.' };
-        case 'rejected_extension':
-        case 'extension_not_enabled':
-        case 'not_signed':
-          return { ok: false, reason: `Soubor typu .${ext} tady stáhnout nejde.` };
-        case 'too_large':
-          return { ok: false, reason: 'Soubor je na stažení příliš velký.' };
-        default:
-          return { ok: false, reason: 'Soubor se nepodařilo stáhnout. Zkuste to prosím znovu.' };
-      }
-    }
+    const problem = downloadExtensionProblem(ext);
+    if (problem) return { ok: false, reason: problem };
+    return saveViaDownloads(filename, ext, () => readBlob(rec));
   }
   try {
-    const url = await getFileUrl(rec);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    clickDownloadLink(await getFileUrl(rec), filename);
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: fileErrorMessage(e) };
+  }
+}
+
+/**
+ * Nabídne ke stažení obsah vytvořený v paměti (např. export CSV), který není uložený v úložišti souborů.
+ * Stejné cesty a hlášky jako `downloadFile`: v artefaktu capability `downloads`, jinde <a download>
+ * s dočasnou adresou objektu. Nevyhazuje – vrací důvod.
+ */
+export async function downloadBlob(blob: Blob, name: string): Promise<DownloadResult> {
+  const filename = name.trim() || 'soubor';
+  if (storageKind() === 'artifact') {
+    const ext = extOf(filename);
+    const problem = downloadExtensionProblem(ext);
+    if (problem) return { ok: false, reason: problem };
+    return saveViaDownloads(filename, ext, () => Promise.resolve(blob));
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    clickDownloadLink(url, filename);
+    // adresu uvolnit až po předání souboru prohlížeči
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'Soubor se nepodařilo stáhnout. Zkuste to prosím znovu.' };
   }
 }

@@ -2,6 +2,7 @@ import type { Command, Ctx, MoneyMethod } from '../domain/types';
 import { deliverCampaign, offerFreedSlot, ok } from './commands';
 import { countLabel, formatDate, formatDayShort } from './format';
 import { newId } from './ids';
+import { pendingRequestOfBooking } from './payments';
 import { bookingVars, queueTemplateMessage } from './messages';
 import { getService, packageUsage } from './selectors';
 import { addDays, addHours, addMinutes, dateOf, daysBetween } from './time';
@@ -30,8 +31,12 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
       if (b.status !== 'confirmed' || b.end > now) continue;
       b.status = 'completed';
       report.completed++;
-      if (b.payment.method === 'onsite' && !b.payment.paid) {
+      // QR převod se automaticky nezaplatí ani neruší: výzva po splatnosti jen zůstane čekající (potvrzuje personál).
+      // Rezervace „QR převodem“ bez čekající výzvy (zrušená) se platí na místě jako ostatní.
+      const onsite = b.payment.method === 'onsite' || (b.payment.method === 'qr' && !pendingRequestOfBooking(d, b.id, 'booking'));
+      if (onsite && !b.payment.paid) {
         const method: MoneyMethod = 'card';
+        b.payment.method = 'onsite';
         d.payments.push({ id: newId('p'), clientId: b.clientId, at: b.end, amount: b.price, method, purpose: 'booking', bookingId: b.id, note: 'Úhrada na recepci (automaticky)' });
         b.payment.paid = true;
         b.payment.paidAmount = b.price;

@@ -20,7 +20,8 @@ import type {
   PaymentPurpose,
 } from '../../domain/types';
 import { clientStage } from '../../engine/crm';
-import { countLabel, formatDayShort, formatMoney, formatPercent, formatTime } from '../../engine/format';
+import { countLabel, formatDayShort, formatMoney, formatPercent, formatTime, prepZ } from '../../engine/format';
+import { pendingRequestOfBooking } from '../../engine/payments';
 import { evaluateCancellation } from '../../engine/policy';
 import {
   bookingsOfClient,
@@ -44,13 +45,8 @@ export function normalize(text: string): string {
 
 export const digitsOf = (text: string): string => text.replace(/\D/g, '');
 
-/** Předložka před číslovkou: „ze 2“, „ze 7“, ale „z 10“ (podle vyslovené číslovky). */
-export function zeZ(n: number): 'z' | 'ze' {
-  const a = Math.abs(Math.round(n));
-  if (a >= 100) return a < 200 ? 'ze' : zeZ(Math.floor(a / 100));
-  if (a >= 20) return [2, 3, 4, 6, 7].includes(Math.floor(a / 10)) ? 'ze' : 'z';
-  return [2, 3, 4, 6, 7, 12, 13, 14, 16, 17].includes(a) ? 'ze' : 'z';
-}
+/** Předložka před číslovkou: „ze 2“, „ze 7“, ale „z 10“ (podle vyslovené číslovky) – `prepZ` z enginu. */
+export const zeZ = prepZ;
 
 /** '2026-09-14…' → '14. 9.' */
 export function shortDate(value: string): string {
@@ -133,7 +129,7 @@ export function buildClientRows(s: ClinicState, now: LocalDateTime): ClientRow[]
     if (b.status === 'completed') {
       r.visits++;
       if (!r.lastVisit || b.start > r.lastVisit) r.lastVisit = b.start;
-      if (!b.payment.paid && b.payment.method === 'onsite') r.debt += b.price - b.payment.paidAmount;
+      if (!b.payment.paid && (b.payment.method === 'onsite' || b.payment.method === 'qr')) r.debt += b.price - b.payment.paidAmount;
     } else if (b.status === 'confirmed' && b.end > now) {
       if (!r.next || b.start < r.next.start) r.next = b;
     } else if (b.status === 'no_show' && b.start >= d90) {
@@ -289,6 +285,7 @@ export const MONEY_METHOD_LABEL: Record<MoneyMethod | 'credit', string> = {
   cash: 'hotově',
   transfer: 'převodem',
   online: 'online',
+  qr: 'QR platbou',
   credit: 'z kreditu',
 };
 
@@ -360,6 +357,13 @@ export function bookingMoneyNote(s: ClinicState, b: Booking): string {
     case 'free':
       parts.push('zdarma');
       break;
+    case 'qr': {
+      const due = b.price - b.payment.paidAmount;
+      if (b.payment.paid) parts.push(`${formatMoney(b.payment.paidAmount || b.price)} QR platbou`);
+      else if (!pendingRequestOfBooking(s, b.id)) parts.push(`${formatMoney(due)} neuhrazeno · QR platba zrušena`);
+      else parts.push(`QR platba ${formatMoney(due)} · ${b.status === 'completed' ? 'neuhrazeno, ' : ''}čeká na platbu`);
+      break;
+    }
     case 'onsite':
     default:
       if (b.payment.paid) parts.push(`${formatMoney(b.price)} ${b.payment.settledBy ? MONEY_METHOD_LABEL[b.payment.settledBy] : 'zaplaceno'}`);
@@ -384,6 +388,11 @@ export function upcomingPaymentNote(s: ClinicState, b: Booking): string {
       return `zaplaceno online ${formatMoney(b.payment.paidAmount)}`;
     case 'free':
       return 'zdarma';
+    case 'qr':
+      if (b.payment.paid) return `zaplaceno QR platbou ${formatMoney(b.payment.paidAmount || b.price)}`;
+      return pendingRequestOfBooking(s, b.id)
+        ? `QR platba ${formatMoney(b.price - b.payment.paidAmount)} · čeká na platbu`
+        : `QR platba zrušena · ${formatMoney(b.price - b.payment.paidAmount)} na místě`;
     default:
       return `platba na místě ${formatMoney(b.price)}`;
   }
@@ -453,7 +462,7 @@ export function debtItems(s: ClinicState, clientId: Id): DebtItem[] {
         label: `${b.fee.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} · ${svc} ${formatDayShort(b.start)}`,
       });
     }
-    if (b.status === 'completed' && b.payment.method === 'onsite' && !b.payment.paid) {
+    if (b.status === 'completed' && (b.payment.method === 'onsite' || b.payment.method === 'qr') && !b.payment.paid) {
       out.push({ kind: 'visit', booking: b, amount: b.price - b.payment.paidAmount, label: `Neuhrazený termín · ${svc} ${formatDayShort(b.start)}` });
     }
   }

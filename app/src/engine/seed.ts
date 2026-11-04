@@ -4,18 +4,23 @@ import type {
   Campaign,
   ClinicState,
   Ctx,
+  GroupSession,
   Id,
   LocalDate,
   LocalDateTime,
   MoneyMethod,
+  PaymentMethod,
   Service,
 } from '../domain/types';
 import {
   addFollowUp,
   addNote,
   cancelBooking,
+  confirmPaymentRequest,
   createBooking,
   createClient,
+  createPaymentRequest,
+  type CreatePaymentRequestInput,
   deliverCampaign,
   joinWaitlist,
   markCompleted,
@@ -32,6 +37,8 @@ import {
 } from './commands';
 import { sessionNotesEmail } from './crm';
 import { createBaseState } from './defaults';
+import { pendingRequestOfBooking } from './payments';
+import { czechAccountToIban } from './qr';
 import { evaluateCancellation } from './policy';
 import { runProcesses } from './processes';
 import {
@@ -41,6 +48,7 @@ import {
   eligiblePackages,
   getService,
   getTherapist,
+  sessionFreeSpots,
   sessionsOnDate,
   therapistName,
 } from './selectors';
@@ -52,6 +60,8 @@ import {
   combine,
   dateOf,
   daysBetween,
+  diffMinutes,
+  minStr,
   minutesOf,
   startOfWeek,
   timeFromMinutes,
@@ -133,6 +143,31 @@ interface SimClient {
   intakeEnd: LocalDateTime | null;
 }
 
+/** Smyšlený účet pro ukázková data (platný kontrolní součet, aby šla QR platba vyzkoušet). */
+export const DEMO_ACCOUNT_NUMBER = '2900000048/2010';
+
+/** Skupinový neurovizuální trénink (vedle workshopu) – služba, pravidelné termíny a permanentka. */
+function addGroupNeuro(d: ClinicState, validFrom: LocalDate): void {
+  d.services.push({
+    id: 's_g_neuro', name: 'Neurovizuální trénink ve skupině', categoryId: 'cat_neuro', durationMin: 60, priceCzk: 450, bufferMin: 0,
+    kind: 'group', capacity: 6, therapistIds: ['t_vavrova'], onlineBookable: true, newClientsOnly: false, remote: false,
+    description: 'Trénink reakce, periferního vidění a koordinace v malé skupině (nejvýše 6 osob).',
+    active: true, order: d.services.length,
+  });
+  const t = (id: string, weekday: 0 | 2 | 4, start: string, title: string) => ({
+    id, serviceId: 's_g_neuro', therapistId: 't_vavrova', roomId: 'r_trening', weekday, start, title, capacity: 6, validFrom, validTo: null, active: true,
+  });
+  d.groupTemplates.push(
+    t('g_neuro_po', 0, '16:00', 'Neurotrénink ve skupině – reakce'),
+    t('g_neuro_st', 2, '16:00', 'Neurotrénink ve skupině – periferní vidění'),
+    t('g_neuro_pa', 4, '08:00', 'Ranní neurotrénink ve skupině'),
+  );
+  d.packageTemplates.push({
+    id: 'pt_gneuro8', name: 'Neurotrénink ve skupině 8×', description: '8 skupinových neurovizuálních tréninků po 60 minutách', entries: 8,
+    serviceIds: ['s_g_neuro'], priceCzk: 3200, validityDays: 90, excusesAllowed: 1, active: true, order: d.packageTemplates.length,
+  });
+}
+
 const ascii = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function shiftToWorkday(date: LocalDate): LocalDate {
@@ -160,11 +195,46 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
   const simStart = addDays(startOfWeek(today), -7 * (opts.weeksBack ?? 8));
   const simEnd = addDays(today, opts.daysAhead ?? 21);
   const d: ClinicState = createBaseState(simStart);
+  addGroupNeuro(d, simStart);
+  const demoIban = czechAccountToIban(DEMO_ACCOUNT_NUMBER);
+  d.settings.payments = { ...d.settings.payments, accountNumber: DEMO_ACCOUNT_NUMBER, iban: demoIban.ok ? demoIban.iban : '' };
   const staff: Actor = { role: 'reception', name: 'Recepce' };
   const owner: Actor = { role: 'owner', name: 'Tereza Malá', therapistId: 't_mala' };
   const at = (time: LocalDateTime, actor: Actor = staff): Ctx => ({ now: time, actor });
   const clientActor = (id: Id): Actor => ({ role: 'client', name: 'Klient', clientId: id });
   const svc = (id: Id): Service => getService(d, id) as Service;
+
+  /* ---------------- QR platby ---------------- */
+  /**
+   * Platební výzva a (pokud platba přišla do „teď“) její potvrzení personálem podle výpisu – o chvíli později,
+   * s datem připsání `paidAt`. Bez `paidAt` výzva zůstane čekající.
+   */
+  const payQr = (input: CreatePaymentRequestInput, createdAt: LocalDateTime, actor: Actor, paidAt: LocalDateTime | null): Id | null => {
+    if (createdAt > now) return null;
+    const r = createPaymentRequest(d, input, at(createdAt, actor));
+    if (!r.ok) return null;
+    if (paidAt && paidAt <= now) {
+      const paid = paidAt < createdAt ? createdAt : paidAt;
+      const confirmAt = minStr(addMinutes(paid, between(5, 240)), now);
+      confirmPaymentRequest(d, { requestId: r.value, at: paid }, at(confirmAt, staff));
+    }
+    return r.value;
+  };
+  /** Rezervace placená QR převodem: klient zaplatí za 1–40 h (nejpozději hodinu před termínem); po „teď“ výzva čeká. */
+  const payBookingByQr = (b: Booking, created: LocalDateTime): void => {
+    const req = pendingRequestOfBooking(d, b.id);
+    if (!req) return;
+    if (chance(0.03)) return; // zapomněl zaplatit – výzva po splatnosti
+    const latest = addHours(b.start, -1);
+    let paidAt = addHours(created, between(1, 40));
+    if (paidAt > latest) paidAt = latest > created ? latest : created;
+    if (paidAt > now) return;
+    const confirmAt = minStr(addMinutes(paidAt, between(20, 600)), now);
+    confirmPaymentRequest(d, { requestId: req.id, at: paidAt }, at(confirmAt, staff));
+  };
+  /** Klient z portálu občas zvolí QR převod místo platby na místě / kartou online (jen s dostatečným předstihem). */
+  const maybeQr = <P extends { method: PaymentMethod; packageId?: Id }>(payment: P, serviceId: Id, start: LocalDateTime, created: LocalDateTime, p: number): P | { method: 'qr' } =>
+    (payment.method === 'onsite' || payment.method === 'online') && svc(serviceId).priceCzk > 0 && diffMinutes(start, created) >= 24 * 60 && chance(p) ? { method: 'qr' } : payment;
 
   /* ---------------- klienti ---------------- */
   const sim: SimClient[] = [];
@@ -385,6 +455,13 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     const p = c.intake !== null && regularDone === 0 ? 0.45 : done.length >= 1 ? (c.regular ? 0.3 : 0.08) : 0;
     if (!chance(p)) return;
     if (eligiblePackages(d, c.id, serviceId, dateOf(when), dateOf(when)).length) return;
+    if (chance(0.12)) {
+      // objednávka z portálu s QR platbou, zaplaceno těsně před rezervací termínu
+      const ordered = addMinutes(when, -between(60, 24 * 60));
+      const floor = combine(c.createdDate, '08:00');
+      payQr({ clientId: c.id, purpose: 'package', packageTemplateId: tpl }, ordered < floor ? floor : ordered, clientActor(c.id), addMinutes(when, -2));
+      return;
+    }
     const method: MoneyMethod = pick(['card', 'card', 'card', 'transfer', 'cash'] as const);
     sellPackage(d, { clientId: c.id, templateId: tpl, paidBy: method }, at(when));
   };
@@ -460,6 +537,63 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     }
   };
 
+  /* ---------------- neurovizuální trénink ve skupině ---------------- */
+  // nejbližší budoucí termíny: plno, skoro plno, plno, pár volných… (ať je v ukázce vidět obsazenost i čekací listina)
+  const FUTURE_NEURO_PLAN = [6, 5, 6, 2, 6, 4, 3];
+  let futureNeuro = 0;
+  const groupNeuroPayment = (c: SimClient, ses: GroupSession, created: LocalDateTime): { method: PaymentMethod; packageId?: Id } => {
+    let pk = eligiblePackages(d, c.id, ses.serviceId, dateOf(ses.start), dateOf(created));
+    if (!pk.length) {
+      const before = bookingsOfClient(d, c.id).some((b) => b.serviceId === ses.serviceId && b.status === 'completed');
+      if (chance(before ? 0.4 : 0.2)) {
+        const buyAt = addMinutes(created, -10);
+        if (chance(0.3)) {
+          const ordered = addMinutes(buyAt, -between(60, 30 * 60));
+          const floor = combine(c.createdDate, '08:00');
+          payQr({ clientId: c.id, purpose: 'package', packageTemplateId: 'pt_gneuro8' }, ordered < floor ? floor : ordered, clientActor(c.id), addMinutes(buyAt, -5));
+        } else {
+          sellPackage(d, { clientId: c.id, templateId: 'pt_gneuro8', paidBy: pick(['card', 'card', 'transfer', 'cash'] as const) }, at(buyAt));
+        }
+        pk = eligiblePackages(d, c.id, ses.serviceId, dateOf(ses.start), dateOf(created));
+      }
+    }
+    if (pk.length) return { method: 'package', packageId: pk[0].id };
+    if (clientCredit(d, c.id) >= svc(ses.serviceId).priceCzk && chance(0.5)) return { method: 'credit' };
+    const base: { method: PaymentMethod } = chance(0.35) ? { method: 'online' } : { method: 'onsite' };
+    return maybeQr(base, ses.serviceId, ses.start, created, 0.3);
+  };
+  const fillNeuroSession = (ses: GroupSession): void => {
+    const day = dateOf(ses.start);
+    let wanted: number;
+    if (ses.start <= now) wanted = between(2, 6);
+    else if (futureNeuro < FUTURE_NEURO_PLAN.length && daysBetween(today, day) <= 14) wanted = FUTURE_NEURO_PLAN[futureNeuro++];
+    else wanted = between(0, 4);
+    const seen = new Set<Id>();
+    const pool = [...poolFor('neuro', day), ...poolFor('workshopy', day)].filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+    if (!pool.length) return;
+    let added = 0;
+    for (let k = 0; k < pool.length * 3 && added < wanted; k++) {
+      const c = pick(pool);
+      if (bookingsOfClient(d, c.id).some((b) => b.sessionId === ses.id)) continue;
+      const floor = combine(c.createdDate, '08:00');
+      let created = addHours(ses.start, -between(6, 24 * 9));
+      if (created < floor) created = floor;
+      if (created > now) created = addHours(now, -between(1, 24 * 5));
+      if (created < floor || created >= addHours(ses.start, -3)) continue;
+      const payment = groupNeuroPayment(c, ses, created);
+      const res = createBooking(d, { clientId: c.id, serviceId: ses.serviceId, therapistId: ses.therapistId, start: ses.start, sessionId: ses.id, payment }, at(created, clientActor(c.id)));
+      if (!res.ok) continue;
+      added++;
+      const b = d.bookings.find((x) => x.id === res.value) as Booking;
+      if (b.payment.method === 'qr') payBookingByQr(b, created);
+      if (b.end > now) continue;
+      const r = rand();
+      if (r < 0.04) markNoShow(d, { bookingId: b.id }, at(addMinutes(b.start, 10)));
+      else if (r < 0.1 && addHours(b.start, -between(8, 30)) > b.createdAt) cancelBooking(d, { bookingId: b.id, option: 'free', reason: pick(['Nemoc', 'Trénink se protáhl', '']) }, at(addHours(b.start, -8), clientActor(c.id)));
+      else markCompleted(d, { bookingId: b.id, settleWith: b.payment.method === 'onsite' ? pick(['card', 'card', 'cash'] as const) : null }, at(b.end));
+    }
+  };
+
   for (let day = simStart; day <= simEnd; day = addDays(day, 1)) {
     const ahead = daysBetween(today, day);
     for (const th of d.therapists) {
@@ -526,10 +660,15 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
             // úvodní rozhovor zdarma domlouvá kouč (telefon, e-mail, formulář na webu)
             res = createBooking(d, { clientId: c.id, serviceId, therapistId: th.id, start, payment: { method: 'free' }, channel: chance(0.6) ? 'telefon' : 'recepce' }, at(created));
           } else {
-            if (!isIntake && chance(0.05)) topUpCredit(d, { clientId: c.id, amount: pick([2000, 3000, 5000]), method: pick(['card', 'cash', 'transfer'] as const) }, at(addMinutes(created, -10)));
+            if (!isIntake && chance(0.05)) {
+              const amount = pick([2000, 3000, 5000]);
+              if (chance(0.25)) payQr({ clientId: c.id, purpose: 'credit_topup', amount }, addMinutes(created, -between(30, 600)), clientActor(c.id), addMinutes(created, -8));
+              else topUpCredit(d, { clientId: c.id, amount, method: pick(['card', 'cash', 'transfer'] as const) }, at(addMinutes(created, -10)));
+            }
             if (!isIntake) maybeBuyPackage(c, serviceId, addMinutes(created, -5));
-            const payment = choosePayment(c.id, serviceId, start, created);
             const actor = c.online && !isIntake ? clientActor(c.id) : staff;
+            const chosen = choosePayment(c.id, serviceId, start, created);
+            const payment = actor.role === 'client' ? maybeQr(chosen, serviceId, start, created, 0.12) : chosen;
             res = createBooking(d, { clientId: c.id, serviceId, therapistId: th.id, start, payment, channel: actor.role === 'client' ? 'online' : chance(0.75) ? 'recepce' : 'telefon' }, at(created, actor));
             if (!res.ok && actor.role === 'client') res = createBooking(d, { clientId: c.id, serviceId, therapistId: th.id, start, payment, channel: 'telefon' }, at(created));
           }
@@ -539,6 +678,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
           }
           lastBooked.set(c.id, day);
           const b = d.bookings.find((x) => x.id === res.value) as Booking;
+          if (b.payment.method === 'qr') payBookingByQr(b, created);
           if (b.end <= now) resolvePast(b, c);
           else if (b.start > now && !isIntake && chance(0.025)) {
             const cancelAt = addHours(created, between(2, 30));
@@ -562,8 +702,12 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
       }
     }
 
-    // workshopy
+    // workshopy a skupinové neurotréninky
     for (const ses of sessionsOnDate(d, day)) {
+      if (ses.serviceId === 's_g_neuro') {
+        fillNeuroSession(ses);
+        continue;
+      }
       const ahead2 = daysBetween(today, day);
       const wanted = ahead2 < 0 ? between(6, 11) : ahead2 <= 2 ? between(6, 11) : ahead2 <= 7 ? between(4, 8) : between(2, 5);
       const pool = poolFor('workshopy', day);
@@ -609,7 +753,9 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     if (option) cancelBooking(d, { bookingId: tomorrowsMala.id, option: option.kind, reason: 'Nemoc' }, at(addMinutes(now, -25), clientActor(tomorrowsMala.clientId)));
   }
   // plně obsazený workshop s čekajícími
-  const fullSession = sessionsOnDate(d, tomorrow).concat(sessionsOnDate(d, addDays(tomorrow, 1)))[0];
+  const fullSession = sessionsOnDate(d, tomorrow)
+    .concat(sessionsOnDate(d, addDays(tomorrow, 1)))
+    .filter((x) => x.serviceId === 's_g_odolnost')[0];
   if (fullSession) {
     const pool = poolFor('workshopy', today);
     for (const c of pool) {
@@ -622,6 +768,19 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     for (const c of pool.slice(-2)) {
       if (!bookingsOfClient(d, c.id).some((b) => b.sessionId === fullSession.id))
         joinWaitlist(d, { clientId: c.id, serviceId: fullSession.serviceId, therapistId: null, dateFrom: dateOf(fullSession.start), sessionId: fullSession.id }, wlCtx(c.id));
+    }
+  }
+
+  // plné skupinové neurotréninky s čekajícími
+  let neuroWaiting = 0;
+  for (let k = 0; k <= 14 && neuroWaiting < 4; k++) {
+    for (const ses of sessionsOnDate(d, addDays(today, k))) {
+      if (ses.serviceId !== 's_g_neuro' || ses.start <= now || ses.cancelled || sessionFreeSpots(d, ses) > 0) continue;
+      const cands = poolFor('neuro', today).filter((c) => !bookingsOfClient(d, c.id).some((b) => b.sessionId === ses.id));
+      for (const c of cands.slice(0, neuroWaiting === 0 ? 2 : 1)) {
+        const r = joinWaitlist(d, { clientId: c.id, serviceId: ses.serviceId, therapistId: null, dateFrom: dateOf(ses.start), sessionId: ses.id }, wlCtx(c.id));
+        if (r.ok) neuroWaiting++;
+      }
     }
   }
 
@@ -666,8 +825,30 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     const when = addHours(b.start, between(20, 24 * 5));
     if (when > now) continue;
     const r = rand();
-    if (r < 0.82) payFee(d, { bookingId: b.id, method: pick(['card', 'card', 'cash', 'transfer'] as const) }, at(when));
+    if (r < 0.1) payQr({ clientId: b.clientId, purpose: 'storno_fee', bookingId: b.id }, addHours(b.start, between(2, 18)), clientActor(b.clientId), when);
+    else if (r < 0.82) payFee(d, { bookingId: b.id, method: pick(['card', 'card', 'cash', 'transfer'] as const) }, at(when));
     else if (r < 0.9) waiveFee(d, { bookingId: b.id, reason: pick(['Doložená nemoc', 'Dohoda s klientem', 'První nedostavení']) }, at(when, owner));
+  }
+
+  /* ---------------- čekající QR platby (i po splatnosti) ---------------- */
+  {
+    const regular = sim.filter((c) => c.id !== martin && c.intake === null && c.createdDate < addDays(today, -30));
+    // permanentka objednaná z portálu před 4 dny – po splatnosti
+    const a = regular[5];
+    if (a) payQr({ clientId: a.id, purpose: 'package', packageTemplateId: 'pt_neuro10' }, combine(addDays(today, -4), '19:40'), clientActor(a.id), null);
+    // dobití kreditu z portálu před pár hodinami
+    const b2 = regular[11];
+    if (b2) payQr({ clientId: b2.id, purpose: 'credit_topup', amount: 3000 }, addHours(now, -5), clientActor(b2.id), null);
+    // neuhrazený storno poplatek – platební údaje poslala recepce
+    const feeDue = d.bookings.find((x) => x.fee?.status === 'due' && x.clientId !== martin && x.start < now && !pendingRequestOfBooking(d, x.id, 'storno_fee'));
+    if (feeDue) payQr({ clientId: feeDue.clientId, purpose: 'storno_fee', bookingId: feeDue.id }, addHours(now, -26), staff, null);
+    // nadcházející termíny, které klienti chtějí zaplatit QR převodem (první je po splatnosti)
+    const upcoming = d.bookings.filter(
+      (x) => x.status === 'confirmed' && x.payment.method === 'onsite' && !x.payment.paid && x.price > 0 && x.clientId !== martin && x.start > addDays(now, 1) && x.createdAt <= addDays(now, -3),
+    );
+    const [late, fresh] = [upcoming[0], upcoming[upcoming.length - 1]];
+    if (late) payQr({ clientId: late.clientId, purpose: 'booking', bookingId: late.id }, addDays(now, -3), clientActor(late.clientId), null);
+    if (fresh && fresh !== late) payQr({ clientId: fresh.clientId, purpose: 'booking', bookingId: fresh.id }, addHours(now, -3), clientActor(fresh.clientId), null);
   }
 
   /* ---------------- CRM: fáze spolupráce, poznámky, follow-upy ---------------- */
@@ -681,6 +862,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
   d.audit = d.audit.filter((a) => a.at <= now && (a.at >= keepFrom || a.clientId === martin)).slice(-900);
   d.ledger.sort((a, b) => (a.at < b.at ? -1 : 1));
   d.payments.sort((a, b) => (a.at < b.at ? -1 : 1));
+  d.paymentRequests.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
   d.bookings.sort((a, b) => (a.start < b.start ? -1 : 1));
   d.demoSeededAt = now;
   d.settings.simulatedNow = null;

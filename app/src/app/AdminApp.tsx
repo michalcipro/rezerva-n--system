@@ -4,9 +4,11 @@ import { clientName } from '../engine/selectors';
 import { CalendarScreen, NewBookingDialog } from '../screens/calendar';
 import { ClientDetailScreen, ClientsScreen } from '../screens/clients';
 import { CommsScreen } from '../screens/comms';
+import { GroupsScreen } from '../screens/groups';
 import { FollowUpsScreen, PipelineScreen } from '../screens/pipeline';
 import { PackagesScreen, ServicesScreen, SettingsScreen, TeamScreen } from '../screens/settings';
 import { DashboardScreen, StatsScreen } from '../screens/stats';
+import { VisitsScreen } from '../screens/visits';
 import { useClinic } from '../store/hooks';
 import { navigate, useSession, type AdminRoute } from '../store/session';
 import { AppShell, Avatar, Button, EmptyState, Icon, Kbd, type IconName } from '../ui';
@@ -17,9 +19,11 @@ type NavId = Exclude<AdminRoute['name'], 'klient'>;
 const NAV: { id: NavId; label: string; icon: IconName }[] = [
   { id: 'prehled', label: 'Přehled', icon: 'home' },
   { id: 'kalendar', label: 'Kalendář', icon: 'calendar' },
+  { id: 'skupiny', label: 'Skupinové lekce', icon: 'calendarCheck' },
   { id: 'klienti', label: 'Klienti', icon: 'users' },
   { id: 'pipeline', label: 'Pipeline', icon: 'layers' },
   { id: 'followupy', label: 'Follow-upy', icon: 'checkCircle' },
+  { id: 'vstupy', label: 'Vstupy', icon: 'receipt' },
   { id: 'permanentky', label: 'Permanentky a kredity', icon: 'ticket' },
   { id: 'sluzby', label: 'Služby a ceník', icon: 'briefcase' },
   { id: 'tym', label: 'Tým a směny', icon: 'clock' },
@@ -30,8 +34,9 @@ const NAV: { id: NavId; label: string; icon: IconName }[] = [
 
 const ACCESS: Record<ActorRole, NavId[]> = {
   owner: NAV.map((n) => n.id),
-  reception: ['prehled', 'kalendar', 'klienti', 'pipeline', 'followupy', 'permanentky', 'sluzby', 'tym', 'komunikace'],
-  therapist: ['prehled', 'kalendar', 'klienti', 'pipeline', 'followupy'],
+  reception: ['prehled', 'kalendar', 'skupiny', 'klienti', 'pipeline', 'followupy', 'vstupy', 'permanentky', 'sluzby', 'tym', 'komunikace'],
+  // Terapeut ve Vstupech vidí jen své vstupy (obrazovka filtr zamkne podle actor.therapistId).
+  therapist: ['prehled', 'kalendar', 'skupiny', 'klienti', 'pipeline', 'followupy', 'vstupy'],
   client: [],
 };
 
@@ -163,6 +168,9 @@ export function AdminApp(): JSX.Element {
       case 'kalendar':
         screen = <CalendarScreen />;
         break;
+      case 'skupiny':
+        screen = <GroupsScreen />;
+        break;
       case 'klienti':
         screen = <ClientsScreen />;
         break;
@@ -174,6 +182,9 @@ export function AdminApp(): JSX.Element {
         break;
       case 'followupy':
         screen = <FollowUpsScreen />;
+        break;
+      case 'vstupy':
+        screen = <VisitsScreen />;
         break;
       case 'permanentky':
         screen = <PackagesScreen />;

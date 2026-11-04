@@ -8,9 +8,10 @@ import { addMinutes, diffMinutes } from '../engine/time';
 import { useClinic, useCommand, useNow } from '../store/hooks';
 import { Button, Checkbox, ConfirmDialog, Icon, Progress } from '../ui';
 import { usePortal } from './context';
-import { defaultPaymentKey, draftBooking, paymentOptions, placeLabel, termsInfo, whenLabel } from './logic';
+import { defaultPaymentKey, draftBooking, paymentOptions, placeLabel, qrDueAt, termsInfo, whenLabel } from './logic';
 import { PaymentPicker, PolicySheet, SimulatedPaymentNote, TermsBox, useSimulatedPayment } from './payment';
 import { Sheet } from './parts';
+import { QrPayNote } from './qr';
 
 /** Nabídka uvolněného termínu z čekací listiny – s odpočtem do vypršení. */
 export function OfferCard({ entry }: { entry: WaitlistEntry }): JSX.Element | null {
@@ -125,6 +126,7 @@ function AcceptOfferSheet({ entry, onClose }: { entry: WaitlistEntry; onClose: (
       )
     : null;
   const online = selected?.payment.method === 'online';
+  const qr = selected?.payment.method === 'qr';
 
   const confirm = (): void => {
     if (!selected) return;
@@ -132,7 +134,8 @@ function AcceptOfferSheet({ entry, onClose }: { entry: WaitlistEntry; onClose: (
       const r = run(acceptWaitlistOffer, { entryId: entry.id, payment: selected.payment }, { success: 'Termín je váš', quiet: true });
       if (r.ok) {
         onClose();
-        go({ name: 'termin', bookingId: r.value });
+        // u QR platby detail termínu rovnou ukáže QR kód
+        go({ name: 'termin', bookingId: r.value }, qr ? { kind: 'showQr', bookingId: r.value } : undefined);
       }
     });
   };
@@ -144,7 +147,13 @@ function AcceptOfferSheet({ entry, onClose }: { entry: WaitlistEntry; onClose: (
       title="Potvrdit uvolněný termín"
       footer={
         <Button variant="primary" size="lg" full loading={pay.paying} disabled={!selected || !agree} onClick={confirm}>
-          {pay.paying ? 'Probíhá platba…' : online && selected ? `Zaplatit ${formatMoney(selected.amount)} a potvrdit` : 'Potvrdit termín'}
+          {pay.paying
+            ? 'Probíhá platba…'
+            : online && selected
+              ? `Zaplatit ${formatMoney(selected.amount)} a potvrdit`
+              : qr
+                ? 'Potvrdit a zobrazit QR kód'
+                : 'Potvrdit termín'}
         </Button>
       }
     >
@@ -165,6 +174,7 @@ function AcceptOfferSheet({ entry, onClose }: { entry: WaitlistEntry; onClose: (
         </div>
         <PaymentPicker options={options} value={key} onChange={setPayKey} />
         {online && selected && <SimulatedPaymentNote amount={formatMoney(selected.amount)} />}
+        {qr && selected && <QrPayNote purpose="booking" amount={selected.amount} due={qrDueAt(clinic, now, offer.start)} />}
         {terms && <TermsBox terms={terms} onShowPolicy={() => setPolicyOpen(true)} />}
         <Checkbox className="por-agree" checked={agree} onChange={setAgree} label="Souhlasím se storno podmínkami" />
       </div>

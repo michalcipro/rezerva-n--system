@@ -8,3 +8,5 @@ export { CancelBookingDialog } from './CancelBookingDialog';
 export type { CancelBookingDialogProps } from './CancelBookingDialog';
 export { RescheduleDialog } from './RescheduleDialog';
 export type { RescheduleDialogProps } from './RescheduleDialog';
+export { useQrOption } from './hooks';
+export type { QrOption } from './hooks';

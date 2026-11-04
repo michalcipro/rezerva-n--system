@@ -57,6 +57,7 @@ import {
 import { BookingDrawer, NewBookingDialog } from '../calendar';
 import { HourlyChart, LegendItem } from './charts';
 import { FollowUpsCard, StagesCard } from './DashboardCrm';
+import { GroupSpotsCard, PendingQrCard } from './DashboardWidgets';
 import { hourlyOccupancy, pct } from './model';
 import { NewClientDialog } from './NewClientDialog';
 import {
@@ -110,6 +111,7 @@ const MONEY_TEXT: Record<MoneyMethod | 'credit', string> = {
   cash: 'hotově',
   online: 'online',
   transfer: 'převodem',
+  qr: 'QR platbou',
   credit: 'z kreditu',
 };
 
@@ -136,7 +138,7 @@ function ArrivalRow({
   const started = booking.start <= now;
   const duration = Math.max(1, diffMinutes(booking.end, booking.start));
   const elapsed = Math.min(duration, Math.max(0, diffMinutes(now, booking.start)));
-  const onsiteDue = booking.payment.method === 'onsite' && !booking.payment.paid;
+  const onsiteDue = (booking.payment.method === 'onsite' || booking.payment.method === 'qr') && !booking.payment.paid;
   const due = Math.max(0, booking.price - booking.payment.paidAmount);
 
   const complete = (settleWith: MoneyMethod | 'credit' | null): void => {
@@ -695,6 +697,8 @@ export function DashboardScreen(): JSX.Element {
 
           <FollowUpsCard assigneeId={scope} />
 
+          {finance && <PendingQrCard />}
+
           <Card as="section" aria-label="Obsazenost dnes po hodinách" className="st-card">
             <CardHeader
               title="Obsazenost dnes"
@@ -731,7 +735,7 @@ export function DashboardScreen(): JSX.Element {
           </Card>
         </div>
 
-        <aside className="split__aside" aria-label="Upozornění a fáze spolupráce">
+        <aside className="split__aside" aria-label="Upozornění, volná místa na lekcích a fáze spolupráce">
           <Card as="section" aria-label="Upozornění" className="st-card">
             <CardHeader
               title="Upozornění"
@@ -748,6 +752,7 @@ export function DashboardScreen(): JSX.Element {
               <div className="st-alerts">{groups}</div>
             )}
           </Card>
+          <GroupSpotsCard therapistId={scope} />
           <StagesCard onNewClient={() => setNewClient(true)} />
         </aside>
       </div>

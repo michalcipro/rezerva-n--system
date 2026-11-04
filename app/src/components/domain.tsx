@@ -1,7 +1,9 @@
 import type { Booking, Client, ClinicState, Id, Therapist, Tone } from '../domain/types';
 import { formatMoney } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
+import { pendingRequestOfBooking } from '../engine/payments';
 import { getCategory, getService, getTherapist, therapistInitials, therapistName } from '../engine/selectors';
+import { useClinic } from '../store/hooks';
 import { Avatar, Badge, StatusPill } from '../ui';
 import './components.css';
 
@@ -31,14 +33,20 @@ export function CategoryBadge({ clinic, serviceId }: { clinic: ClinicState; serv
   );
 }
 
-/** Stav rezervace včetně poplatku. */
+/** Stav rezervace včetně poplatku. QR platba bez čekající výzvy (zrušené) se ukáže jako platba na místě. */
 export function BookingStatusBadges({ booking }: { booking: Booking }): JSX.Element {
+  const clinic = useClinic();
+  const unpaidQr = booking.status === 'confirmed' && booking.payment.method === 'qr' && !booking.payment.paid;
+  const qrPending = unpaidQr && !!pendingRequestOfBooking(clinic, booking.id, 'booking');
   return (
     <span className="bk-badges">
       <StatusPill status={booking.status} />
       {booking.fee && booking.fee.status === 'due' && <Badge tone="warning" size="sm">Poplatek {formatMoney(booking.fee.amount)} k úhradě</Badge>}
       {booking.fee && booking.fee.status === 'waived' && booking.fee.waivedReason && <Badge tone="neutral" size="sm">Poplatek odpuštěn</Badge>}
-      {booking.status === 'confirmed' && booking.payment.method === 'onsite' && !booking.payment.paid && <Badge tone="neutral" size="sm">Platba na místě</Badge>}
+      {booking.status === 'confirmed' && !booking.payment.paid && (booking.payment.method === 'onsite' || (unpaidQr && !qrPending)) && (
+        <Badge tone="neutral" size="sm">Platba na místě</Badge>
+      )}
+      {qrPending && <Badge tone="warning" size="sm">Čeká na QR platbu</Badge>}
       {booking.makeupForBookingId && <Badge tone="info" size="sm">Náhradní termín</Badge>}
       {booking.fromWaitlist && <Badge tone="accent" size="sm">Z čekací listiny</Badge>}
     </span>

@@ -17,6 +17,7 @@ import type {
 } from '../../domain/types';
 import { bookedMinutes, freeWindows, workingMinutes, type Interval, type TherapistDay } from '../../engine/availability';
 import { countLabel, formatDayMonth, formatDuration, plural } from '../../engine/format';
+import { pendingRequestOfBooking } from '../../engine/payments';
 import {
   bookingsOfClient,
   bookingsOnDate,
@@ -368,6 +369,9 @@ export function paymentHint(s: ClinicState, b: Booking, today: LocalDate): strin
       return 'náhrada za omluvenku';
     case 'free':
       return 'zdarma';
+    case 'qr':
+      // Rezervace „QR převodem“ zaplacená jinak se v enginu přepne na 'onsite'; bez čekající výzvy byla QR platba zrušena.
+      return b.payment.paid ? 'zaplaceno QR platbou' : pendingRequestOfBooking(s, b.id) ? 'čeká na QR platbu' : 'QR platba zrušena';
     default:
       return b.payment.paid ? 'zaplaceno' : 'na místě';
   }

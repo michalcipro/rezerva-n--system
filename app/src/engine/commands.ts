@@ -26,7 +26,10 @@ import type {
   NoteKind,
   PackageTemplate,
   PaymentMethod,
+  PaymentPackageTerms,
+  PaymentPurpose,
   PaymentRecord,
+  PaymentRequest,
   Service,
   Settings,
   Stage,
@@ -51,11 +54,24 @@ import {
   STAGE_NOTE_MAX,
   stagesSorted,
 } from './crm';
-import { formatDayShort, formatMoney, formatNumber, formatPercent, formatTime, countLabel, plural } from './format';
+import { formatDate, formatDayShort, formatMoney, formatNumber, formatPercent, formatTime, countLabel, plural } from './format';
 import { newId } from './ids';
 import { addManualMessage, bookingVars, MESSAGE_BODY_MAX, MESSAGE_SUBJECT_MAX, queueTemplateMessage } from './messages';
 import { evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { evaluateSegment, campaignPlainText } from './segments';
+import {
+  defaultPaymentSettings,
+  MONEY_METHOD_LABEL,
+  nextVariableSymbol,
+  PAYMENT_PURPOSE_LABEL,
+  paymentRequestDueAt,
+  paymentRequestMessage,
+  paymentRequestOutcome,
+  paymentRequestTitle,
+  qrAvailable,
+  qrUnavailableReason,
+} from './payments';
+import { czechAccountToIban, SPAYD_RN_MAX } from './qr';
 import {
   bookingsOfClient,
   clientCredit,
@@ -109,13 +125,7 @@ function ensureOwnBooking(ctx: Ctx, b: Booking): string | null {
   return null;
 }
 
-const MONEY_LABEL: Record<MoneyMethod | 'credit', string> = {
-  cash: 'hotově',
-  card: 'kartou',
-  online: 'online',
-  transfer: 'převodem',
-  credit: 'z kreditu',
-};
+const MONEY_LABEL: Record<MoneyMethod | 'credit', string> = { ...MONEY_METHOD_LABEL, online: 'online' };
 
 /* ------------------------------------------------------------------ */
 /* Klienti                                                             */
@@ -349,6 +359,13 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
       payment.paid = true;
       break;
     }
+    case 'qr': {
+      // nezaplacená rezervace + platební výzva (vznikne níže, až rezervace existuje)
+      const why = qrUnavailableReason(d);
+      if (why) return fail(why);
+      if (price <= 0) return fail('Termín je zdarma – QR platba není potřeba.');
+      break;
+    }
     case 'onsite':
     default:
       break;
@@ -374,6 +391,13 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
     fromWaitlist: input.fromWaitlist,
   };
   d.bookings.push(booking);
+
+  if (payment.method === 'qr') {
+    const req = makePaymentRequest(d, ctx, { clientId: client.id, purpose: 'booking', bookingId: id });
+    if (!req.ok) return req;
+    const r = d.paymentRequests.find((x) => x.id === req.value);
+    if (r) notices.push(`Rezervace se potvrdí zaplacením QR platbou: ${formatMoney(r.amount)}, VS ${r.vs}, splatnost ${formatDayShort(r.dueAt)} ${formatTime(r.dueAt)}.`);
+  }
 
   // Zrušit případné čekání na tentýž den / lekci
   for (const w of d.waitlist) {
@@ -597,6 +621,7 @@ export const cancelBooking: Command<CancelBookingInput, { message: string }> = (
       return fail('Neznámá volba.');
   }
 
+  closePaymentRequests(d, ctx, b.id, 'booking', 'cancelled', 'rezervace zrušena');
   audit(d, ctx, 'Zrušení rezervace', `${client?.firstName ?? ''} ${client?.lastName ?? ''} · ${service?.name ?? ''} · ${formatDayShort(b.start)} ${formatTime(b.start)} · ${option.title}`, {
     bookingId: b.id,
     clientId: b.clientId,
@@ -643,7 +668,9 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
           therapistId,
           start: input.start,
           sessionId: input.sessionId,
-          payment: right ? { method: 'makeup', makeupId: right.id } : { method: b.payment.method === 'package' ? 'package' : 'onsite', packageId: b.payment.packageId },
+          payment: right
+            ? { method: 'makeup', makeupId: right.id }
+            : { method: b.payment.method === 'package' ? 'package' : b.payment.method === 'qr' && qrAvailable(d) ? 'qr' : 'onsite', packageId: b.payment.packageId },
         },
         ctx,
       );
@@ -681,14 +708,25 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
   }
   b.rescheduledFrom = old.start;
   b.reminderSentAt = undefined;
+  // čekající QR výzva k termínu: splatnost nejpozději nový začátek, zpráva s novým datem (VS zůstává)
+  for (const r of d.paymentRequests) {
+    if (r.status !== 'pending' || r.bookingId !== b.id || r.purpose !== 'booking') continue;
+    r.dueAt = paymentRequestDueAt(d, r.createdAt, b);
+    r.message = paymentRequestMessage(d, { clientId: b.clientId, purpose: 'booking', booking: b });
+  }
   queueTemplateMessage(d, { key: 'reschedule', clientId: b.clientId, now: ctx.now, bookingId: b.id, vars: bookingVars(d, b) });
   audit(d, ctx, 'Přesun rezervace', `${formatDayShort(old.start)} ${formatTime(old.start)} → ${formatDayShort(b.start)} ${formatTime(b.start)}`, { bookingId: b.id, clientId: b.clientId });
   const offered = offerFreedSlot(d, ctx, { serviceId: b.serviceId, therapistId: old.therapistId, start: old.start, end: old.end, sessionId: old.sessionId, excludeClientId: b.clientId });
   return ok(b.id, [...check.warnings, ...(offered ? ['Původní termín nabídnut čekající listině.'] : [])]);
 };
 
-/** Úhrada ceny termínu na místě / z kreditu. */
-function settle(d: ClinicState, ctx: Ctx, b: Booking, method: MoneyMethod | 'credit'): CommandResult<undefined> {
+/**
+ * Úhrada ceny termínu na místě / z kreditu / QR platbou. Čekající QR výzva k termínu se uzavře: při úhradě QR
+ * platbou jako zaplacená, při jiném způsobu jako zrušená. Rezervace „QR převodem“ zaplacená jinak se přepne na
+ * platbu na místě (zdroj platby pak odpovídá skutečnosti). `via` = potvrzovaná výzva (i dříve zrušená): její VS
+ * jde do poznámky platby a případné další čekající výzvy k termínu se zruší.
+ */
+function settle(d: ClinicState, ctx: Ctx, b: Booking, method: MoneyMethod | 'credit', via?: PaymentRequest): CommandResult<undefined> {
   if (b.payment.paid) return ok(undefined);
   const due = Math.max(0, b.price - b.payment.paidAmount);
   if (method === 'credit') {
@@ -696,12 +734,16 @@ function settle(d: ClinicState, ctx: Ctx, b: Booking, method: MoneyMethod | 'cre
     if (balance < due) return fail(`Na kreditu je jen ${formatMoney(balance)}.`);
     addLedger(d, ctx, { clientId: b.clientId, amount: -due, kind: 'booking_payment', bookingId: b.id, note: 'Úhrada termínu z kreditu' });
   } else {
-    addPayment(d, ctx, { clientId: b.clientId, amount: due, method, purpose: 'booking', bookingId: b.id, note: `Úhrada termínu ${MONEY_LABEL[method]}` });
+    const req = via ?? (method === 'qr' ? d.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === b.id && r.purpose === 'booking') : undefined);
+    addPayment(d, ctx, { clientId: b.clientId, amount: due, method, purpose: 'booking', bookingId: b.id, note: `Úhrada termínu ${MONEY_LABEL[method]}${req ? ` · VS ${req.vs}` : ''}` });
     b.payment.settledBy = method;
   }
+  if (b.payment.method === 'qr' && method !== 'qr') b.payment.method = 'onsite';
   b.payment.paid = true;
   b.payment.paidAmount = b.price;
   b.payment.paidAt = ctx.now;
+  if (via) closePaymentRequests(d, ctx, b.id, 'booking', 'cancelled', `zaplaceno výzvou VS ${via.vs}`);
+  else closePaymentRequests(d, ctx, b.id, 'booking', method === 'qr' ? 'paid' : 'cancelled', 'termín zaplacen jinak');
   return ok(undefined);
 }
 
@@ -715,9 +757,10 @@ export const markCompleted: Command<{ bookingId: Id; settleWith?: MoneyMethod | 
     if (b.fee?.status === 'paid' && b.fee.settledBy === 'credit')
       addLedger(d, ctx, { clientId: b.clientId, amount: b.fee.amount, kind: 'refund', bookingId: b.id, note: 'Zrušení poplatku za nedostavení' });
     b.fee = undefined;
+    closePaymentRequests(d, ctx, b.id, 'storno_fee', 'cancelled', 'poplatek zrušen');
   }
   b.status = 'completed';
-  if (input.settleWith && b.payment.method === 'onsite') {
+  if (input.settleWith && (b.payment.method === 'onsite' || b.payment.method === 'qr')) {
     const r = settle(d, ctx, b, input.settleWith);
     if (!r.ok) return r;
   }
@@ -761,6 +804,7 @@ export const markNoShow: Command<{ bookingId: Id }, { message: string }> = (d, i
   } else {
     message = chargeFee(d, ctx, b, Math.round((b.price * pct) / 100), pct, 'no_show');
   }
+  closePaymentRequests(d, ctx, b.id, 'booking', 'cancelled', 'nedostavení');
   queueTemplateMessage(d, { key: 'no_show', clientId: b.clientId, now: ctx.now, bookingId: b.id, vars: { ...bookingVars(d, b), poplatek: message } });
   const notices: string[] = [];
   const limit = d.settings.policy.blockAfterNoShows;
@@ -789,25 +833,36 @@ export const waiveFee: Command<{ bookingId: Id; reason: string }> = (d, input, c
   b.fee.status = 'waived';
   b.fee.settledBy = undefined;
   b.fee.waivedReason = input.reason.trim() || 'Odpuštěno personálem';
+  closePaymentRequests(d, ctx, b.id, 'storno_fee', 'cancelled', 'poplatek odpuštěn');
   audit(d, ctx, 'Odpuštění poplatku', b.fee.waivedReason, { bookingId: b.id, clientId: b.clientId });
   return ok(undefined, ['Poplatek odpuštěn.']);
 };
 
+/** Úhrada poplatku; `via` = potvrzovaná výzva (i dříve zrušená), další čekající výzvy k poplatku se zruší. */
+function settleFee(d: ClinicState, ctx: Ctx, b: Booking, method: MoneyMethod | 'credit', via?: PaymentRequest): CommandResult<undefined> {
+  const fee = b.fee;
+  if (!fee || fee.status !== 'due') return fail('Rezervace nemá neuhrazený poplatek.');
+  if (method === 'credit') {
+    const balance = clientCredit(d, b.clientId);
+    if (balance < fee.amount) return fail(`Na kreditu je jen ${formatMoney(balance)}.`);
+    addLedger(d, ctx, { clientId: b.clientId, amount: -fee.amount, kind: 'storno_fee', bookingId: b.id, note: 'Úhrada storno poplatku' });
+  } else {
+    const req = via ?? (method === 'qr' ? d.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === b.id && r.purpose === 'storno_fee') : undefined);
+    addPayment(d, ctx, { clientId: b.clientId, amount: fee.amount, method, purpose: 'storno_fee', bookingId: b.id, note: `Úhrada storno poplatku${req ? ` · VS ${req.vs}` : ''}` });
+  }
+  fee.status = 'paid';
+  fee.settledBy = method;
+  if (via) closePaymentRequests(d, ctx, b.id, 'storno_fee', 'cancelled', `zaplaceno výzvou VS ${via.vs}`);
+  else closePaymentRequests(d, ctx, b.id, 'storno_fee', method === 'qr' ? 'paid' : 'cancelled', 'poplatek zaplacen jinak');
+  audit(d, ctx, 'Úhrada poplatku', formatMoney(fee.amount), { bookingId: b.id, clientId: b.clientId });
+  return ok(undefined);
+}
+
 export const payFee: Command<{ bookingId: Id; method: MoneyMethod | 'credit' }> = (d, input, ctx) => {
   if (!isStaff(ctx)) return fail('Platby přijímá personál.');
   const b = findBooking(d, input.bookingId);
-  if (!b || !b.fee || b.fee.status !== 'due') return fail('Rezervace nemá neuhrazený poplatek.');
-  if (input.method === 'credit') {
-    const balance = clientCredit(d, b.clientId);
-    if (balance < b.fee.amount) return fail(`Na kreditu je jen ${formatMoney(balance)}.`);
-    addLedger(d, ctx, { clientId: b.clientId, amount: -b.fee.amount, kind: 'storno_fee', bookingId: b.id, note: 'Úhrada storno poplatku' });
-  } else {
-    addPayment(d, ctx, { clientId: b.clientId, amount: b.fee.amount, method: input.method, purpose: 'storno_fee', bookingId: b.id, note: 'Úhrada storno poplatku' });
-  }
-  b.fee.status = 'paid';
-  b.fee.settledBy = input.method;
-  audit(d, ctx, 'Úhrada poplatku', formatMoney(b.fee.amount), { bookingId: b.id, clientId: b.clientId });
-  return ok(undefined);
+  if (!b) return fail('Rezervace nemá neuhrazený poplatek.');
+  return settleFee(d, ctx, b, input.method);
 };
 
 export const updateBookingNote: Command<{ bookingId: Id; note: string }> = (d, input, ctx) => {
@@ -823,39 +878,65 @@ export const updateBookingNote: Command<{ bookingId: Id; note: string }> = (d, i
 /* Permanentky a kredit                                                */
 /* ------------------------------------------------------------------ */
 
-export const sellPackage: Command<{ clientId: Id; templateId: Id; paidBy: MoneyMethod | 'credit'; startDate?: LocalDate }, Id> = (d, input, ctx) => {
-  if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
-  if (ctx.actor.role === 'client' && input.paidBy !== 'online' && input.paidBy !== 'credit') return fail('Online lze platit kartou nebo kreditem.');
+export interface SellPackageInput {
+  clientId: Id;
+  templateId: Id;
+  paidBy: MoneyMethod | 'credit';
+  startDate?: LocalDate;
+}
+
+/**
+ * Vystaví permanentku a zapíše platbu. Zaplacená QR výzva předá `priceCzk` a `terms` (podmínky z objednávky – ty
+ * přepíšou šablonu, i když se mezitím změnila nebo se stáhla z nabídky) a `allowInactive` – klient už zaplatil.
+ */
+function issuePackage(
+  d: ClinicState,
+  ctx: Ctx,
+  input: SellPackageInput & { priceCzk?: number; allowInactive?: boolean; terms?: PaymentPackageTerms },
+): CommandResult<Id> {
   const tpl = getPackageTemplate(d, input.templateId);
-  if (!tpl || !tpl.active) return fail('Permanentka není v nabídce.');
+  if (!input.terms && (!tpl || (!tpl.active && !input.allowInactive))) return fail('Permanentka není v nabídce.');
+  const terms = input.terms ?? packageTermsOf(tpl as PackageTemplate);
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
+  const price = input.priceCzk ?? tpl?.priceCzk ?? 0;
   const id = newId('pk');
   if (input.paidBy === 'credit') {
     const balance = clientCredit(d, client.id);
-    if (balance < tpl.priceCzk) return fail(`Na kreditu je ${formatMoney(balance)}, permanentka stojí ${formatMoney(tpl.priceCzk)}.`);
-    addLedger(d, ctx, { clientId: client.id, amount: -tpl.priceCzk, kind: 'package_purchase', packageId: id, note: `Permanentka ${tpl.name}` });
+    if (balance < price) return fail(`Na kreditu je ${formatMoney(balance)}, permanentka stojí ${formatMoney(price)}.`);
+    addLedger(d, ctx, { clientId: client.id, amount: -price, kind: 'package_purchase', packageId: id, note: `Permanentka ${terms.name}` });
   } else {
-    addPayment(d, ctx, { clientId: client.id, amount: tpl.priceCzk, method: input.paidBy, purpose: 'package', packageId: id, note: `Permanentka ${tpl.name}` });
+    addPayment(d, ctx, { clientId: client.id, amount: price, method: input.paidBy, purpose: 'package', packageId: id, note: `Permanentka ${terms.name}` });
   }
   const start = input.startDate ?? dateOf(ctx.now);
   d.packages.push({
     id,
     clientId: client.id,
-    templateId: tpl.id,
-    name: tpl.name,
-    serviceIds: [...tpl.serviceIds],
-    entriesTotal: tpl.entries,
-    priceCzk: tpl.priceCzk,
-    excusesAllowed: tpl.excusesAllowed,
+    templateId: input.templateId,
+    name: terms.name,
+    serviceIds: [...terms.serviceIds],
+    entriesTotal: terms.entries,
+    priceCzk: price,
+    excusesAllowed: terms.excusesAllowed,
     purchasedAt: ctx.now,
-    validUntil: addDays(start, tpl.validityDays),
+    validUntil: addDays(start, terms.validityDays),
     paidBy: input.paidBy,
     cancelled: false,
     extendedDays: 0,
   });
-  audit(d, ctx, 'Prodej permanentky', `${tpl.name} · ${client.firstName} ${client.lastName} · ${formatMoney(tpl.priceCzk)} ${MONEY_LABEL[input.paidBy]}`, { clientId: client.id });
+  audit(d, ctx, 'Prodej permanentky', `${terms.name} · ${client.firstName} ${client.lastName} · ${formatMoney(price)} ${MONEY_LABEL[input.paidBy]}`, { clientId: client.id });
   return ok(id);
+}
+
+/** Podmínky permanentky ze šablony (kopie – výzva si je uloží při objednávce). */
+function packageTermsOf(tpl: PackageTemplate): PaymentPackageTerms {
+  return { name: tpl.name, entries: tpl.entries, serviceIds: [...tpl.serviceIds], validityDays: tpl.validityDays, excusesAllowed: tpl.excusesAllowed };
+}
+
+export const sellPackage: Command<SellPackageInput, Id> = (d, input, ctx) => {
+  if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
+  if (ctx.actor.role === 'client' && input.paidBy !== 'online' && input.paidBy !== 'credit') return fail('Online lze platit kartou nebo kreditem.');
+  return issuePackage(d, ctx, input);
 };
 
 export const extendPackage: Command<{ packageId: Id; days: number; reason: string }> = (d, input, ctx) => {
@@ -912,6 +993,266 @@ export const adjustCredit: Command<{ clientId: Id; amount: number; note: string 
   addLedger(d, ctx, { clientId: input.clientId, amount: Math.round(input.amount), kind: 'adjustment', note: input.note.trim() });
   audit(d, ctx, 'Úprava kreditu', `${formatMoney(input.amount)} · ${input.note}`, { clientId: input.clientId });
   return ok(undefined);
+};
+
+/* ------------------------------------------------------------------ */
+/* QR platba – platební výzvy (docs/VSTUPY-SKUPINY-QR.md)              */
+/* ------------------------------------------------------------------ */
+
+const PAYMENT_PURPOSES: readonly PaymentPurpose[] = ['booking', 'package', 'credit_topup', 'storno_fee'];
+const TOPUP_MIN = 100;
+const TOPUP_MAX = 100000;
+
+export interface CreatePaymentRequestInput {
+  clientId: Id;
+  purpose: PaymentPurpose;
+  /** Jen u dobití kreditu (povinné, min. 100 Kč); jinak se částka dopočítá z rezervace / šablony / poplatku. */
+  amount?: number;
+  bookingId?: Id;
+  packageTemplateId?: Id;
+}
+
+/**
+ * Uzavře čekající výzvy k rezervaci daného účelu. `paid` = zaplaceno QR platbou mimo potvrzení výzvy (první
+ * čekající se označí jako zaplacená, případné další se zruší), `cancelled` = zaplaceno jinak / rezervace zrušena.
+ */
+function closePaymentRequests(d: ClinicState, ctx: Ctx, bookingId: Id, purpose: 'booking' | 'storno_fee', how: 'paid' | 'cancelled', why: string): void {
+  let paidOne = how !== 'paid';
+  let cancelled = false;
+  for (const r of d.paymentRequests) {
+    if (r.status !== 'pending' || r.bookingId !== bookingId || r.purpose !== purpose) continue;
+    if (!paidOne) {
+      paidOne = true;
+      r.status = 'paid';
+      r.paidAt = ctx.now;
+      r.confirmedBy = ctx.actor.name;
+      audit(d, ctx, 'Potvrzení QR platby', `${formatMoney(r.amount)} · VS ${r.vs} · ${PAYMENT_PURPOSE_LABEL[r.purpose]}`, { bookingId, clientId: r.clientId });
+    } else {
+      r.status = 'cancelled';
+      cancelled = true;
+      audit(d, ctx, 'Zrušení QR platby', `VS ${r.vs} · ${why}`, { bookingId, clientId: r.clientId });
+    }
+  }
+  if (cancelled && purpose === 'booking') qrBookingBackToOnsite(d, bookingId);
+}
+
+/**
+ * Nezaplacená rezervace „QR převodem“, ke které už nečeká žádná výzva, se platí na místě – tak ji popisuje UI
+ * („Platba na místě“) a tak ji po termínu vyrovná i automatika (`runProcesses`). Bez přepnutí by z ní po
+ * návštěvě zůstal dluh, zatímco ostatní platby na místě se zapíšou jako zaplacené.
+ */
+function qrBookingBackToOnsite(d: ClinicState, bookingId: Id): void {
+  const b = findBooking(d, bookingId);
+  if (!b || b.payment.paid || b.payment.method !== 'qr') return;
+  if (d.paymentRequests.some((r) => r.status === 'pending' && r.bookingId === bookingId && r.purpose === 'booking')) return;
+  b.payment.method = 'onsite';
+}
+
+/** Vytvoří platební výzvu (bez kontroly, kdo ji zakládá – tu dělají volající příkazy). */
+function makePaymentRequest(d: ClinicState, ctx: Ctx, input: CreatePaymentRequestInput): CommandResult<Id> {
+  const why = qrUnavailableReason(d);
+  if (why) return fail(why);
+  if (!PAYMENT_PURPOSES.includes(input.purpose)) return fail('Neznámý účel platby.');
+  const client = getClient(d, input.clientId);
+  if (!client) return fail('Klient neexistuje.');
+  const createdBy: PaymentRequest['createdBy'] = isStaff(ctx) ? 'staff' : 'client';
+  let amount = 0;
+  let booking: Booking | undefined;
+  let packageTemplateId: Id | undefined;
+  let packageTerms: PaymentPackageTerms | undefined;
+  switch (input.purpose) {
+    case 'booking': {
+      booking = input.bookingId ? findBooking(d, input.bookingId) : undefined;
+      if (!booking || booking.clientId !== client.id) return fail('Rezervace neexistuje.');
+      if (booking.status !== 'confirmed' && booking.status !== 'completed') return fail('QR platbu lze vystavit jen k potvrzenému nebo proběhlému termínu.');
+      if (booking.payment.paid) return fail('Termín je už zaplacený.');
+      if (booking.payment.method !== 'onsite' && booking.payment.method !== 'qr') return fail('Tento termín se QR platbou neplatí.');
+      const existing = d.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === booking?.id && r.purpose === 'booking');
+      if (existing) return ok(existing.id);
+      amount = Math.max(0, booking.price - booking.payment.paidAmount);
+      if (amount <= 0) return fail('Termín není co doplatit.');
+      break;
+    }
+    case 'storno_fee': {
+      booking = input.bookingId ? findBooking(d, input.bookingId) : undefined;
+      if (!booking || booking.clientId !== client.id) return fail('Rezervace neexistuje.');
+      if (!booking.fee || booking.fee.status !== 'due' || booking.fee.amount <= 0) return fail('Rezervace nemá neuhrazený poplatek.');
+      const existing = d.paymentRequests.find((r) => r.status === 'pending' && r.bookingId === booking?.id && r.purpose === 'storno_fee');
+      if (existing) return ok(existing.id);
+      amount = booking.fee.amount;
+      break;
+    }
+    case 'package': {
+      const tpl = input.packageTemplateId ? getPackageTemplate(d, input.packageTemplateId) : undefined;
+      if (!tpl || !tpl.active) return fail('Permanentka není v nabídce.');
+      packageTemplateId = tpl.id;
+      packageTerms = packageTermsOf(tpl);
+      amount = tpl.priceCzk;
+      break;
+    }
+    case 'credit_topup': {
+      amount = Math.round(Number(input.amount));
+      if (!Number.isFinite(amount) || amount < TOPUP_MIN) return fail(`Minimální dobití je ${formatMoney(TOPUP_MIN)}.`);
+      if (amount > TOPUP_MAX) return fail(`Maximální jednorázové dobití je ${formatMoney(TOPUP_MAX)}.`);
+      break;
+    }
+  }
+  const vs = nextVariableSymbol(d, ctx.now);
+  if (!vs) return fail('Došla řada variabilních symbolů pro tento měsíc. Zkuste to prosím příští měsíc nebo platbu přijměte jinak.');
+  if (booking && input.purpose === 'booking' && booking.payment.method === 'onsite') booking.payment.method = 'qr';
+  const req: PaymentRequest = {
+    id: newId('pr'),
+    clientId: client.id,
+    createdAt: ctx.now,
+    createdBy,
+    amount,
+    vs,
+    message: paymentRequestMessage(d, { clientId: client.id, purpose: input.purpose, booking, packageTemplateId }),
+    purpose: input.purpose,
+    status: 'pending',
+    dueAt: paymentRequestDueAt(d, ctx.now, input.purpose === 'booking' ? booking : undefined),
+    paidAt: null,
+    confirmedBy: null,
+  };
+  if (booking) req.bookingId = booking.id;
+  if (packageTemplateId) req.packageTemplateId = packageTemplateId;
+  if (packageTerms) req.packageTerms = packageTerms;
+  d.paymentRequests.push(req);
+  audit(d, ctx, 'Platební výzva (QR)', `${PAYMENT_PURPOSE_LABEL[req.purpose]} · ${formatMoney(amount)} · VS ${vs} · ${client.firstName} ${client.lastName}`, {
+    clientId: client.id,
+    ...(booking ? { bookingId: booking.id } : {}),
+  });
+  return ok(req.id);
+}
+
+/**
+ * Platební výzva k úhradě QR Platbou. Personál pro kohokoli, klient z portálu jen pro sebe (a k vlastní rezervaci).
+ * K rezervaci / poplatku vrátí už čekající výzvu, pokud existuje.
+ */
+export const createPaymentRequest: Command<CreatePaymentRequestInput, Id> = (d, input, ctx) => {
+  if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Platbu lze vystavit jen za sebe.');
+  return makePaymentRequest(d, ctx, input);
+};
+
+/**
+ * Potvrzení přijaté QR platby (personál podle VS z výpisu). Zapíše platbu `method: 'qr'` a podle účelu zaplatí
+ * rezervaci, prodá permanentku (podle podmínek z objednávky), dobije kredit (včetně bonusu) nebo uhradí poplatek.
+ * `at` = kdy platba přišla (ne v budoucnu ani před vystavením výzvy).
+ *
+ * Potvrdit lze i zrušenou výzvu – klient mohl zaplatit dřív, než se termín zrušil nebo zaplatil jinak. Když účel
+ * výzvy ještě trvá, platba ho uhradí; jinak se přijatá částka připíše klientovi na kredit (`paymentRequestOutcome`).
+ */
+export const confirmPaymentRequest: Command<{ requestId: Id; at?: LocalDateTime }> = (d, input, ctx) => {
+  const denied = requireStaff(ctx, 'Platby potvrzuje personál.');
+  if (denied) return fail(denied);
+  const r = d.paymentRequests.find((x) => x.id === input.requestId);
+  if (!r) return fail('Platební výzva neexistuje.');
+  // nejdřív kontroly (příkaz může běžet i mimo Immer – nic se nesmí změnit napůl)
+  const outcome = paymentRequestOutcome(d, r);
+  if (outcome.kind === 'blocked') return fail(`${outcome.reason}.`);
+  const requested = input.at ?? ctx.now;
+  if (!isValidLocalDateTime(requested)) return fail('Neplatné datum platby.');
+  if (requested > ctx.now) return fail('Datum platby nemůže být v budoucnosti.');
+  if (dateOf(requested) < dateOf(r.createdAt))
+    return fail(`Platba nemohla přijít před vystavením výzvy (${formatDate(r.createdAt)}) – zkontrolujte datum připsání.`);
+  // týž den jako vystavení, ale dřív (výchozí poledne u data z výpisu) → okamžik vystavení
+  const at = requested < r.createdAt ? minStr(r.createdAt, ctx.now) : requested;
+  if (!getClient(d, r.clientId)) return fail('Klient neexistuje.');
+  if (r.amount <= 0) return fail('Neplatná částka platby.');
+  if (outcome.kind === 'apply' && r.purpose === 'credit_topup' && (r.amount < TOPUP_MIN || r.amount > TOPUP_MAX)) return fail('Neplatná částka dobití.');
+  const b = r.bookingId ? findBooking(d, r.bookingId) : undefined;
+  const wasCancelled = r.status === 'cancelled';
+  const payCtx: Ctx = { ...ctx, now: at };
+  const firstNew = d.payments.length;
+  const notices: string[] = [];
+  r.status = 'paid';
+  r.paidAt = at;
+  r.confirmedBy = ctx.actor.name;
+  if (outcome.kind === 'credit') {
+    // účel už netrvá – peníze, které klient poslal, mu zůstanou na kreditu
+    const what = paymentRequestTitle(d, r);
+    addPayment(d, payCtx, { clientId: r.clientId, amount: r.amount, method: 'qr', purpose: 'credit_topup', note: `QR platba připsaná na kredit · ${what} · VS ${r.vs}` });
+    addLedger(d, payCtx, {
+      clientId: r.clientId,
+      amount: r.amount,
+      kind: 'topup',
+      method: 'qr',
+      ...(r.bookingId ? { bookingId: r.bookingId } : {}),
+      note: `QR platba ${what} – ${outcome.reason.charAt(0).toLocaleLowerCase('cs')}${outcome.reason.slice(1)} · VS ${r.vs}`,
+    });
+    notices.push(`${outcome.reason} – ${formatMoney(r.amount)} připsáno klientovi na kredit.`);
+    if (b?.fee?.status === 'due') notices.push(`Neuhrazený poplatek ${formatMoney(b.fee.amount)} teď můžete zaplatit z kreditu.`);
+  } else {
+    switch (r.purpose) {
+      case 'booking': {
+        const res = settle(d, payCtx, b as Booking, 'qr', r);
+        if (!res.ok) return res;
+        break;
+      }
+      case 'package': {
+        const res = issuePackage(d, payCtx, {
+          clientId: r.clientId,
+          templateId: r.packageTemplateId as Id,
+          paidBy: 'qr',
+          priceCzk: r.amount,
+          allowInactive: true,
+          terms: r.packageTerms,
+        });
+        if (!res.ok) return res;
+        r.packageId = res.value;
+        notices.push('Permanentka je aktivní.');
+        break;
+      }
+      case 'credit_topup': {
+        const res = topUpCredit(d, { clientId: r.clientId, amount: r.amount, method: 'qr' }, payCtx);
+        if (!res.ok) return res;
+        notices.push(...res.notices);
+        break;
+      }
+      case 'storno_fee': {
+        const res = settleFee(d, payCtx, b as Booking, 'qr', r);
+        if (!res.ok) return res;
+        break;
+      }
+    }
+    if (wasCancelled)
+      notices.push(
+        r.purpose === 'credit_topup'
+          ? 'Výzva byla zrušená, platba ale přišla – kredit je dobitý.'
+          : `Výzva byla zrušená, ${r.purpose === 'storno_fee' ? 'poplatek' : 'termín'} ale pořád čekal na úhradu – platba ho zaplatila.`,
+      );
+  }
+  for (const p of d.payments.slice(firstNew)) if (!p.note.includes('VS ')) p.note = `${p.note} · VS ${r.vs}`;
+  const c = getClient(d, r.clientId);
+  audit(
+    d,
+    ctx,
+    'Potvrzení QR platby',
+    `${PAYMENT_PURPOSE_LABEL[r.purpose]} · ${formatMoney(r.amount)} · VS ${r.vs}${c ? ` · ${c.firstName} ${c.lastName}` : ''}${outcome.kind === 'credit' ? ' · připsáno na kredit' : ''}`,
+    { clientId: r.clientId, ...(r.bookingId ? { bookingId: r.bookingId } : {}) },
+  );
+  return ok(undefined, notices);
+};
+
+/**
+ * Zruší čekající výzvu. Rezervace zůstane nezaplacená a lze ji zaplatit jinak – platí se pak na místě (rezervace
+ * „QR převodem“ se přepne na `'onsite'`, aby ji automatika po termínu vyrovnala jako ostatní). Klient jen vlastní výzvu.
+ * Když platba přesto přijde, výzvu lze dál potvrdit (`confirmPaymentRequest`).
+ */
+export const cancelPaymentRequest: Command<{ requestId: Id; reason?: string }> = (d, input, ctx) => {
+  const r = d.paymentRequests.find((x) => x.id === input.requestId);
+  if (!r) return fail('Platební výzva neexistuje.');
+  if (ctx.actor.role === 'client' && ctx.actor.clientId !== r.clientId) return fail('Nemáte oprávnění.');
+  if (r.status !== 'pending') return fail(r.status === 'paid' ? 'Zaplacenou platbu nelze zrušit.' : 'Platební výzva už je zrušená.');
+  r.status = 'cancelled';
+  if (r.purpose === 'booking' && r.bookingId) qrBookingBackToOnsite(d, r.bookingId);
+  const reason = (input.reason ?? '').trim();
+  audit(d, ctx, 'Zrušení QR platby', `${PAYMENT_PURPOSE_LABEL[r.purpose]} · ${formatMoney(r.amount)} · VS ${r.vs}${reason ? ' · ' + reason : ''}`, {
+    clientId: r.clientId,
+    ...(r.bookingId ? { bookingId: r.bookingId } : {}),
+  });
+  const notices = r.purpose === 'booking' ? ['Termín zůstává nezaplacený – lze ho zaplatit jinak.'] : [];
+  return ok(undefined, notices);
 };
 
 /* ------------------------------------------------------------------ */
@@ -1124,22 +1465,52 @@ export const removeTimeOff: Command<{ id: Id }> = (d, input, ctx) => {
   return ok(undefined);
 };
 
-type SettingsPatch = Partial<Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders'>> & {
+type SettingsPatch = Partial<Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'payments'>> & {
   bookingRules?: Partial<Settings['bookingRules']>;
   policy?: Partial<Omit<Settings['policy'], 'excuses'>> & { excuses?: Partial<Settings['policy']['excuses']> };
   waitlist?: Partial<Settings['waitlist']>;
   reminders?: Partial<Settings['reminders']>;
+  /** IBAN se vždy dopočítá z `accountNumber` (prázdné číslo účtu = bez QR platby). */
+  payments?: Partial<Omit<Settings['payments'], 'iban'>>;
 };
 
 export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
   const denied = requireStaff(ctx);
   if (denied && Object.keys(patch).some((k) => k !== 'simulatedNow')) return fail(denied);
   const s = d.settings;
-  const { bookingRules, policy, waitlist, reminders, ...rest } = patch;
+  const { bookingRules, policy, waitlist, reminders, payments, ...rest } = patch;
   Object.assign(s, rest);
   if (bookingRules) Object.assign(s.bookingRules, bookingRules);
   if (waitlist) Object.assign(s.waitlist, waitlist);
   if (reminders) Object.assign(s.reminders, reminders);
+  if (payments) {
+    if (!s.payments) s.payments = defaultPaymentSettings(s.clinicName);
+    const pay = s.payments;
+    if (payments.accountNumber !== undefined) {
+      const account = payments.accountNumber.replace(/\s+/g, '');
+      if (!account) {
+        pay.accountNumber = '';
+        pay.iban = '';
+      } else {
+        const conv = czechAccountToIban(account);
+        if (!conv.ok) return fail(conv.error);
+        pay.accountNumber = account;
+        pay.iban = conv.iban;
+      }
+    }
+    if (payments.recipientName !== undefined) {
+      const name = payments.recipientName.trim();
+      if (!name) return fail('Vyplňte jméno příjemce platby.');
+      if (name.length > SPAYD_RN_MAX) return fail(`Jméno příjemce může mít nejvýše ${SPAYD_RN_MAX} znaků (omezení QR Platby).`);
+      pay.recipientName = name;
+    }
+    if (payments.qrEnabled !== undefined) pay.qrEnabled = !!payments.qrEnabled;
+    if (payments.qrDueHours !== undefined) {
+      const h = Math.round(Number(payments.qrDueHours));
+      if (!Number.isFinite(h) || h < 1 || h > 720) return fail('Splatnost QR platby musí být 1–720 hodin.');
+      pay.qrDueHours = h;
+    }
+  }
   if (policy) {
     const { excuses, ...p } = policy;
     Object.assign(s.policy, p);

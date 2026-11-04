@@ -1304,3 +1304,123 @@
     min-height: 44px;
   }
 }
+
+/* ---------- Přehled: volná místa na skupinových lekcích a čekající QR platby (DashboardWidgets) ---------- */
+.st-gs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.st-gs__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.st-gs__label {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.st-gs__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-gs__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.st-gs__item:first-child {
+  border-top: 0;
+}
+
+.st-gs__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.st-gs__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text);
+}
+
+.st-gs__time {
+  flex: none;
+  font-weight: var(--weight-semibold);
+}
+
+.st-gs__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--weight-medium);
+}
+
+.st-gs__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+
+.st-gs__meter {
+  margin-top: var(--space-1);
+}
+
+.st-gs__more {
+  align-self: flex-start;
+  font-size: var(--text-note);
+}
+
+.st-wfoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding-top: var(--space-2-5);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.st-wfoot strong {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+.st-gs__next {
+  display: block;
+  margin-top: var(--space-1-5);
+  color: var(--text-secondary);
+}
+
+.st-gs__next strong {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}

@@ -1,4 +1,4 @@
-import type { Booking, Client, Id, LocalDateTime } from '../../domain/types';
+import type { Booking, BookingStatus, Client, Id, LocalDateTime } from '../../domain/types';
 import { countLabel, formatDayShort, formatTime, formatTimeRange } from '../../engine/format';
 import {
   getRoom,
@@ -13,6 +13,7 @@ import {
 import { NOTE_KIND_LABEL, notesOfClient } from '../../engine/crm';
 import { dateOf } from '../../engine/time';
 import { ToneDot } from '../../components/domain';
+import { VisitSourceBadge } from '../../components/payments';
 import { useClinic } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Card, CardHeader, EmptyState, Icon, IconButton, Menu, StatusPill, Table, cx } from '../../ui';
@@ -132,6 +133,9 @@ export function UpcomingCard({
 /* Tabulka termínů (poslední návštěvy i celá historie)                 */
 /* ------------------------------------------------------------------ */
 
+/** Zdroj platby (permanentka / kredit / jednorázově…) má smysl u nadcházejících a účtovaných vstupů, ne u zrušených. */
+const SOURCE_STATUSES: readonly BookingStatus[] = ['confirmed', 'completed', 'no_show', 'late_cancelled'];
+
 export function BookingTable({
   bookings,
   now,
@@ -148,14 +152,14 @@ export function BookingTable({
   const clinic = useClinic();
   const year = now.slice(0, 4);
   return (
-    <Table caption={caption} hover minWidth={finance ? 720 : 560} wrapperClassName="cli-tablewrap">
+    <Table caption={caption} hover minWidth={finance ? 760 : 680} wrapperClassName="cli-tablewrap">
       <thead>
         <tr>
           <th scope="col">Datum</th>
           <th scope="col">Služba</th>
           <th scope="col">Terapeut</th>
           <th scope="col">Stav</th>
-          {finance && <th scope="col">Platba a poznámka</th>}
+          <th scope="col">{finance ? 'Platba a poznámka' : 'Zdroj platby'}</th>
         </tr>
       </thead>
       <tbody>
@@ -190,9 +194,13 @@ export function BookingTable({
                 <StatusPill status={b.status} appearance="plain" />
                 {b.status === 'confirmed' && b.end <= now && <span className="cli-cell-sub">čeká na docházku</span>}
               </td>
-              {finance && (
-                <td className={cx('secondary', b.fee?.status === 'due' && 'cli-cell-due')}>{bookingMoneyNote(clinic, b)}</td>
-              )}
+              <td className={cx('secondary', finance && b.fee?.status === 'due' && 'cli-cell-due')}>
+                <span className="cli-paycell">
+                  {SOURCE_STATUSES.includes(b.status) && <VisitSourceBadge booking={b} />}
+                  {finance && <span className="cli-paycell__note">{bookingMoneyNote(clinic, b)}</span>}
+                  {!finance && !SOURCE_STATUSES.includes(b.status) && <span className="muted">—</span>}
+                </span>
+              </td>
             </tr>
           );
         })}

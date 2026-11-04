@@ -2326,3 +2326,224 @@ body:has(.por-app) .dialog__footer .btn {
   line-height: 19px;
   color: var(--text-secondary);
 }
+
+/* =========================================================================
+   QR platba převodem (karta s QR kódem je sdílená – components/payments, .pay-…)
+   ========================================================================= */
+.por-brow__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+  margin-top: 2px;
+}
+.por-brow__chips .bk-badges {
+  margin-top: 0;
+}
+.por-next__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.por-tile__hint.is-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  color: var(--warning-fg);
+  font-weight: var(--weight-semibold);
+}
+
+/* Panel s QR kódem: v rámu telefonu QR vždy nahoře uprostřed, údaje pod ním */
+.por-qr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.por-qr__card.pay-card {
+  gap: var(--space-4);
+}
+.por-qr__card .pay-card__qr {
+  flex-basis: 100%;
+}
+.por-qr__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  list-style: decimal outside;
+  padding: var(--space-3) var(--space-3-5) var(--space-3) calc(var(--space-3-5) + 18px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+.por-qr__steps li {
+  display: list-item;
+}
+.por-qr__steps li::marker {
+  color: var(--accent-fg);
+  font-weight: var(--weight-semibold);
+}
+.por-qr__cancel {
+  align-self: center;
+  min-height: 44px;
+  font-size: var(--text-md);
+}
+
+/* Seznam čekajících QR plateb */
+.por-qrlist {
+  margin: 0;
+  list-style: none;
+}
+.por-qrrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2-5) var(--space-2) var(--space-2-5) var(--space-3-5);
+  color: var(--text);
+  text-align: left;
+}
+.por-qrrow:hover {
+  background: var(--surface-hover);
+}
+.por-qrrow__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent-fg);
+}
+.por-qrrow__icon.is-overdue {
+  background: var(--warning-soft);
+  color: var(--warning-fg);
+}
+.por-qrrow__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.por-qrrow__title {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+.por-qrrow__meta {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.por-qrrow__meta.is-overdue {
+  color: var(--warning-fg);
+  font-weight: var(--weight-medium);
+}
+.por-qrrow__amount {
+  flex: none;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+}
+.por-qrrow__chev {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* =========================================================================
+   Skupinové lekce tento týden (úvodní obrazovka)
+   ========================================================================= */
+.por-gweek {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.por-gweek__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.por-gweek__item.is-mine {
+  border-color: var(--success-border);
+}
+.por-gweek__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.por-gweek__title {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.por-gweek__meta {
+  font-size: var(--text-note);
+  line-height: var(--leading-note);
+  color: var(--text-secondary);
+}
+.por-gweek__bar {
+  margin-top: var(--space-1-5);
+}
+.por-gweek__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1-5) var(--space-2);
+  margin-top: var(--space-1-5);
+}
+.por-gweek__spots {
+  min-width: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-fg);
+}
+.por-gweek__spots.is-almost {
+  color: var(--warning-fg);
+}
+.por-gweek__spots.is-full {
+  color: var(--danger-fg);
+}
+.por-gweek__wait {
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+.por-gweek__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1-5);
+  margin-left: auto;
+}
+.por-gweek__more {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.por-gweek__empty .link {
+  font-size: inherit;
+}

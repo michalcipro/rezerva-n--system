@@ -2,6 +2,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type { Booking, GroupSession, LocalDateTime } from '../../domain/types';
 import { sessionNoteOfBooking } from '../../engine/crm';
 import { countLabel, formatDuration, formatSpan, formatTime, formatTimeRange } from '../../engine/format';
+import { pendingRequestOfBooking } from '../../engine/payments';
 import {
   clientName,
   getClient,
@@ -51,7 +52,7 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
   const today = dateOf(now);
   const inProgress = b.status === 'confirmed' && b.start <= now && b.end > now;
   const pastUnmarked = b.status === 'confirmed' && b.end <= now;
-  const unpaidOnsite = b.payment.method === 'onsite' && !b.payment.paid;
+  const unpaidOnsite = (b.payment.method === 'onsite' || b.payment.method === 'qr') && !b.payment.paid;
   const first = isFirstVisit(clinic, b);
   // Značka zápisu ze sezení jen pro role s přístupem ke klinickým poznámkám (lookup je cachovaný podle pole poznámek).
   const clinical = useClinicalAccess();
@@ -90,7 +91,12 @@ export function BookingBlock({ booking: b, style, ppm, now, selected, draggable,
   } else if (b.status === 'completed') {
     statusText = 'Proběhlo';
     parts.push(<EventStatus key="s" tone="muted">Proběhlo</EventStatus>);
-    if (unpaidOnsite) parts.push(<EventChip key="pay" tone="warning">Čeká na platbu</EventChip>);
+    if (unpaidOnsite)
+      parts.push(
+        <EventChip key="pay" tone="warning">
+          {b.payment.method === 'qr' && pendingRequestOfBooking(clinic, b.id) ? 'Čeká na QR platbu' : 'Čeká na platbu'}
+        </EventChip>,
+      );
     else if (first) parts.push(<EventChip key="new">Nový klient</EventChip>);
     else parts.push(hint('h', paymentHint(clinic, b, today)));
   } else if (b.status === 'no_show') {

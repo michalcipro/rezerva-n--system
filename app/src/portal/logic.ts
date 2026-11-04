@@ -12,6 +12,7 @@ import type {
   Message,
   PackageTemplate,
   PaymentMethod,
+  PaymentRequest,
   Service,
   Settings,
   Therapist,
@@ -30,7 +31,11 @@ import {
   formatTime,
   formatTimeRange,
   MONTH_NOMINATIVE,
+  plural,
+  prepZ,
 } from '../engine/format';
+import { groupSessionsOverview, type GroupSessionOverview } from '../engine/groups';
+import { paymentRequestDueAt, pendingPaymentRequests, pendingRequestOfBooking, qrAvailable } from '../engine/payments';
 import type { IconName } from '../ui';
 import { evaluateCancellation, type CancellationEvaluation } from '../engine/policy';
 import {
@@ -51,7 +56,7 @@ import {
   therapistName,
   type ExcuseStatus,
 } from '../engine/selectors';
-import { addDays, addMinutes, dateOf, daysBetween, diffMinutes, minutesOf, timeOf } from '../engine/time';
+import { addDays, addMinutes, dateOf, daysBetween, diffMinutes, minutesOf, startOfWeek, timeOf } from '../engine/time';
 
 /* ------------------------------------------------------------------ */
 /* Oslovení                                                            */
@@ -396,6 +401,20 @@ export function paymentOptions(
     total: `K úhradě kartou ${formatMoney(price)}`,
     icon: 'card',
   });
+  if (qrAvailable(s)) {
+    out.push({
+      key: 'qr',
+      payment: { method: 'qr' },
+      title: 'QR platba převodem',
+      description: `QR kód naskenujete v aplikaci své banky · zaplaťte ${dueLabel(qrDueAt(s, q.now, q.start), q.now)}`,
+      aside: formatMoney(price),
+      disabled: false,
+      amount: price,
+      summary: `QR platbou převodem (${formatMoney(price)})`,
+      total: `K úhradě QR platbou ${formatMoney(price)}`,
+      icon: 'qr',
+    });
+  }
   out.push({
     key: 'onsite',
     payment: { method: 'onsite' },
@@ -471,7 +490,7 @@ export function draftBooking(
       method,
       packageId: q.payment.packageId ?? makeup?.packageId,
       makeupId: q.payment.makeupId,
-      paid: method !== 'onsite',
+      paid: method !== 'onsite' && method !== 'qr',
       paidAmount,
     },
     note: '',
@@ -499,10 +518,8 @@ function tiersSentence(s: ClinicState): string {
   return 'Potom storno ' + parts.join(', ') + ' ceny.';
 }
 
-/** Předložka „z“ / „ze“ před číslovkou (ze 2, ze 3, ze 4, ze 6, ze 7, ze 100…). */
-export function zPrep(n: number): string {
-  return [2, 3, 4, 6, 7].includes(n) || (n >= 100 && n < 200) ? 'ze' : 'z';
-}
+/** Předložka „z“ / „ze“ před číslovkou (ze 2, ze 3, ze 4, ze 6, ze 7, ze 12, ze 100…) – `prepZ` z enginu. */
+export const zPrep = prepZ;
 
 /** „zbývá 1 ze 2 omluvenek“, „zbývá 0 z 1 omluvenky“. */
 export function excusesLeftText(remaining: number, total: number): string {
@@ -756,5 +773,131 @@ export const MONEY_LABEL: Record<string, string> = {
   card: 'kartou',
   online: 'kartou online',
   transfer: 'převodem',
+  qr: 'QR platbou',
   credit: 'z kreditu',
 };
+
+/* ------------------------------------------------------------------ */
+/* QR platba převodem                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Splatnost nové QR platby – stejný výpočet jako příkaz `createPaymentRequest`
+ * (`qrDueHours` od teď, u budoucího termínu nejpozději jeho začátek).
+ */
+export function qrDueAt(s: ClinicState, now: LocalDateTime, start?: LocalDateTime): LocalDateTime {
+  return paymentRequestDueAt(s, now, start ? ({ start } as Booking) : undefined);
+}
+
+/** „nejpozději zítra v 10:00“, „nejpozději Pá 6. 11. v 16:00“. */
+export function dueLabel(due: LocalDateTime, now: LocalDateTime): string {
+  return 'nejpozději ' + whenLabel(due, now);
+}
+
+/** Čekající QR platba k termínu (za termín, jinak za storno poplatek). */
+export function pendingQrOfBooking(s: ClinicState, bookingId: Id): PaymentRequest | undefined {
+  return pendingRequestOfBooking(s, bookingId, 'booking') ?? pendingRequestOfBooking(s, bookingId, 'storno_fee');
+}
+
+/** Čekající QR platby klienta (podle splatnosti). */
+export function clientPendingQr(s: ClinicState, clientId: Id): PaymentRequest[] {
+  return pendingPaymentRequests(s, clientId);
+}
+
+/** Lze termín zaplatit předem QR platbou (nezaplacený, „na místě“ nebo QR bez čekající výzvy)? */
+export function canPayBookingByQr(s: ClinicState, b: Booking): boolean {
+  if (!qrAvailable(s)) return false;
+  if (b.status !== 'confirmed' && b.status !== 'completed') return false;
+  if (b.payment.paid || (b.payment.method !== 'onsite' && b.payment.method !== 'qr')) return false;
+  if (b.price - b.payment.paidAmount <= 0) return false;
+  return !pendingRequestOfBooking(s, b.id, 'booking');
+}
+
+/** Lze storno poplatek / poplatek za nedostavení zaplatit QR platbou? */
+export function canPayFeeByQr(s: ClinicState, b: Booking): boolean {
+  return qrAvailable(s) && b.fee?.status === 'due' && b.fee.amount > 0;
+}
+
+/** Co se stane po zaplacení – podle účelu platby. */
+export function qrAfterPayment(s: ClinicState, r: Pick<PaymentRequest, 'purpose' | 'amount' | 'packageTemplateId'>, bonus = 0): string {
+  switch (r.purpose) {
+    case 'booking':
+      return 'Místo na termínu máte rezervované. Jakmile platba dorazí na účet, potvrdíme ji a u termínu uvidíte, že je zaplacený.';
+    case 'storno_fee':
+      return 'Jakmile platba dorazí na účet, potvrdíme ji a poplatek zmizí z položek k úhradě.';
+    case 'package': {
+      const tpl = r.packageTemplateId ? s.packageTemplates.find((t) => t.id === r.packageTemplateId) : undefined;
+      return (
+        'Permanentku vystavíme, jakmile platba dorazí na účet – do té doby ji k rezervaci nelze použít.' +
+        (tpl ? ` Platit bude ${countLabel(tpl.validityDays, ['den', 'dny', 'dní'])} ode dne připsání platby.` : '')
+      );
+    }
+    default:
+      return bonus > 0
+        ? `Jakmile platba dorazí na účet, připíšeme vám kredit ${formatMoney(r.amount + bonus)} (včetně bonusu ${formatMoney(bonus)}).`
+        : `Jakmile platba dorazí na účet, připíšeme vám kredit ${formatMoney(r.amount)}.`;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Skupinové lekce na úvodní obrazovce                                 */
+/* ------------------------------------------------------------------ */
+
+/** „Zbývá 1 místo“, „Zbývají 3 místa“, „Zbývá 5 míst“, „Plno“. */
+export function spotsLabel(free: number): string {
+  if (free <= 0) return 'Plno';
+  return `${plural(free, ['Zbývá', 'Zbývají', 'Zbývá'])} ${countLabel(free, ['místo', 'místa', 'míst'])}`;
+}
+
+/** Lze lekci teď rezervovat online (min. předstih a horizont rezervací – stejně jako nabídka časů)? */
+export function bookingWindowOpen(s: ClinicState, start: LocalDateTime, now: LocalDateTime): boolean {
+  const r = s.settings.bookingRules;
+  return diffMinutes(start, now) >= r.minNoticeMin && daysBetween(dateOf(now), dateOf(start)) <= r.horizonDays;
+}
+
+export interface WeekGroupItem {
+  ov: GroupSessionOverview;
+  /** Klient je na lekci přihlášený. */
+  mine?: Booking;
+  /** Klient čeká na uvolnění místa (čekací listina k lekci). */
+  watch?: WaitlistEntry;
+}
+
+export interface WeekGroups {
+  /** „tento týden“ / „příští týden“ (když už tento týden žádná lekce není). */
+  label: 'tento týden' | 'příští týden';
+  items: WeekGroupItem[];
+  /** Klient si vůbec může nějakou skupinovou lekci rezervovat online. */
+  any: boolean;
+}
+
+/**
+ * Nadcházející termíny online rezervovatelných skupinových lekcí v tomto týdnu (do neděle). Když už tento týden
+ * žádný není (víkend), vrátí příští týden. Bez zrušených a bez termínů, na které už se online přihlásit nejde
+ * (kromě těch, kde klient je).
+ */
+export function weekGroupSessions(s: ClinicState, clientId: Id, now: LocalDateTime): WeekGroups {
+  const today = dateOf(now);
+  const services = new Set(
+    bookableServices(s, clientId)
+      .filter((svc) => svc.kind === 'group')
+      .map((svc) => svc.id),
+  );
+  if (!services.size) return { label: 'tento týden', items: [], any: false };
+  const mine = new Map<Id, Booking>();
+  for (const b of bookingsOfClient(s, clientId)) if (b.sessionId && b.status === 'confirmed') mine.set(b.sessionId, b);
+  const watches = new Map<Id, WaitlistEntry>();
+  for (const w of s.waitlist) {
+    if (w.clientId === clientId && w.sessionId && (w.status === 'waiting' || w.status === 'offered')) watches.set(w.sessionId, w);
+  }
+  const collect = (from: LocalDate, to: LocalDate): WeekGroupItem[] =>
+    groupSessionsOverview(s, from, to, {}, now)
+      .filter((g) => services.has(g.session.serviceId) && !g.cancelled && g.session.start > now)
+      .filter((g) => mine.has(g.session.id) || bookingWindowOpen(s, g.session.start, now))
+      .map((g) => ({ ov: g, mine: mine.get(g.session.id), watch: watches.get(g.session.id) }));
+  const weekEnd = addDays(startOfWeek(today), 7);
+  const thisWeek = collect(today, weekEnd);
+  if (thisWeek.length) return { label: 'tento týden', items: thisWeek, any: true };
+  const nextWeek = collect(weekEnd, addDays(weekEnd, 7));
+  return { label: nextWeek.length ? 'příští týden' : 'tento týden', items: nextWeek, any: true };
+}

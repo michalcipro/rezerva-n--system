@@ -390,7 +390,7 @@ export function clientSummary(s: ClinicState, clientId: Id, now: LocalDateTime):
       visits++;
       if (!firstVisit || b.start < firstVisit) firstVisit = b.start;
       if (!lastVisit || b.start > lastVisit) lastVisit = b.start;
-      if (!b.payment.paid && b.payment.method === 'onsite') debt += b.price - b.payment.paidAmount;
+      if (!b.payment.paid && (b.payment.method === 'onsite' || b.payment.method === 'qr')) debt += b.price - b.payment.paidAmount;
     }
     if (b.status === 'confirmed' && b.end > now) {
       upcoming++;

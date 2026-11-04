@@ -7,7 +7,7 @@ import { Button, EmptyState } from '../ui';
 import { AccountScreen } from './AccountScreen';
 import { BookingDetailScreen } from './BookingDetailScreen';
 import { BookingWizard } from './BookingWizard';
-import { PortalContext, type AccountAction, type AccountView, type PortalContextValue } from './context';
+import { PortalContext, type AccountAction, type AccountView, type PortalContextValue, type PortalIntent } from './context';
 import { BlockedNotice, ClinicBrand, HomeScreen } from './HomeScreen';
 import { MyBookingsScreen } from './MyBookingsScreen';
 import { Screen } from './parts';
@@ -67,6 +67,7 @@ export function ClientPortal(): JSX.Element {
           <ul className="por-aside__list">
             <li>Zarezervujte termín v 15minutových časech</li>
             <li>Omluvte termín a vyberte si náhradní</li>
+            <li>Zaplaťte převodem přes QR kód z mobilní banky</li>
             <li>Posuňte testovací čas a sledujte, jak se mění storno podmínky</li>
           </ul>
         </aside>
@@ -98,6 +99,7 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
   const [navKey, setNavKey] = useState(0);
   const [accountView, setAccountViewState] = useState<AccountView>('root');
   const [accountAction, setAccountAction] = useState<AccountAction | null>(null);
+  const [intent, setIntent] = useState<PortalIntent | null>(null);
 
   const scrollToTop = useCallback((): void => {
     navigated.current = true;
@@ -106,12 +108,13 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
   }, []);
 
   const go = useCallback(
-    (r: PortalRoute): void => {
+    (r: PortalRoute, next?: PortalIntent): void => {
       navigated.current = true;
       if (r.name === 'ucet') {
         setAccountViewState('root');
         setAccountAction(null);
       }
+      setIntent(next ?? null);
       setNavKey((k) => k + 1);
       navigatePortal(r);
       scrollToTop();
@@ -124,6 +127,7 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
       navigated.current = true;
       setAccountViewState(view);
       setAccountAction(action ?? null);
+      setIntent(null);
       setNavKey((k) => k + 1);
       navigatePortal({ name: 'ucet' });
       scrollToTop();
@@ -148,10 +152,12 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
       setAccountView,
       accountAction,
       clearAccountAction: () => setAccountAction(null),
+      intent,
+      clearIntent: () => setIntent(null),
       scrollToTop,
       hasNavigated: () => navigated.current,
     }),
-    [client, go, openAccount, accountView, setAccountView, accountAction, scrollToTop],
+    [client, go, openAccount, accountView, setAccountView, accountAction, intent, scrollToTop],
   );
 
   let screen: JSX.Element;

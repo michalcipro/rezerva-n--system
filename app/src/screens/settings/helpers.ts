@@ -16,6 +16,7 @@ import type {
   LocalDate,
   LocalDateTime,
   PackageTemplate,
+  PaymentSettings,
   Service,
   Settings,
   Stage,
@@ -38,6 +39,8 @@ import {
   plural,
 } from '../../engine/format';
 import { STAGE_NAME_MAX } from '../../engine/crm';
+import { defaultPaymentSettings } from '../../engine/payments';
+import { czechAccountToIban, SPAYD_RN_MAX } from '../../engine/qr';
 import type { CancellationEvaluation } from '../../engine/policy';
 import {
   getService,
@@ -555,10 +558,36 @@ export function validateBonusRules(rules: readonly CreditBonusRule[]): BonusRowI
 /* Nastavení – koncept, změny, kontrola                                */
 /* ------------------------------------------------------------------ */
 
+/** Platby v konceptu – IBAN se nezadává, engine ho vždy dopočítá z čísla účtu. */
+export type PaymentsDraft = Omit<PaymentSettings, 'iban'>;
+
 export type SettingsDraft = Pick<
   Settings,
   'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'stages'
->;
+> & { payments: PaymentsDraft };
+
+/** Nejkratší a nejdelší splatnost QR platby (stejně jako příkaz updateSettings). */
+export const QR_DUE_MIN_HOURS = 1;
+export const QR_DUE_MAX_HOURS = 720;
+
+export function paymentsDraftOf(s: Settings): PaymentsDraft {
+  const p = s.payments ?? defaultPaymentSettings(s.clinicName);
+  return { qrEnabled: p.qrEnabled, accountNumber: p.accountNumber, recipientName: p.recipientName, qrDueHours: p.qrDueHours };
+}
+
+/** Číslo účtu bez mezer (stejně ho uloží engine). */
+export const normalizeAccount = (v: string): string => v.replace(/\s+/g, '');
+
+/**
+ * Kontrola čísla účtu pro živé zobrazení: prázdné = bez QR platby, jinak IBAN nebo chyba z enginu
+ * (tvar, kód banky, kontrolní součet předčíslí a čísla).
+ */
+export function accountCheck(account: string): { state: 'empty' } | { state: 'ok'; iban: string } | { state: 'invalid'; error: string } {
+  const v = normalizeAccount(account);
+  if (!v) return { state: 'empty' };
+  const r = czechAccountToIban(v);
+  return r.ok ? { state: 'ok', iban: r.iban } : { state: 'invalid', error: r.error };
+}
 
 /**
  * Fáze v konceptu: seřazené, `order` = pozice v seznamu, `closed` jen když platí
@@ -595,10 +624,11 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
     waitlist: s.waitlist,
     reminders: s.reminders,
     stages: stageDraftsOf(s.stages),
+    payments: paymentsDraftOf(s),
   });
 }
 
-export type SectionId = 'stages' | 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'clinic';
+export type SectionId = 'stages' | 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'clinic';
 
 export function dirtySections(draft: SettingsDraft, base: SettingsDraft): SectionId[] {
   const out: SectionId[] = [];
@@ -610,6 +640,7 @@ export function dirtySections(draft: SettingsDraft, base: SettingsDraft): Sectio
   if (!deepEqual(dEx, bEx)) out.push('excuses');
   if (!deepEqual(draft.waitlist, base.waitlist)) out.push('waitlist');
   if (!deepEqual(draft.reminders, base.reminders)) out.push('reminders');
+  if (!deepEqual(draft.payments, base.payments)) out.push('payments');
   if (
     draft.clinicName !== base.clinicName ||
     draft.clinicTagline !== base.clinicTagline ||
@@ -632,6 +663,9 @@ export function normalizeDraft(d: SettingsDraft): SettingsDraft {
   n.senderName = n.senderName.trim();
   n.senderEmail = n.senderEmail.trim();
   n.stages = n.stages.map((st, i) => withStageOrder({ ...st, name: st.name.trim() }, i));
+  n.payments.accountNumber = normalizeAccount(n.payments.accountNumber);
+  n.payments.recipientName = n.payments.recipientName.trim();
+  n.payments.qrDueHours = Math.round(n.payments.qrDueHours);
   return n;
 }
 
@@ -685,6 +719,20 @@ export function validateSettings(d: SettingsDraft): SettingsErrors {
   if (!d.senderName.trim()) e['clinic.senderName'] = 'Zadejte jméno odesílatele.';
   if (!isEmail(d.senderEmail)) e['clinic.senderEmail'] = 'Zadejte platný e-mail, např. rezervace@klinika.cz.';
   Object.assign(e, validateStages(d.stages));
+  Object.assign(e, validatePayments(d.payments));
+  return e;
+}
+
+/** Kontrola sekce Platby (stejná pravidla jako příkaz updateSettings). */
+export function validatePayments(p: PaymentsDraft): SettingsErrors {
+  const e: SettingsErrors = {};
+  const account = accountCheck(p.accountNumber);
+  if (account.state === 'invalid') e['payments.accountNumber'] = account.error;
+  const name = p.recipientName.trim();
+  if (!name) e['payments.recipientName'] = 'Vyplňte jméno příjemce platby.';
+  else if (name.length > SPAYD_RN_MAX) e['payments.recipientName'] = `Nejvýše ${SPAYD_RN_MAX} znaků (omezení QR Platby).`;
+  if (!(p.qrDueHours >= QR_DUE_MIN_HOURS && p.qrDueHours <= QR_DUE_MAX_HOURS))
+    e['payments.qrDueHours'] = `Zadejte ${QR_DUE_MIN_HOURS}–${formatNumber(QR_DUE_MAX_HOURS)} hodin.`;
   return e;
 }
 

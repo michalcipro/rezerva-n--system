@@ -460,6 +460,14 @@ export const ICONS = {
       <path d="M6.5 9.5h.01M17.5 14.5h.01" />
     </>
   ),
+  qr: (
+    <>
+      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
+      <path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 20.5h.01M20.5 14h.01M6.75 6.75h.01M17.25 6.75h.01M6.75 17.25h.01" />
+    </>
+  ),
   percent: (
     <>
       <path d="M18.5 5.5 5.5 18.5" />

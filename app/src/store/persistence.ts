@@ -1,6 +1,8 @@
 import type { Client, ClinicState, LocalDateTime, Note } from '../domain/types';
 import { inferStageId } from '../engine/crm';
 import { defaultStages, SCHEMA_VERSION } from '../engine/defaults';
+import { defaultPaymentSettings } from '../engine/payments';
+import { czechAccountToIban } from '../engine/qr';
 import { DEFAULT_TEMPLATES } from '../engine/messages';
 import { clearSelectorCaches } from '../engine/selectors';
 import { isoWeekKey, monthKey, nowLocal } from '../engine/time';
@@ -61,6 +63,7 @@ export const COLLECTIONS = [
   'notes',
   'files',
   'followUps',
+  'paymentRequests',
 ] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
@@ -93,6 +96,8 @@ function chunkKey(collection: CollectionName, item: Item, index: number): string
       return monthKey(String(item.at));
     case 'messages':
       return isoWeekKey(String(item.at));
+    case 'paymentRequests':
+      return monthKey(String(item.createdAt));
     case 'clients':
       return 'c' + Math.floor(index / 200);
     case 'packages':
@@ -168,6 +173,8 @@ export function sortCollection(name: CollectionName, items: readonly unknown[]):
       return sortBy(copy, (x) => x.at + x.id);
     case 'followUps':
       return sortBy(copy, (f) => followUpKey(f as unknown as { due: string; dueTime: string | null; id: string }));
+    case 'paymentRequests':
+      return sortBy(copy, (r) => r.createdAt + r.id);
     case 'clients':
       return sortBy(copy, (c) => c.createdAt + c.id);
     default:
@@ -181,12 +188,38 @@ const followUpKey = (f: { due: string; dueTime: string | null; id: string }): st
 /* Migrace (idempotentní – lze volat opakovaně)                        */
 /* ------------------------------------------------------------------ */
 
-/** Doplní CRM části nastavení: výchozí fáze spolupráce a šablonu „Zápis ze sezení“. Vrací true, když něco změnila. */
+/**
+ * Doplní chybějící části nastavení: výchozí fáze spolupráce, šablonu „Zápis ze sezení“ a nastavení plateb
+ * (QR platba – chybějící pole z výchozích hodnot, příjemce = název firmy). Vrací true, když něco změnila.
+ */
 export function migrateMeta(s: Pick<ClinicState, 'settings' | 'templates'>): boolean {
   let changed = false;
   if (s.settings && (!Array.isArray(s.settings.stages) || s.settings.stages.length === 0)) {
     s.settings.stages = defaultStages();
     changed = true;
+  }
+  if (s.settings) {
+    const defaults = defaultPaymentSettings(s.settings.clinicName || 'Winning Minds');
+    const current = s.settings.payments as Partial<ClinicState['settings']['payments']> | undefined;
+    if (!current || typeof current !== 'object') {
+      s.settings.payments = defaults;
+      changed = true;
+    } else {
+      for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
+        if (current[key] === undefined || typeof current[key] !== typeof defaults[key]) {
+          (current as Record<string, unknown>)[key] = defaults[key];
+          changed = true;
+        }
+      }
+      // IBAN se odvozuje z čísla účtu – doplnit, kdyby chyběl (ručně upravená nebo neúplná data)
+      if (current.accountNumber && !current.iban) {
+        const conv = czechAccountToIban(current.accountNumber);
+        if (conv.ok) {
+          current.iban = conv.iban;
+          changed = true;
+        }
+      }
+    }
   }
   if (!Array.isArray(s.templates)) s.templates = [];
   for (const tpl of DEFAULT_TEMPLATES) {
@@ -285,6 +318,7 @@ export function normalizeState(s: ClinicState): ClinicState {
   sortBy(s.notes, (n) => n.at + n.id);
   sortBy(s.files, (f) => f.at + f.id);
   sortBy(s.followUps, followUpKey);
+  sortBy(s.paymentRequests, (r) => r.createdAt + r.id);
   for (const w of s.waitlist) w.offeredStarts = w.offeredStarts ?? [];
   if (migrateMeta(s)) migrated = true;
   // indexy selektorů mohly vzniknout nad nesetříděnými poli

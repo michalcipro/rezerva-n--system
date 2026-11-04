@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Booking, ClinicState, Id } from '../domain/types';
 import { PolicyTimeline } from '../components/PolicyTimeline';
 import { BookingStatusBadges, TherapistAvatar } from '../components/domain';
@@ -15,6 +15,7 @@ import {
   formatTimeRange,
 } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
+import { isPaymentRequestOverdue, pendingRequestOfBooking } from '../engine/payments';
 import {
   clientCredit,
   getBooking,
@@ -44,9 +45,24 @@ import {
   type RadioCardOption,
 } from '../ui';
 import { usePortal } from './context';
-import { bookableServices, bookingTitle, calendarText, cancelState, excusesLeftText, excuseSentence, placeLabel, startsIn, zPrep } from './logic';
+import {
+  bookableServices,
+  bookingTitle,
+  calendarText,
+  canPayBookingByQr,
+  canPayFeeByQr,
+  cancelState,
+  dueLabel,
+  excusesLeftText,
+  excuseSentence,
+  pendingQrOfBooking,
+  placeLabel,
+  startsIn,
+  zPrep,
+} from './logic';
 import { PolicySheet } from './payment';
 import { CopyBlock, DateBadge, MetaLine, ResultHero, Screen, SectionTitle } from './parts';
+import { QrPayButton, QrRequestSheet } from './qr';
 
 type Mode = 'detail' | 'cancel' | 'done';
 
@@ -101,9 +117,19 @@ export function BookingDetailScreen({ bookingId }: { bookingId: Id }): JSX.Eleme
 function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => void }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
-  const { client, go } = usePortal();
+  const { client, go, intent, clearIntent } = usePortal();
   const [policyOpen, setPolicyOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
+  // QR kód rovnou otevřený po potvrzení termínu s QR platbou (např. z nabídky čekací listiny)
+  const [qrOpen, setQrOpen] = useState<Id | null>(() =>
+    intent?.kind === 'showQr' && intent.bookingId === b.id ? pendingQrOfBooking(clinic, b.id)?.id ?? null : null,
+  );
+  useEffect(() => {
+    if (intent?.kind === 'showQr') clearIntent();
+  }, []);
+  const qrReq = pendingRequestOfBooking(clinic, b.id, 'booking');
+  const feeReq = pendingRequestOfBooking(clinic, b.id, 'storno_fee');
+  const qrPayable = canPayBookingByQr(clinic, b);
   const svc = getService(clinic, b.serviceId);
   const cat = svc ? getCategory(clinic, svc.categoryId) : undefined;
   const t = getTherapist(clinic, b.therapistId);
@@ -155,6 +181,11 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
             </span>
           )}
           {b.payment.method === 'onsite' && !b.payment.paid && <span className="por-dd__sub">kartou nebo hotově na recepci</span>}
+          {b.payment.method === 'qr' && !b.payment.paid && (
+            <span className="por-dd__sub">
+              {qrReq ? 'QR platbou převodem – potvrdíme ji po připsání na účet' : 'QR platba je zrušená – kartou nebo hotově na recepci'}
+            </span>
+          )}
         </span>
       ),
     },
@@ -188,10 +219,47 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
         <BookingStatusBadges booking={b} />
       </div>
 
+      {qrReq && (
+        <Callout
+          tone="warning"
+          icon="qr"
+          title="Čeká na platbu"
+          actions={
+            <Button size="sm" variant="primary" icon="qr" onClick={() => setQrOpen(qrReq.id)}>
+              Zobrazit QR kód
+            </Button>
+          }
+        >
+          QR platba {formatMoney(qrReq.amount)} · VS {qrReq.vs}.{' '}
+          {isPaymentRequestOverdue(qrReq, now)
+            ? `Splatnost uplynula ${formatDateTimeShort(qrReq.dueAt)} – zaplaťte prosím co nejdřív.`
+            : `Zaplaťte ${dueLabel(qrReq.dueAt, now)}.`}{' '}
+          Po připsání na účet platbu potvrdíme.
+        </Callout>
+      )}
+
       {b.fee?.status === 'due' && (
-        <Callout tone="warning" title="Poplatek k úhradě">
-          {b.fee.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee.amount)} ({formatPercent(b.fee.pct)}) uhradíte na
-          recepci při příští návštěvě.
+        <Callout
+          tone="warning"
+          title="Poplatek k úhradě"
+          actions={
+            feeReq ? (
+              <Button size="sm" variant="primary" icon="qr" onClick={() => setQrOpen(feeReq.id)}>
+                Zobrazit QR kód
+              </Button>
+            ) : canPayFeeByQr(clinic, b) ? (
+              <QrPayButton booking={b} purpose="storno_fee" size="sm" variant="secondary" onShow={setQrOpen}>
+                Zaplatit QR platbou
+              </QrPayButton>
+            ) : undefined
+          }
+        >
+          {b.fee.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee.amount)} ({formatPercent(b.fee.pct)})
+          {feeReq
+            ? ` čeká na QR platbu (VS ${feeReq.vs}). ${isPaymentRequestOverdue(feeReq, now) ? 'Splatnost už uplynula.' : `Zaplaťte ${dueLabel(feeReq.dueAt, now)}.`}`
+            : canPayFeeByQr(clinic, b)
+              ? ' uhradíte na recepci při příští návštěvě, nebo hned QR platbou.'
+              : ' uhradíte na recepci při příští návštěvě.'}
         </Callout>
       )}
 
@@ -237,6 +305,12 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
       <Card padding="none" className="por-dcard">
         <DescriptionList items={items} termWidth={96} />
       </Card>
+
+      {qrPayable && (
+        <QrPayButton booking={b} purpose="booking" size="lg" variant="secondary" full onShow={setQrOpen}>
+          {b.status === 'confirmed' && b.start > now ? 'Zaplatit předem QR platbou' : 'Zaplatit QR platbou'}
+        </QrPayButton>
+      )}
 
       {upcoming && ev && (
         <section className="por-card por-stack" aria-label="Storno podmínky">
@@ -297,6 +371,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
       )}
 
       <PolicySheet open={policyOpen} onClose={() => setPolicyOpen(false)} />
+      <QrRequestSheet requestId={qrOpen} onClose={() => setQrOpen(null)} />
     </Screen>
   );
 }
@@ -347,6 +422,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
   const credit = clientCredit(clinic, client.id);
+  const qrPending = pendingRequestOfBooking(clinic, b.id, 'booking');
 
   const feeAside = (kind: CancelOptionKind, amount: number): string => {
     if (amount <= 0) return 'zdarma';
@@ -364,7 +440,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
         (makeupUntil ? ` · náhradní termín vyberete do ${formatDayShort(makeupUntil)}` : '')
       );
     }
-    if (kind === 'fee' && amount > 0 && b.payment.method === 'onsite' && !b.payment.paid) {
+    if (kind === 'fee' && amount > 0 && (b.payment.method === 'onsite' || b.payment.method === 'qr') && !b.payment.paid) {
       return credit >= amount
         ? `${description.replace(/\.$/, '')} · uhradí se z kreditu (zůstatek ${formatMoney(credit)})`
         : `${description.replace(/\.$/, '')} · uhradíte na recepci`;
@@ -523,6 +599,13 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
             </strong>
             <br />
             {selected ? describe(selected.kind, selected.description, selected.feeAmount) : ''}
+            {qrPending && (
+              <>
+                <br />
+                Čekající QR platbu {formatMoney(qrPending.amount)} zrušíme – už ji neplaťte. Pokud jste ji už odeslali, po připsání vám ji
+                vrátíme na kredit.
+              </>
+            )}
           </>
         }
         confirmLabel={choice === 'excuse' ? 'Omluvit' : 'Zrušit termín'}

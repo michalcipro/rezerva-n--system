@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Booking, Id, LocalDate, LocalDateTime, PaymentMethod } from '../../domain/types';
 import { availableSlots, checkBookingSlot } from '../../engine/availability';
-import { createBooking, joinWaitlist } from '../../engine/commands';
+import { createBooking, joinWaitlist, type CreatePaymentRequestInput } from '../../engine/commands';
 import {
   countLabel,
   formatDate,
@@ -28,6 +28,8 @@ import { addHours, addMinutes, combine, dateOf } from '../../engine/time';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Dialog, Field, RadioCards, Segmented, Select, Textarea, toast, type RadioCardOption } from '../../ui';
+import { QrPaymentDialog } from '../../components/payments';
+import { useQrOption } from './hooks';
 import { defaultServiceFor, servicesByCategory } from './model';
 import { ClientPicker, ServiceSelect, SessionPicker, SlotCheckNotice, SlotPicker } from './pickers';
 import './calendar.css';
@@ -52,8 +54,15 @@ export interface NewBookingDialogProps {
 
 /** Nová rezervace (recepce / terapeut): klient, služba, terapeut, volný čas, platba. */
 export function NewBookingDialog({ open, onClose, initial, onCreated }: NewBookingDialogProps): JSX.Element | null {
-  if (!open) return null;
-  return <NewBookingForm onClose={onClose} initial={initial} onCreated={onCreated} />;
+  // Rezervace placená QR převodem: po vytvoření se ukáže QR kód (dialog zůstane i po zavření formuláře).
+  const [qrFor, setQrFor] = useState<CreatePaymentRequestInput | null>(null);
+  if (!open && !qrFor) return null;
+  return (
+    <>
+      {open && <NewBookingForm onClose={onClose} initial={initial} onCreated={onCreated} onQr={setQrFor} />}
+      {qrFor && <QrPaymentDialog open onClose={() => setQrFor(null)} create={qrFor} />}
+    </>
+  );
 }
 
 interface PayOption {
@@ -68,8 +77,14 @@ interface PayOption {
   badge?: string;
 }
 
-function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogProps, 'open'>): JSX.Element {
+function NewBookingForm({
+  onClose,
+  initial,
+  onCreated,
+  onQr,
+}: Omit<NewBookingDialogProps, 'open'> & { onQr: (input: CreatePaymentRequestInput) => void }): JSX.Element {
   const clinic = useClinic();
+  const qr = useQrOption();
   const now = useNow();
   const run = useCommand();
   const today = dateOf(now);
@@ -207,6 +222,15 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
     }
     const credit = clientCredit(clinic, clientId);
     out.push({ key: 'onsite', method: 'onsite', title: 'Na místě', description: 'Kartou nebo hotově při návštěvě.', aside: formatMoney(price) });
+    if (price > 0 && (qr.available || qr.setupHint))
+      out.push({
+        key: 'qr',
+        method: 'qr',
+        title: 'QR platba převodem',
+        description: qr.available ? 'Klient zaplatí podle QR kódu, platbu potvrdíte po připsání.' : qr.setupHint ?? '',
+        aside: formatMoney(price),
+        disabled: !qr.available,
+      });
     out.push({
       key: 'credit',
       method: 'credit',
@@ -218,7 +242,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
     out.push({ key: 'online', method: 'online', title: 'Kartou online', description: 'Simulace platební brány – zaplaceno ihned.', aside: formatMoney(price) });
     out.push({ key: 'free', method: 'free', title: 'Zdarma', description: 'Např. kontrola nebo reklamace.', aside: formatMoney(0) });
     return out;
-  }, [clinic, clientId, service, serviceId, effectiveStart, date, now, today, price]);
+  }, [clinic, clientId, service, serviceId, effectiveStart, date, now, today, price, qr.available, qr.setupHint]);
 
   const selectedPay = payOptions.find((o) => o.key === payment && !o.disabled) ?? payOptions.find((o) => !o.disabled) ?? null;
 
@@ -275,6 +299,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
     });
     onCreated?.(r.value);
     onClose();
+    if (selectedPay.method === 'qr') onQr({ clientId, purpose: 'booking', bookingId: r.value });
   };
 
   const joinWaitlistFor = (opts: { sessionId?: Id }): void => {

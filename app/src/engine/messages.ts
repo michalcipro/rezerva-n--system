@@ -215,6 +215,12 @@ export function paymentLabel(s: ClinicState, b: Booking): string {
       return 'náhradní termín za omluvenku';
     case 'free':
       return 'zdarma';
+    case 'qr': {
+      if (b.payment.paid) return `QR platbou (${formatMoney(b.payment.paidAmount)})`;
+      const req = (s.paymentRequests ?? []).find((r) => r.status === 'pending' && r.bookingId === b.id && r.purpose === 'booking');
+      // QR výzvu někdo zrušil – termín se zaplatí jinak, v praxi na místě
+      return req ? `QR platbou převodem (${formatMoney(req.amount)}, VS ${req.vs})` : `na místě (${formatMoney(Math.max(0, b.price - b.payment.paidAmount))})`;
+    }
     default:
       return b.price > 0 ? `na místě (${formatMoney(b.price)})` : 'zdarma';
   }

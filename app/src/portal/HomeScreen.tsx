@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ClientPackage, MakeupRight } from '../domain/types';
 import { TherapistAvatar } from '../components/domain';
-import { leaveWaitlist } from '../engine/commands';
-import { countLabel, formatDate, formatDateLong, formatDayShort, formatMoney, formatTimeRange } from '../engine/format';
+import { joinWaitlist, leaveWaitlist } from '../engine/commands';
+import { countLabel, formatDate, formatDateLong, formatDayShort, formatMoney, formatTimeRange, plural } from '../engine/format';
+import { qrAvailable } from '../engine/payments';
 import {
   activePackages,
   bookingsOfClient,
@@ -18,7 +19,7 @@ import {
 } from '../engine/selectors';
 import { dateOf, daysBetween } from '../engine/time';
 import { useClinic, useCommand, useNow } from '../store/hooks';
-import { Button, Callout, Icon, IconButton, StackedBar, cx } from '../ui';
+import { Button, Callout, Icon, IconButton, Progress, StackedBar, cx } from '../ui';
 import { usePortal } from './context';
 import {
   bookableServices,
@@ -27,16 +28,23 @@ import {
   clientExcuses,
   clientMessages,
   clientOffers,
+  clientPendingQr,
   clientWaiting,
   greetingFor,
+  pendingQrOfBooking,
   placeLabel,
+  relativeDay,
+  spotsLabel,
   startsIn,
   vocative,
   waitlistLabel,
+  weekGroupSessions,
   whenLabel,
   zPrep,
+  type WeekGroupItem,
 } from './logic';
-import { DateBadge, Screen, SectionTitle, StateChip } from './parts';
+import { DateBadge, PendingQrBadge, Screen, SectionTitle, StateChip } from './parts';
+import { PendingQrList } from './qr';
 import { inboxSeen } from './storage';
 import { OfferCard } from './WaitlistOffer';
 
@@ -75,6 +83,7 @@ export function HomeScreen(): JSX.Element {
       credit: clientCredit(clinic, client.id),
       excuses: clientExcuses(clinic, client.id, now),
       fees: all.filter((b) => b.fee?.status === 'due'),
+      pendingQr: clientPendingQr(clinic, client.id),
       rebook: lastDone && bookable.has(lastDone.serviceId) ? lastDone : undefined,
       latestMessage: messages[0]?.at ?? null,
     };
@@ -130,15 +139,27 @@ export function HomeScreen(): JSX.Element {
         <OfferCard key={w.id} entry={w} />
       ))}
 
+      {data.pendingQr.length > 0 && (
+        <section className="por-stack por-stack--tight" aria-labelledby="por-qr-title">
+          <SectionTitle id="por-qr-title">Čeká na vaši platbu</SectionTitle>
+          <PendingQrList requests={data.pendingQr} />
+        </section>
+      )}
+
       {data.fees.length > 0 && (
         <Callout tone="warning" title="K úhradě">
           {data.fees.map((b) => (
             <span key={b.id} className="por-block">
-              {b.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee?.amount ?? 0)} ·{' '}
-              {bookingTitle(clinic, b)} {formatDayShort(b.start)}
+              <button type="button" className="link" onClick={() => go({ name: 'termin', bookingId: b.id })}>
+                {b.fee?.reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek'} {formatMoney(b.fee?.amount ?? 0)}
+              </button>{' '}
+              · {bookingTitle(clinic, b)} {formatDayShort(b.start)}
             </span>
           ))}
-          <span className="por-block">Uhradíte ho na recepci při příští návštěvě.</span>
+          <span className="por-block">
+            {data.fees.length > 1 ? 'Uhradíte je' : 'Uhradíte ho'} na recepci při příští návštěvě
+            {qrAvailable(clinic) ? ', nebo hned QR platbou v detailu termínu.' : '.'}
+          </span>
         </Callout>
       )}
 
@@ -173,6 +194,8 @@ export function HomeScreen(): JSX.Element {
           ))}
         </section>
       )}
+
+      {!client.blocked && <GroupWeekSection />}
 
       <section className="por-stack por-stack--tight" aria-labelledby="por-bal-title">
         <SectionTitle
@@ -262,6 +285,7 @@ function NextBookingCard({ bookingId }: { bookingId: string }): JSX.Element | nu
   const t = getTherapist(clinic, b.therapistId);
   const cs = cancelState(clinic, b, now);
   const place = placeLabel(clinic, b);
+  const pendingQr = pendingQrOfBooking(clinic, b.id);
   const open = (): void => go({ name: 'termin', bookingId: b.id });
   return (
     <article className="por-next">
@@ -283,9 +307,10 @@ function NextBookingCard({ bookingId }: { bookingId: string }): JSX.Element | nu
         </span>
         <Icon name="chevronRight" size={18} className="por-next__chev" />
       </button>
-      {cs.label && (
+      {(cs.label || pendingQr) && (
         <div className="por-next__foot">
-          <StateChip tone={cs.tone}>{cs.label}</StateChip>
+          {cs.label && <StateChip tone={cs.tone}>{cs.label}</StateChip>}
+          {pendingQr && <PendingQrBadge />}
         </div>
       )}
     </article>
@@ -358,5 +383,164 @@ export function PackageTile({ pkg, wide = true }: { pkg: ClientPackage; wide?: b
         </span>
       )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Skupinové lekce tento týden                                         */
+/* ------------------------------------------------------------------ */
+
+const GROUP_LIMIT = 4;
+
+/** Nadcházející skupinové lekce týdne s volnými místy, rezervací a čekací listinou u plných. */
+function GroupWeekSection(): JSX.Element | null {
+  const clinic = useClinic();
+  const now = useNow();
+  const { client, go } = usePortal();
+  const [showAll, setShowAll] = useState(false);
+  const data = useMemo(() => weekGroupSessions(clinic, client.id, now), [clinic, client.id, now]);
+  if (!data.any) return null;
+  const shown = showAll ? data.items : data.items.slice(0, GROUP_LIMIT);
+  return (
+    <section className="por-stack por-stack--tight" aria-labelledby="por-groups-title">
+      <SectionTitle id="por-groups-title">Skupinové lekce {data.label}</SectionTitle>
+      {data.items.length ? (
+        <>
+          <ul className="por-gweek">
+            {shown.map((item) => (
+              <GroupWeekRow key={item.ov.session.id} item={item} />
+            ))}
+          </ul>
+          {data.items.length > GROUP_LIMIT && (
+            <button type="button" className="por-more por-gweek__more" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)}>
+              {showAll ? 'Zobrazit méně' : `Zobrazit všechny lekce (${data.items.length})`}
+            </button>
+          )}
+        </>
+      ) : (
+        <div className="por-card por-card--empty por-gweek__empty">
+          <Icon name="users" size={20} />
+          <span>
+            Tento ani příští týden teď není žádná lekce, na kterou se lze online přihlásit.{' '}
+            <button type="button" className="link" onClick={() => go({ name: 'rezervace' })}>
+              Vybrat jinou službu
+            </button>
+          </span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GroupWeekRow({ item }: { item: WeekGroupItem }): JSX.Element {
+  const clinic = useClinic();
+  const now = useNow();
+  const run = useCommand();
+  const { client, go } = usePortal();
+  const { ov, mine, watch } = item;
+  const ses = ov.session;
+  const svc = getService(clinic, ses.serviceId);
+  const cat = svc ? getCategory(clinic, svc.categoryId) : undefined;
+  const t = getTherapist(clinic, ses.therapistId);
+  const place = placeLabel(clinic, { serviceId: ses.serviceId, roomId: ses.roomId });
+  const rel = relativeDay(ses.start, now);
+  const full = ov.free <= 0;
+  const waitlistOn = clinic.settings.waitlist.enabled;
+  const when = `${formatDayShort(ses.start)} ${formatTimeRange(ses.start, ses.end)}`;
+  const titleId = `por-gw-${ses.id}`;
+
+  let action: JSX.Element | null = null;
+  if (mine) {
+    action = (
+      <>
+        <StateChip tone="success" icon="checkCircle">
+          Jste přihlášeni
+        </StateChip>
+        <Button size="sm" variant="ghost" onClick={() => go({ name: 'termin', bookingId: mine.id })} aria-label={`Detail termínu ${ses.title}, ${when}`}>
+          Detail
+        </Button>
+      </>
+    );
+  } else if (!full) {
+    action = (
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={() => go({ name: 'rezervace', serviceId: ses.serviceId }, { kind: 'bookSession', sessionId: ses.id })}
+        aria-label={`Rezervovat ${ses.title}, ${when}`}
+      >
+        Rezervovat
+      </Button>
+    );
+  } else if (watch) {
+    action = (
+      <>
+        <StateChip tone="success" icon="bell">
+          Jste na čekací listině
+        </StateChip>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => run(leaveWaitlist, { entryId: watch.id }, { success: 'Odhlášeno z čekací listiny' })}
+          aria-label={`Odhlásit z čekací listiny – ${ses.title}, ${when}`}
+        >
+          Odhlásit
+        </Button>
+      </>
+    );
+  } else if (waitlistOn) {
+    action = (
+      <Button
+        size="sm"
+        variant="secondary"
+        icon="bell"
+        onClick={() =>
+          run(
+            joinWaitlist,
+            { clientId: client.id, serviceId: ses.serviceId, therapistId: ses.therapistId, dateFrom: dateOf(ses.start), sessionId: ses.id },
+            { success: 'Jste na čekací listině – když se uvolní místo, pošleme vám nabídku', quiet: true },
+          )
+        }
+        aria-label={`Přidat se na čekací listinu – ${ses.title}, ${when}`}
+      >
+        Čekací listina
+      </Button>
+    );
+  }
+
+  return (
+    <li className={cx('por-gweek__item', full && !mine && 'is-full', mine && 'is-mine')} aria-labelledby={titleId}>
+      <DateBadge date={ses.start} tone={cat?.tone} />
+      <div className="por-gweek__body">
+        <span id={titleId} className="por-gweek__title">
+          {ses.title}
+        </span>
+        <span className="por-gweek__meta tnum">
+          {formatTimeRange(ses.start, ses.end)}
+          {rel ? ` · ${rel}` : ''} · {therapistName(t)}
+          {place ? ` · ${place}` : ''}
+        </span>
+        <Progress
+          value={ov.booked}
+          max={ov.capacity}
+          size="xs"
+          tone={ov.fill === 'full' ? 'danger' : ov.fill === 'almost' ? 'warning' : 'accent'}
+          label={`Obsazenost ${ov.booked} ${zPrep(ov.capacity)} ${ov.capacity}`}
+          className="por-gweek__bar"
+        />
+        <div className="por-gweek__foot">
+          <span className={cx('por-gweek__spots tnum', `is-${ov.fill}`)}>
+            {spotsLabel(ov.free)}
+            {full && ov.waitlist > 0 && (
+              <span className="por-gweek__wait">
+                {' '}
+                · {plural(ov.waitlist, ['čeká', 'čekají', 'čeká'])} {countLabel(ov.waitlist, ['člověk', 'lidé', 'lidí'])}
+              </span>
+            )}
+          </span>
+          {action && <span className="por-gweek__actions">{action}</span>}
+        </div>
+      </div>
+    </li>
   );
 }

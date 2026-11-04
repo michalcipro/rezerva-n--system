@@ -25,7 +25,7 @@ import {
 } from '../../ui';
 import { StageControl } from '../../components/crm';
 import { BookingDrawer, NewBookingDialog } from '../calendar';
-import { CreditCard, DebtPanel, ExcusesCard, PackagesCard } from './balances';
+import { CreditCard, DebtPanel, ExcusesCard, PackagesCard, PendingQrCard } from './balances';
 import { EditClientDialog, TagsDialog } from './ClientForm';
 import {
   AdjustCreditDialog,
@@ -207,6 +207,7 @@ function ClientDetail({ client, initialTab }: { client: Client; initialTab?: Cli
             {perms.finance && (
               <DebtPanel items={debts} onSettle={(item) => setDlg({ kind: 'settle', item })} onWaive={(item) => setDlg({ kind: 'waive', item })} />
             )}
+            {perms.finance && <PendingQrCard clientId={client.id} />}
             <CrmCard client={client} now={now} finance={perms.finance} onGo={goTab} />
             {perms.finance && (
               <div className="cli-balances-wrap">

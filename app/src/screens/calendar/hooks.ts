@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { qrAvailable } from '../../engine/payments';
+import { useClinic } from '../../store/hooks';
 import { useSession } from '../../store/session';
 
 /** Reaguje na šířku okna (např. telefon ≤ 640 px). */
@@ -25,4 +27,26 @@ export const PHONE_QUERY = '(max-width: 640px)';
 export function useClinicalAccess(): boolean {
   const role = useSession().role;
   return role === 'owner' || role === 'therapist';
+}
+
+export interface QrOption {
+  /** QR platbu lze nabídnout (zapnutá v Nastavení → Platby a s platným účtem). */
+  available: boolean;
+  /**
+   * Jen pro majitelku: QR platba je zapnutá, ale chybí platné číslo účtu – volba se ukáže jako nedostupná
+   * s tímto vysvětlením. Ostatním rolím (a při vypnuté QR platbě) se volba neukazuje vůbec.
+   */
+  setupHint: string | null;
+}
+
+/** Nabízet volbu „QR platba“ v platebních nabídkách personálu? */
+export function useQrOption(): QrOption {
+  const clinic = useClinic();
+  const role = useSession().role;
+  const available = qrAvailable(clinic);
+  const enabled = !!clinic.settings.payments?.qrEnabled;
+  return {
+    available,
+    setupHint: !available && enabled && role === 'owner' ? 'Pro QR platbu doplňte číslo účtu v Nastavení → Platby.' : null,
+  };
 }

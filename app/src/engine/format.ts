@@ -149,11 +149,18 @@ export function formatSpan(minutes: number): string {
   return parts.length ? parts.join(' ') : '0' + NBSP + 'min';
 }
 
-/** Předložka „z" / „ze" před číslovkou (ze 2, ze 3, z 5, z 10…). */
+/**
+ * Předložka „z" / „ze" před číslovkou podle toho, jak se čte: ze 2, ze 3, ze 4, ze 6, ze 7, ze 12, ze 20,
+ * ze 100 až ze 199 („ze sta“), ze 2 000; z 1, z 5, z 10, z 15, z 50, z 500, z 1 000 („z tisíce“), z 1 200.
+ */
 export function prepZ(n: number): 'z' | 'ze' {
   const s = String(Math.abs(Math.round(n)));
-  if (s.length === 2 && s[0] === '1') return '23467'.includes(s[1]) ? 'ze' : 'z';
-  return '23467'.includes(s[0]) ? 'ze' : 'z';
+  // čte se vedoucí skupina řádů: 12 000 „dvanáct tisíc“, 100 000 „sto tisíc“, 1 000 jen „tisíc“
+  const group = s.slice(0, s.length % 3 || 3);
+  if (s.length > 3 && group === '1') return 'z';
+  if (group.length === 3 && group[0] === '1') return 'ze';
+  if (group.length === 2 && group[0] === '1') return '23467'.includes(group[1]) ? 'ze' : 'z';
+  return '23467'.includes(group[0]) ? 'ze' : 'z';
 }
 
 export function personName(p: { firstName: string; lastName: string }): string {

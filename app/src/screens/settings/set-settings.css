@@ -110,6 +110,65 @@
   }
 }
 
+/* Platby: formulář + náhled QR platby vedle sebe na širokém displeji */
+.set-pay-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+@container set-body (min-width: 900px) {
+  .set-pay-grid { grid-template-columns: minmax(0, 1fr) 368px; }
+  .set-pay-grid__preview {
+    position: sticky;
+    top: var(--set-offset);
+  }
+}
+.set-pay-grid__preview { min-width: 0; }
+
+.set-paypreview { min-width: 0; }
+.set-paypreview__label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.set-paypreview__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+.set-paypreview__rows {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+.set-paypreview__rows dt {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-paypreview__rows dd {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.set-paypreview__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
 /* ---------- Fáze spolupráce ---------- */
 .set-stages {
   display: flex;

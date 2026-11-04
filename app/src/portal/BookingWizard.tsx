@@ -14,6 +14,7 @@ import {
   WEEKDAY_SHORT,
 } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
+import { pendingRequestOfBooking } from '../engine/payments';
 import { evaluateCancellation } from '../engine/policy';
 import {
   bookingsOfClient,
@@ -63,6 +64,7 @@ import {
   nearestFreeDate,
   paymentOptions,
   placeLabel,
+  qrDueAt,
   relativeDay,
   slotsFor,
   termsInfo,
@@ -75,6 +77,7 @@ import {
 } from './logic';
 import { PaymentPicker, PolicySheet, SimulatedPaymentNote, TermsBox, useSimulatedPayment } from './payment';
 import { CopyBlock, DateBadge, MetaLine, ResultHero, Screen, SectionTitle, Sheet, StateChip, StepProgress } from './parts';
+import { QrPaymentPanel, QrPayNote } from './qr';
 
 type Step = 'sluzba' | 'terapeut' | 'termin' | 'souhrn' | 'hotovo';
 type RezervaceRoute = Extract<PortalRoute, { name: 'rezervace' }>;
@@ -148,7 +151,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const { client, go, scrollToTop } = usePortal();
+  const { client, go, scrollToTop, intent, clearIntent } = usePortal();
   const today = dateOf(now);
   const [flow] = useState(() => resolveFlow(clinic, client.id, route, now));
   const original = flow.original;
@@ -170,12 +173,25 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
       if (svc) therapistId = autoTherapist(clinic, svc);
     }
     let date: LocalDate | null = null;
+    let slot: Slot | null = null;
     if (serviceId && therapistId) {
       const q: DayQuery = { serviceId, therapistId, now, clientId: client.id, ignoreBookingId: original?.id, lastDate: flow.lastDate };
-      date = nearestFreeDate(clinic, q, today) ?? today;
+      // termín skupinové lekce vybraný na úvodní obrazovce – rovnou na souhrn (plná lekce: den s nabídkou čekací listiny)
+      const preset = intent?.kind === 'bookSession' && flow.kind === 'new' ? getSession(clinic, intent.sessionId) : undefined;
+      if (preset && preset.serviceId === serviceId && preset.start > now) {
+        date = dateOf(preset.start);
+        slot = slotsFor(clinic, q, date).find((sl) => sl.sessionId === preset.id && (sl.freeSpots ?? 0) > 0) ?? null;
+      } else {
+        date = nearestFreeDate(clinic, q, today) ?? today;
+      }
     }
-    return { serviceId, therapistId, date };
+    return { serviceId, therapistId, date, slot };
     // jen při otevření průvodce
+  }, []);
+
+  // záměr z úvodní obrazovky platí jen pro toto otevření průvodce
+  useEffect(() => {
+    if (intent?.kind === 'bookSession') clearIntent();
   }, []);
 
   const [serviceId, setServiceId] = useState<Id | null>(init.serviceId);
@@ -183,13 +199,15 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   const maxWin = maxWindowStart(clinic, flow, today);
   const [date, setDate] = useState<LocalDate | null>(init.date);
   const [winStart, setWinStart] = useState<LocalDate>(() => (init.date ? windowFor(init.date, today, maxWin) : today));
-  const [slot, setSlot] = useState<Slot | null>(null);
+  const [slot, setSlot] = useState<Slot | null>(init.slot);
   const [payKey, setPayKey] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [agree, setAgree] = useState(false);
   const [doneId, setDoneId] = useState<Id | null>(null);
   const [policyOpen, setPolicyOpen] = useState(false);
-  const [step, setStepRaw] = useState<Step>(() => (!init.serviceId ? 'sluzba' : init.therapistId === null ? 'terapeut' : 'termin'));
+  const [step, setStepRaw] = useState<Step>(() =>
+    init.slot ? 'souhrn' : !init.serviceId ? 'sluzba' : init.therapistId === null ? 'terapeut' : 'termin',
+  );
   const pay = useSimulatedPayment();
 
   const service = serviceId ? getService(clinic, serviceId) : undefined;
@@ -430,6 +448,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
     ignoreBookingId: original?.id,
   });
   const online = payment?.payment.method === 'online';
+  const qr = payment?.payment.method === 'qr';
   const canConfirm = check.ok && (original ? true : !!payment && agree);
   const ctaLabel = original
     ? flow.useExcuse
@@ -437,7 +456,9 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
       : 'Přesunout termín'
     : online && payment
       ? `Zaplatit ${formatMoney(payment.amount)} a rezervovat`
-      : 'Potvrdit rezervaci';
+      : qr
+        ? 'Rezervovat a zobrazit QR kód'
+        : 'Potvrdit rezervaci';
 
   const confirm = (): void => {
     if (original) {
@@ -504,6 +525,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
         <>
           <PaymentPicker options={payOpts} value={effectivePayKey} onChange={setPayKey} />
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
+          {qr && payment && <QrPayNote purpose="booking" amount={payment.amount} due={qrDueAt(clinic, now, slot.start)} />}
           <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
             <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. chci se připravit na důležitý závod" />
           </Field>
@@ -1332,6 +1354,7 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
     );
   }
   const t = getTherapist(clinic, b.therapistId);
+  const qrRequest = !rescheduledFrom ? pendingRequestOfBooking(clinic, b.id, 'booking') : undefined;
   const emailed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'email');
   const smsed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'sms');
   return (
@@ -1348,11 +1371,17 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
         </ActionBar>
       }
     >
-      <ResultHero title={rescheduledFrom ? 'Termín je přesunutý' : 'Termín je rezervovaný'}>
+      <ResultHero
+        tone={qrRequest ? 'accent' : 'success'}
+        icon={qrRequest ? 'qr' : 'check'}
+        title={rescheduledFrom ? 'Termín je přesunutý' : qrRequest ? 'Místo máte rezervované' : 'Termín je rezervovaný'}
+      >
         <span className="tnum">
           {bookingTitle(clinic, b)} · {whenLabel(b.start, now)}
         </span>
+        {qrRequest && <span className="por-block">Zbývá zaplatit QR platbou {formatMoney(qrRequest.amount)}.</span>}
       </ResultHero>
+      {qrRequest && <QrPaymentPanel request={qrRequest} />}
       <Card padding="md" className="por-dlcard">
         <DescriptionList
           termWidth={92}

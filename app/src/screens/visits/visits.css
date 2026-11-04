@@ -1,0 +1,524 @@
+/*
+ * Vstupy (prefix vis-): přehled vstupů a zdroje platby. Barvy jen přes tokeny – světlý i tmavý motiv.
+ * Široké tabulky rolují ve vlastním kontejneru (.table-wrap), stránka nikdy vodorovně.
+ */
+
+.vis-root {
+  min-width: 0;
+}
+
+.vis-sub-muted {
+  color: var(--text-muted);
+}
+
+/* ---------- filtry ---------- */
+.vis-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+  min-width: 0;
+}
+
+.vis-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.vis-presets {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.vis-presets::-webkit-scrollbar {
+  display: none;
+}
+
+.vis-filters .vis-presets-select {
+  display: none;
+}
+
+.vis-filters .vis-periodnav .period-nav__label {
+  min-width: 128px;
+  text-align: center;
+}
+
+.vis-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.vis-custom .control {
+  width: 168px;
+  max-width: 100%;
+}
+
+.vis-filters .control--inline {
+  max-width: 100%;
+}
+
+.vis-locked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vis-locked__note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* zdroj platby – přepínací čipy (výběr více najednou) */
+.vis-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5) var(--space-2);
+  min-width: 0;
+}
+
+.vis-sources__label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.vis-sources__reset {
+  font-size: var(--text-sm);
+}
+
+.vis-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
+}
+.vis-chip:hover {
+  border-color: var(--border-dashed);
+  color: var(--text);
+}
+.vis-chip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.vis-chip__count {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+}
+.vis-chip.is-empty {
+  color: var(--text-muted);
+}
+.vis-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  font-weight: var(--weight-semibold);
+}
+.vis-chip[aria-pressed='true'] .vis-chip__count {
+  color: inherit;
+}
+.vis-chip--qr_pending[aria-pressed='true'] {
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning-fg);
+}
+.vis-chip--unpaid[aria-pressed='true'] {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+
+@media (max-width: 600px) {
+  .vis-filters .vis-presets {
+    display: none;
+  }
+  .vis-filters .vis-presets-select {
+    display: flex;
+    flex: 1 1 100%;
+  }
+  .vis-filters .vis-periodnav {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .vis-filters .vis-periodnav .period-nav__label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .vis-custom {
+    flex: 1 1 100%;
+  }
+  .vis-custom .control {
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .vis-filters__row > .control--inline,
+  .vis-locked {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- dlaždice ---------- */
+.vis-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 1080px) {
+  .vis-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.vis-kpi-extra {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+.vis-kpi-extra strong {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+.vis-kpi-part--danger,
+.vis-kpi-part--danger strong {
+  color: var(--danger-fg);
+}
+
+.vis-kpi-part + .vis-kpi-part::before {
+  content: ' · ';
+}
+
+/* ---------- karty ---------- */
+.vis-card {
+  min-width: 0;
+}
+
+/* nadpis karty má přednost, doplněk vpravo se na úzkém displeji zalomí pod něj */
+.vis-card .card-header {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+.vis-card .card-header__titles {
+  flex: 1 1 180px;
+}
+.vis-card .card-header__meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: normal;
+}
+
+.vis-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.vis-note {
+  margin: 0;
+  padding: var(--space-2-5) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.vis-filterbadge {
+  gap: var(--space-1);
+  padding-right: var(--space-0-5);
+}
+
+.vis-filterbadge__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.vis-filterbadge__x:hover {
+  background: var(--surface-hover);
+}
+.vis-filterbadge__x:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* ---------- souhrn po zaměstnancích ---------- */
+/* Skrytý text pro čtečky (.visually-hidden je position: absolute) musí mít obsahující blok uvnitř posuvného
+   kontejneru tabulky – jinak se vztahuje ke stránce, uteče z overflow-x a na telefonu rozšíří celou stránku. */
+.vis-summary,
+.vis-tablewrap {
+  position: relative;
+}
+/* dvouřádkové hlavičky, aby se jedenáct sloupců vešlo bez rolování na běžný monitor */
+.vis-summary .table thead th {
+  height: auto;
+  padding-block: var(--space-2);
+  vertical-align: bottom;
+  white-space: normal;
+  letter-spacing: 0.02em;
+}
+.vis-summary .table th,
+.vis-summary .table td {
+  padding-inline: var(--space-1-5);
+}
+.vis-summary .table tr > :first-child {
+  padding-left: var(--space-4);
+}
+.vis-summary .table tr > :last-child {
+  padding-right: var(--space-4);
+}
+.vis-summary .table thead th.num {
+  min-width: 56px;
+  max-width: 124px;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+/* řádkové hlavičky vypadají jako buňky, první sloupec zůstává při vodorovném rolování vidět */
+.vis-summary .table tbody th,
+.vis-summary .table tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  height: 32px;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+.vis-summary .table thead th:first-child {
+  left: 0;
+  z-index: 2;
+}
+.vis-summary .table tfoot th {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  font-weight: var(--weight-semibold);
+}
+.vis-summary .table tfoot td {
+  background: var(--surface);
+}
+.vis-summary .table tbody tr:last-child > th {
+  border-bottom: 0;
+}
+.vis-summary .table--hover tbody tr:hover > th {
+  background: var(--surface-muted);
+}
+.vis-summary .table tbody tr.is-selected > th,
+.vis-summary .table tbody tr.is-selected > td {
+  background: var(--accent-subtle);
+}
+.vis-summary .table tbody tr.is-selected .vis-who__name {
+  color: var(--accent-fg);
+}
+
+.vis-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.vis-who__note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.vis-row--inactive .vis-who__name {
+  color: var(--text-secondary);
+}
+
+.vis-zero {
+  color: var(--text-faint);
+}
+
+.vis-num--warning {
+  color: var(--warning-fg);
+  font-weight: var(--weight-semibold);
+}
+
+.vis-num--danger {
+  color: var(--danger-fg);
+  font-weight: var(--weight-semibold);
+}
+
+/* ---------- seznam vstupů ---------- */
+.vis-rowlink {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+.vis-rowlink:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.vis-rowlink:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.vis-rowlink[aria-pressed='true'] {
+  color: var(--accent-fg);
+}
+
+.vis-tablewrap .table td {
+  padding-block: var(--space-2);
+  vertical-align: middle;
+}
+
+.vis-when,
+.vis-service {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.vis-service__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.vis-service__icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.vis-sub {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.vis-sourcecell {
+  min-width: 220px;
+  max-width: 340px;
+}
+
+.vis-actioncell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* na telefonu karty místo tabulky */
+.vis-mlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vis-mrow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.vis-mrow:last-child {
+  border-bottom: 0;
+}
+
+.vis-mrow__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vis-mrow__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.vis-mrow__line .vis-rowlink {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vis-mrow__amount {
+  flex: none;
+  font-weight: var(--weight-semibold);
+}
+
+.vis-mrow__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.vis-mrow__open {
+  flex: none;
+  margin-top: calc(var(--space-1) * -1);
+}
+
+/* ---------- stránkování ---------- */
+.vis-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2-5) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.vis-pager__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vis-pager__page {
+  min-width: 92px;
+  color: var(--text-secondary);
+  text-align: center;
+}

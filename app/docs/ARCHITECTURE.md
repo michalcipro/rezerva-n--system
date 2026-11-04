@@ -14,7 +14,8 @@ src/
   engine/                čistá doménová logika bez Reactu (testy v tests/)
     time.ts              lokální čas 'YYYY-MM-DDTHH:mm', sčítání, týden, ISO týden…
     format.ts            české formátování: formatMoney, formatDayShort, formatTime, formatTimeRange,
-                         formatDateLong, formatRelative, formatSpan, formatDuration, plural, countLabel…
+                         formatDateLong, formatRelative, formatSpan, formatDuration, plural, countLabel,
+                         prepZ („z“ / „ze“ před číslem: ze 2, ze 12, ze 120, z 1 000)…
     selectors.ts         dotazy: getClient/getService/getTherapist…, bookingsOfClient, bookingsOfTherapistOnDate,
                          packageUsage, eligiblePackages, clientCredit, openMakeups, eligibleMakeups,
                          excuseStatusFor, clientSummary, sessionsOnDate, getSession, sessionParticipants,
@@ -26,9 +27,15 @@ src/
     policy.ts            evaluateCancellation (fáze, stupně poplatků, omluvenky, volby zrušení, časová osa)
     commands.ts          všechny změny dat (viz níže)
     processes.ts         runProcesses – automatika (docházka, připomínky, propadání náhrad, nabídky…)
-    stats.ts             computeStats (KPI, grafy, heatmapa, trend), daySummary
+    stats.ts             computeStats (KPI, grafy, heatmapa, trend, revenueByMethod včetně QR), daySummary
     segments.ts          evaluateSegment, segmentFunnel, describeRule, RULE_TYPES, defaultRule, campaignPlainText
     messages.ts          šablony zpráv, renderTemplate, TEMPLATE_VARIABLES, paymentLabel
+    qr.ts                QR Platba: czechAccountToIban, isValidIban, buildSpayd (SPAYD 1.0), formatIban
+    payments.ts          QR výzvy: MONEY_METHOD_LABEL/NAME, PAYMENT_PURPOSE_LABEL, qrAvailable, pendingPaymentRequests,
+                         pendingRequestOfBooking, findPaymentRequestsByVs, paymentRequestOutcome, paymentRequestTitle,
+                         paymentRequestSpayd, paymentRequestEmail…
+    visits.ts            přehled vstupů: visitPaymentInfo, visitsOverview, VISIT_SOURCE_LABEL/TONE, sessionParticipantRows
+    groups.ts            volná místa ve skupinách: groupSessionsOverview, groupOverviewSummary, sessionFill
     crm.ts               CRM selektory (fáze, poznámky, soubory, follow-upy, pipelineStats…), NOTE_TEXT_MAX,
                          NOTE_KIND_LABEL, followUpDueLabel, sessionNotesEmail – viz docs/CRM.md
     defaults.ts          výchozí katalog (služby, terapeuti, permanentky, nastavení)
@@ -38,10 +45,13 @@ src/
     session.ts           nastavení prohlížeče: testovací role, otevřená obrazovka, motiv
     hooks.ts             useClinic, useNow, useActor, useCommand, useStore
     files.ts             binární obsah souborů klientů (assety artefaktu / IndexedDB): storeFile, getFileUrl,
-                         readFileText, deleteStoredFile, downloadFile, canStoreFiles, clearLocalFiles
+                         readFileText, deleteStoredFile, downloadFile, downloadBlob (obsah z paměti, např.
+                         export CSV), canStoreFiles, clearLocalFiles
   ui/                    designový systém (viz src/ui/README.md) – primitivy a AppShell
   styles/                tokens.css (barvy světlý/tmavý motiv), base.css, components.css
   components/            sdílené doménové komponenty (PolicyTimeline, avatary, štítky)
+  components/payments/   QR platba a zdroj platby (styly .pay-…): QrCode, QrPaymentCard, QrPaymentDialog,
+                         PendingPaymentsList, VisitSourceBadge – viz docs/VSTUPY-SKUPINY-QR.md
   components/crm/        sdílené CRM komponenty (styly .crm-…): StageBadge, StageControl, FollowUpDialog,
                          FollowUpRow, NotesPanel, SessionNoteEditor, SendSessionNotesDialog, AudioRecorder,
                          PlaudImportDialog, FilesPanel, FileViewerDialog, FileUploadButton
@@ -60,6 +70,10 @@ své složce (čisté funkce nad `ClinicState`) a uveď to v závěrečné zprá
 - Čas kliniky: `useNow()` (respektuje testovací hodiny `settings.simulatedNow`). Nikdy `new Date()` pro logiku.
 - Datum/čas jsou řetězce: `LocalDateTime = '2026-10-14T09:30'`, `LocalDate = '2026-10-14'`; porovnání řetězců = porovnání času.
 - Týden začíná pondělím (`weekdayOf`: 0 = Po … 6 = Ne).
+- Platby QR (docs/VSTUPY-SKUPINY-QR.md): nastavení `settings.payments` (`PaymentSettings`), kolekce
+  `paymentRequests` (`PaymentRequest` – platební výzvy s VS; ukládá se po měsících podle `createdAt`, starý stav
+  doplní migrace v `store/persistence.ts`). `MoneyMethod` i `PaymentMethod` mají `'qr'`; rezervace s `'qr'`
+  je do potvrzení výzvy `paid: false`. Dostupnost vždy přes `qrAvailable(s)` (zapnuto + platný IBAN).
 
 ## Příkazy (engine/commands.ts)
 
@@ -79,10 +93,10 @@ if (r.ok) onClose();
 | updateClient | clientId, patch{…} | – |
 | setConsent | clientId, key, value | – |
 | addClinicalNote | clientId, text | id |
-| createBooking | clientId, serviceId, therapistId, start, sessionId?, payment{method:'package'\|'credit'\|'online'\|'onsite'\|'makeup'\|'free', packageId?, makeupId?}, channel?, note?, override? | bookingId |
+| createBooking | clientId, serviceId, therapistId, start, sessionId?, payment{method:'package'\|'credit'\|'online'\|'onsite'\|'makeup'\|'free'\|'qr', packageId?, makeupId?}, channel?, note?, override? | bookingId |
 | cancelBooking | bookingId, option ('free'\|'excuse'\|'grace'\|'fee'\|'clinic'), reason? | {message} |
 | rescheduleBooking | bookingId, start, therapistId?, sessionId?, override?, useExcuse? | bookingId |
-| markCompleted | bookingId, settleWith? ('cash'\|'card'\|'online'\|'transfer'\|'credit'\|null) | – |
+| markCompleted | bookingId, settleWith? ('cash'\|'card'\|'online'\|'transfer'\|'qr'\|'credit'\|null) | – |
 | settleBooking | bookingId, method | – |
 | markNoShow | bookingId | {message} |
 | waiveFee / payFee | bookingId, reason / method | – |
@@ -96,11 +110,16 @@ if (r.ok) onClose();
 | setServiceTherapists | serviceId, therapistIds | – |
 | cancelSession | sessionId, reason | počet zrušených |
 | addTimeOff / removeTimeOff | {therapistId\|null, start, end, reason} / {id} | id |
-| updateSettings | částečný patch (vnořené bookingRules, policy, policy.excuses, waitlist, reminders) | – |
+| updateSettings | částečný patch (vnořené bookingRules, policy, policy.excuses, waitlist, reminders, payments) | – |
 | updateTemplate | key, patch | – |
 | saveCampaign / deleteCampaign / sendCampaign / scheduleCampaign | Campaign / {campaignId} / {campaignId} / {campaignId, at} | id / – / počet / – |
 | sendManualMessage | clientId, channel, subject, body | id |
 | setSimulatedNow | value\|null | – |
+| createPaymentRequest | clientId, purpose ('booking'\|'package'\|'credit_topup'\|'storno_fee'), amount?, bookingId?, packageTemplateId? | id (k rezervaci / poplatku vrátí už čekající výzvu) |
+| confirmPaymentRequest | requestId, at? (datum připsání, ne v budoucnu ani před dnem vystavení) | – (zaplatí termín / prodá permanentku podle podmínek z objednávky / dobije kredit / zaplatí poplatek; i u zrušené výzvy – když účel netrvá, připíše částku na kredit; jen personál) |
+| cancelPaymentRequest | requestId, reason? | – (termín „QR převodem“ se vrátí na platbu na místě; klient jen vlastní výzvu) |
+
+Podrobnosti QR plateb a pravidla uzavírání výzev popisuje docs/VSTUPY-SKUPINY-QR.md.
 
 CRM příkazy (setClientStage, saveStages, addNote, updateNote, deleteNote, sendSessionNotes, addFileRecord,
 updateFileRecord, removeFileRecord, addFollowUp, updateFollowUp, setFollowUpDone, deleteFollowUp) popisuje
@@ -115,7 +134,8 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
 - Komponenty a tokeny ze `src/ui` (`import { Button, Dialog, … } from '../../ui'`). Barvy jen přes CSS
   proměnné (`var(--…)`), žádné literální barvy – aplikace má světlý i tmavý motiv.
 - Vlastní styly dané obrazovky: jeden CSS soubor ve tvé složce (importovaný z komponenty), třídy s prefixem
-  oblasti (např. `.cal-…`, `.cli-…`, `.pip-…`, `.set-…`, `.st-…`, `.com-…`, `.por-…`, sdílené CRM `.crm-…`).
+  oblasti (např. `.cal-…`, `.cli-…`, `.pip-…`, `.set-…`, `.st-…`, `.com-…`, `.por-…`, `.vis-…` Vstupy,
+  `.grp-…` Skupinové lekce, sdílené CRM `.crm-…`, sdílené platby `.pay-…`).
 - Žádné `window.alert/confirm/prompt` (v artefaktu nefungují) – potvrzení přes `ConfirmDialog`.
 - Přístupnost: skutečné `<button>`, `<label>`, `aria-label` u ikonových tlačítek, focus, kontrast.
 - Responzivita: funguje od 360 px šířky bez vodorovného posunu stránky; široké tabulky a kalendář ve vlastním
@@ -129,6 +149,10 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
 - Administrace: `navigate({ name: 'klient', clientId })`, `navigate({ name: 'kalendar' })` … (`store/session.ts`).
   Karta klienta rovnou na konkrétní kartě: `navigate({ name: 'klient', clientId, tab: 'poznamky' })` (`ClientTab`).
   CRM obrazovky: `navigate({ name: 'pipeline' })`, `navigate({ name: 'followupy' })`.
+  Přehled vstupů a skupiny: `navigate({ name: 'vstupy' })` (Vstupy), `navigate({ name: 'skupiny' })` (Skupinové
+  lekce); obě trasy jsou i v hash odkazech (`#vstupy`, `#skupiny`).
+- Volbu „QR platba“ v platebních nabídkách personálu řídí `useQrOption()` z `screens/calendar` (používá ji
+  i karta klienta); klientský portál `qrAvailable()`.
 - Datum a pohled kalendáře: `setSession({ calendarDate, calendarView, calendarTherapist })`.
 - Klientský portál: `navigatePortal({ name: 'rezervace' })` …
 - Testovací role: `session.role` (`owner` | `reception` | `therapist` | `client`), `session.clientId`.
