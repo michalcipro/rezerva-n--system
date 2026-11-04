@@ -5,6 +5,8 @@ import { clientName, therapistName } from '../engine/selectors';
 import { useNow, useStore } from '../store/hooks';
 import { useSession, type Session } from '../store/session';
 import { Button, Dialog, Field, Icon, IconButton, Input, Textarea, toast } from '../ui';
+import { copyText } from './clipboard';
+import { downloadFile, downloadNotice } from './download';
 
 /**
  * Připomínky testerů k testovací verzi. Každá poznámka si nese kontext (obrazovka, role,
@@ -88,8 +90,10 @@ function saveName(name: string): void {
 const ADMIN_SCREEN: Record<Session['route']['name'], string> = {
   prehled: 'Přehled',
   kalendar: 'Kalendář',
+  skupiny: 'Skupinové lekce',
   klienti: 'Klienti',
   klient: 'Detail klienta',
+  vstupy: 'Vstupy a platby',
   permanentky: 'Permanentky a kredity',
   sluzby: 'Služby a ceník',
   tym: 'Tým a směny',
@@ -182,42 +186,6 @@ function pageUrl(): string | null {
   if (location.hostname === 'localhost' || location.hostname.endsWith('.claudeusercontent.com')) return null;
   return location.origin + location.pathname;
 }
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const area = document.createElement('textarea');
-      area.value = text;
-      area.setAttribute('readonly', '');
-      area.style.position = 'fixed';
-      area.style.opacity = '0';
-      document.body.appendChild(area);
-      area.select();
-      const ok = document.execCommand('copy');
-      area.remove();
-      return ok;
-    } catch {
-      return false;
-    }
-  }
-}
-
-function downloadText(text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'pripominky-rezervacni-system.txt';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/** V prohlížeči artefaktů na claude.ai stránka nesmí nabízet stažení souboru. */
-const inClaudeViewer = (): boolean => typeof window !== 'undefined' && window.claude !== undefined;
 
 function useDevice(): 'mobil' | 'počítač' {
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 720);
@@ -312,11 +280,17 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
       <Button variant="secondary" icon="copy" onClick={() => void copy()} disabled={!notes.length}>
         Zkopírovat
       </Button>
-      {!inClaudeViewer() && (
-        <Button variant="secondary" icon="download" onClick={() => downloadText(body)} disabled={!notes.length}>
-          Stáhnout
-        </Button>
-      )}
+      <Button
+        variant="secondary"
+        icon="download"
+        onClick={async () => {
+          const notice = downloadNotice(await downloadFile('pripominky-rezervacni-system.txt', body, 'text/plain;charset=utf-8'));
+          if (notice) toast.info(notice);
+        }}
+        disabled={!notes.length}
+      >
+        Stáhnout
+      </Button>
       {notes.length ? (
         <a
           className="btn btn--primary btn--md btn--icon-start"

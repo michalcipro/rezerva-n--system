@@ -12,19 +12,22 @@ import type {
 } from '../domain/types';
 import {
   cancelBooking,
+  confirmPaymentRequest,
   createBooking,
   createClient,
+  createPaymentRequest,
   deliverCampaign,
   joinWaitlist,
   markCompleted,
   markNoShow,
+  notifyPaymentSent,
   payFee,
   saveCampaign,
   sellPackage,
   topUpCredit,
   waiveFee,
 } from './commands';
-import { createBaseState } from './defaults';
+import { DEMO_ACCOUNT, createBaseState } from './defaults';
 import { evaluateCancellation } from './policy';
 import { runProcesses } from './processes';
 import {
@@ -44,6 +47,7 @@ import {
   combine,
   dateOf,
   daysBetween,
+  minStr,
   minutesOf,
   startOfWeek,
   timeFromMinutes,
@@ -131,6 +135,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
   const simStart = addDays(startOfWeek(today), -7 * (opts.weeksBack ?? 8));
   const simEnd = addDays(today, opts.daysAhead ?? 21);
   const d: ClinicState = createBaseState(simStart);
+  d.settings.payments = { ...d.settings.payments, accountNumber: DEMO_ACCOUNT.accountNumber, iban: DEMO_ACCOUNT.iban, demoAccount: true };
   const staff: Actor = { role: 'reception', name: 'Recepce' };
   const owner: Actor = { role: 'owner', name: 'Tereza Malá', therapistId: 't_mala' };
   const at = (time: LocalDateTime, actor: Actor = staff): Ctx => ({ now: time, actor });
@@ -236,7 +241,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     const massageStart = story(-19, '16:00');
     const ms = createBooking(d, { clientId: martin, serviceId: 's_sport60', therapistId: 't_vavrova', start: massageStart, payment: { method: 'onsite' }, override: true }, at(addDays(massageStart, -4), clientActor(martin)));
     if (ms.ok) cancelBooking(d, { bookingId: ms.value, option: 'fee', reason: 'Pracovní cesta' }, at(addHours(massageStart, -20), clientActor(martin)));
-    createBooking(d, { clientId: martin, serviceId: 's_sport60', therapistId: 't_vavrova', start: story(6, '16:00'), payment: { method: 'onsite' }, override: true }, at(addHours(now, -50), clientActor(martin)));
+    createBooking(d, { clientId: martin, serviceId: 's_sport60', therapistId: 't_vavrova', start: story(6, '16:00'), payment: { method: 'qr' }, override: true }, at(addHours(now, -20), clientActor(martin)));
   }
 
   /* ---------------- běžný provoz ---------------- */
@@ -288,7 +293,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     const p = interest === 'skupiny' ? 0.4 : visits >= 1 ? (c.regular ? 0.3 : 0.08) : 0;
     if (!chance(p)) return;
     if (eligiblePackages(d, c.id, serviceId, dateOf(when), dateOf(when)).length) return;
-    const method: MoneyMethod = pick(['card', 'card', 'card', 'transfer', 'cash'] as const);
+    const method: MoneyMethod = pick(['card', 'card', 'card', 'qr', 'transfer', 'cash'] as const);
     sellPackage(d, { clientId: c.id, templateId: tpl, paidBy: method }, at(when));
   };
 
@@ -329,7 +334,8 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
       cancelBooking(d, { bookingId: b.id, option: 'clinic', reason: 'Nemoc terapeuta' }, at(addHours(b.start, -30), owner));
       return;
     }
-    const settle: MoneyMethod = chance(0.72) ? 'card' : 'cash';
+    const roll = rand();
+    const settle: MoneyMethod = roll < 0.6 ? 'card' : roll < 0.84 ? 'cash' : 'qr';
     markCompleted(d, { bookingId: b.id, settleWith: b.payment.method === 'onsite' ? settle : null }, at(b.end));
   };
 
@@ -403,7 +409,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
             cursor += 15;
             continue;
           }
-          if (chance(0.05)) topUpCredit(d, { clientId: c.id, amount: pick([2000, 3000, 5000]), method: pick(['card', 'cash', 'transfer'] as const) }, at(addMinutes(created, -10)));
+          if (chance(0.05)) topUpCredit(d, { clientId: c.id, amount: pick([2000, 3000, 5000]), method: pick(['card', 'cash', 'transfer', 'qr'] as const) }, at(addMinutes(created, -10)));
           maybeBuyPackage(c, serviceId, addMinutes(created, -5));
           const payment = choosePayment(c.id, serviceId, start, created);
           const actor = c.online ? clientActor(c.id) : staff;
@@ -433,7 +439,10 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     // skupinové lekce
     for (const ses of sessionsOnDate(d, day)) {
       const ahead2 = daysBetween(today, day);
-      const wanted = ahead2 < 0 ? between(4, 8) : ahead2 <= 2 ? between(5, 8) : ahead2 <= 7 ? between(3, 6) : between(1, 4);
+      const popular = ses.serviceId === 's_g_kruhovy';
+      const wanted = popular
+        ? ahead2 < 0 ? between(8, 12) : ahead2 <= 2 ? between(9, 12) : ahead2 <= 7 ? between(6, 11) : between(3, 7)
+        : ahead2 < 0 ? between(4, 8) : ahead2 <= 2 ? between(5, 8) : ahead2 <= 7 ? between(3, 6) : between(1, 4);
       const pool = poolFor('skupiny', day);
       let added = 0;
       for (let k = 0; k < pool.length * 2 && added < wanted; k++) {
@@ -457,7 +466,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
             const cancelAt = addHours(b.start, -between(8, 40));
             if (cancelAt > b.createdAt) cancelBooking(d, { bookingId: b.id, option: 'free', reason: '' }, at(cancelAt, clientActor(c.id)));
             else markCompleted(d, { bookingId: b.id, settleWith: b.payment.method === 'onsite' ? 'card' : null }, at(b.end));
-          } else markCompleted(d, { bookingId: b.id, settleWith: b.payment.method === 'onsite' ? 'cash' : null }, at(b.end));
+          } else markCompleted(d, { bookingId: b.id, settleWith: b.payment.method === 'onsite' ? (chance(0.25) ? 'qr' : 'cash') : null }, at(b.end));
         }
       }
     }
@@ -491,6 +500,24 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     for (const c of pool.slice(-2)) {
       if (!bookingsOfClient(d, c.id).some((b) => b.sessionId === fullSession.id))
         joinWaitlist(d, { clientId: c.id, serviceId: fullSession.serviceId, therapistId: null, dateFrom: dateOf(fullSession.start), sessionId: fullSession.id }, wlCtx(c.id));
+    }
+  }
+
+  // plný kruhový trénink v nejbližších dnech s čekajícími
+  const fullCircuit = [0, 1, 2, 3, 4, 5, 6]
+    .flatMap((k) => sessionsOnDate(d, addDays(today, k)))
+    .find((ses) => ses.serviceId === 's_g_kruhovy' && ses.start > now);
+  if (fullCircuit) {
+    const pool = poolFor('skupiny', today);
+    for (const c of pool) {
+      const participants = d.bookings.filter((b) => b.sessionId === fullCircuit.id && b.status === 'confirmed').length;
+      if (participants >= fullCircuit.capacity) break;
+      if (bookingsOfClient(d, c.id).some((b) => b.sessionId === fullCircuit.id)) continue;
+      createBooking(d, { clientId: c.id, serviceId: fullCircuit.serviceId, therapistId: fullCircuit.therapistId, start: fullCircuit.start, sessionId: fullCircuit.id, payment: choosePayment(c.id, fullCircuit.serviceId, fullCircuit.start, now) }, at(addHours(now, -between(2, 40)), clientActor(c.id)));
+    }
+    for (const c of pool.slice(-5, -2)) {
+      if (!bookingsOfClient(d, c.id).some((b) => b.sessionId === fullCircuit.id))
+        joinWaitlist(d, { clientId: c.id, serviceId: fullCircuit.serviceId, therapistId: null, dateFrom: dateOf(fullCircuit.start), sessionId: fullCircuit.id }, wlCtx(c.id));
     }
   }
 
@@ -539,6 +566,39 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
     else if (r < 0.9) waiveFee(d, { bookingId: b.id, reason: pick(['Doložená nemoc', 'Dohoda s klientem', 'První nedostavení']) }, at(when, owner));
   }
 
+  /* ---------------- QR platby z portálu ---------------- */
+  {
+    // budoucí termíny „na místě“, které klient v portálu přepnul na QR platbu předem
+    const online = d.bookings.filter((b) => b.status === 'confirmed' && b.start > now && b.payment.method === 'onsite' && !b.payment.paid && b.createdBy === 'client' && b.clientId !== martin && b.createdAt < addHours(now, -3));
+    online.slice(0, 14).forEach((b, i) => {
+      const when = addMinutes(b.createdAt, 4);
+      const r = createPaymentRequest(d, { clientId: b.clientId, purpose: 'booking', bookingId: b.id }, at(when, clientActor(b.clientId)));
+      if (!r.ok) return;
+      if (i % 3 === 2) return; // čeká na připsání (některé i po splatnosti)
+      if (i % 3 === 1) notifyPaymentSent(d, { requestId: r.value.requestId }, at(addMinutes(when, 6), clientActor(b.clientId)));
+      const paidAt = addHours(when, between(1, 30));
+      if (paidAt < now) confirmPaymentRequest(d, { requestId: r.value.requestId }, at(paidAt));
+    });
+    const fyzioClients = sim.filter((c) => c.id !== martin && c.interests.includes('fyzio') && c.createdDate < addDays(today, -10));
+    // permanentka koupená QR platbou: jedna zaplacená, jedna čeká
+    const paidPkg = fyzioClients[3];
+    if (paidPkg) {
+      const r = createPaymentRequest(d, { clientId: paidPkg.id, purpose: 'package', packageTemplateId: 'pt_fyzio5' }, at(addHours(now, -52), clientActor(paidPkg.id)));
+      if (r.ok) confirmPaymentRequest(d, { requestId: r.value.requestId }, at(addHours(now, -30)));
+    }
+    const pendingPkg = fyzioClients[7];
+    if (pendingPkg) createPaymentRequest(d, { clientId: pendingPkg.id, purpose: 'package', packageTemplateId: 'pt_fyzio10' }, at(addHours(now, -5), clientActor(pendingPkg.id)));
+    // dobití kreditu QR platbou – klient hlásí odeslání
+    const topup = fyzioClients[11];
+    if (topup) {
+      const r = createPaymentRequest(d, { clientId: topup.id, purpose: 'credit_topup', amount: 3000 }, at(addHours(now, -26), clientActor(topup.id)));
+      if (r.ok) notifyPaymentSent(d, { requestId: r.value.requestId }, at(addHours(now, -25), clientActor(topup.id)));
+    }
+    // neuhrazený storno poplatek – recepce poslala platební údaje e-mailem
+    const due = d.bookings.filter((b) => b.fee?.status === 'due' && b.start < now).slice(-2);
+    for (const b of due) createPaymentRequest(d, { clientId: b.clientId, purpose: 'storno_fee', bookingId: b.id, sendEmail: true }, at(minStr(addHours(b.start, 20), addHours(now, -2))));
+  }
+
   /* ---------------- dokončení ---------------- */
   runProcesses(d, {}, at(now, owner));
   const keepFrom = addDays(now, -7);
@@ -547,6 +607,7 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
   d.audit = d.audit.filter((a) => a.at <= now && (a.at >= keepFrom || a.clientId === martin)).slice(-900);
   d.ledger.sort((a, b) => (a.at < b.at ? -1 : 1));
   d.payments.sort((a, b) => (a.at < b.at ? -1 : 1));
+  d.paymentRequests.sort((a, b) => (a.at < b.at ? -1 : 1));
   d.bookings.sort((a, b) => (a.start < b.start ? -1 : 1));
   d.demoSeededAt = now;
   d.settings.simulatedNow = null;

@@ -4,8 +4,10 @@ import { clientName } from '../engine/selectors';
 import { CalendarScreen, NewBookingDialog } from '../screens/calendar';
 import { ClientDetailScreen, ClientsScreen } from '../screens/clients';
 import { CommsScreen } from '../screens/comms';
+import { GroupsScreen } from '../screens/groups';
 import { PackagesScreen, ServicesScreen, SettingsScreen, TeamScreen } from '../screens/settings';
 import { DashboardScreen, StatsScreen } from '../screens/stats';
+import { VisitsScreen } from '../screens/visits';
 import { useClinic } from '../store/hooks';
 import { navigate, useSession, type AdminRoute } from '../store/session';
 import { AppShell, Avatar, Button, EmptyState, Icon, Kbd, type IconName } from '../ui';
@@ -16,7 +18,9 @@ type NavId = Exclude<AdminRoute['name'], 'klient'>;
 const NAV: { id: NavId; label: string; icon: IconName }[] = [
   { id: 'prehled', label: 'Přehled', icon: 'home' },
   { id: 'kalendar', label: 'Kalendář', icon: 'calendar' },
+  { id: 'skupiny', label: 'Skupinové lekce', icon: 'dumbbell' },
   { id: 'klienti', label: 'Klienti', icon: 'users' },
+  { id: 'vstupy', label: 'Vstupy a platby', icon: 'receipt' },
   { id: 'permanentky', label: 'Permanentky a kredity', icon: 'ticket' },
   { id: 'sluzby', label: 'Služby a ceník', icon: 'briefcase' },
   { id: 'tym', label: 'Tým a směny', icon: 'clock' },
@@ -27,8 +31,8 @@ const NAV: { id: NavId; label: string; icon: IconName }[] = [
 
 const ACCESS: Record<ActorRole, NavId[]> = {
   owner: NAV.map((n) => n.id),
-  reception: ['prehled', 'kalendar', 'klienti', 'permanentky', 'sluzby', 'tym', 'komunikace'],
-  therapist: ['prehled', 'kalendar', 'klienti'],
+  reception: ['prehled', 'kalendar', 'skupiny', 'klienti', 'vstupy', 'permanentky', 'sluzby', 'tym', 'komunikace'],
+  therapist: ['prehled', 'kalendar', 'skupiny', 'klienti', 'vstupy'],
   client: [],
 };
 
@@ -159,6 +163,12 @@ export function AdminApp(): JSX.Element {
         break;
       case 'kalendar':
         screen = <CalendarScreen />;
+        break;
+      case 'skupiny':
+        screen = <GroupsScreen />;
+        break;
+      case 'vstupy':
+        screen = <VisitsScreen />;
         break;
       case 'klienti':
         screen = <ClientsScreen />;

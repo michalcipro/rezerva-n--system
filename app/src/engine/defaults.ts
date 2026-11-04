@@ -3,6 +3,7 @@ import type {
   ClinicState,
   GroupTemplate,
   PackageTemplate,
+  PaymentSettings,
   Room,
   Service,
   Settings,
@@ -192,11 +193,16 @@ export const DEFAULT_SERVICES: Service[] = [
     kind: 'group', capacity: 8, therapistIds: ['t_kos'], onlineBookable: true, newClientsOnly: false, remote: false,
     description: 'Pilates zaměřený na záda (max. 8 osob).', active: true, order: 13,
   },
+  {
+    id: 's_g_kruhovy', name: 'Kruhový trénink', categoryId: 'cat_skupiny', durationMin: 60, priceCzk: 290, bufferMin: 0,
+    kind: 'group', capacity: 12, therapistIds: ['t_kos'], onlineBookable: true, newClientsOnly: false, remote: false,
+    description: 'Intervalový trénink na stanovištích pro celé tělo (max. 12 osob).', active: true, order: 14,
+  },
 ];
 
 export function defaultGroupTemplates(validFrom: string): GroupTemplate[] {
-  const t = (id: string, serviceId: string, weekday: GroupTemplate['weekday'], start: string, title: string): GroupTemplate => ({
-    id, serviceId, therapistId: 't_kos', roomId: 'r_sal', weekday, start, title, capacity: 8, validFrom, validTo: null, active: true,
+  const t = (id: string, serviceId: string, weekday: GroupTemplate['weekday'], start: string, title: string, capacity = 8): GroupTemplate => ({
+    id, serviceId, therapistId: 't_kos', roomId: 'r_sal', weekday, start, title, capacity, validFrom, validTo: null, active: true,
   });
   return [
     t('g_zada_po', 's_g_zada', 0, '12:00', 'Zdravá záda'),
@@ -206,6 +212,9 @@ export function defaultGroupTemplates(validFrom: string): GroupTemplate[] {
     t('g_funkcni_st', 's_g_funkcni', 2, '17:00', 'Funkční trénink'),
     t('g_pilates_ct', 's_g_pilates', 3, '18:00', 'Pilates'),
     t('g_funkcni_so', 's_g_funkcni', 5, '09:00', 'Funkční trénink'),
+    t('g_kruh_ut', 's_g_kruhovy', 1, '07:00', 'Kruhový trénink', 12),
+    t('g_kruh_ct', 's_g_kruhovy', 3, '07:00', 'Kruhový trénink', 12),
+    t('g_kruh_pa', 's_g_kruhovy', 4, '17:00', 'Kruhový trénink', 12),
   ];
 }
 
@@ -227,7 +236,7 @@ export const DEFAULT_PACKAGE_TEMPLATES: PackageTemplate[] = [
     priceCzk: 8550, validityDays: 183, excusesAllowed: 2, active: true, order: 3,
   },
   {
-    id: 'pt_skupiny8', name: 'Skupiny 8', description: '8 skupinových lekcí na měsíc', entries: 8, serviceIds: ['s_g_zada', 's_g_funkcni', 's_g_pilates'],
+    id: 'pt_skupiny8', name: 'Skupiny 8', description: '8 skupinových lekcí na měsíc', entries: 8, serviceIds: ['s_g_zada', 's_g_funkcni', 's_g_pilates', 's_g_kruhovy'],
     priceCzk: 1990, validityDays: 31, excusesAllowed: 2, active: true, order: 4,
   },
 ];
@@ -273,9 +282,18 @@ export function defaultSettings(): Settings {
       { minTopup: 3000, pct: 5 },
       { minTopup: 5000, pct: 10 },
     ],
+    payments: defaultPaymentSettings(),
     simulatedNow: null,
   };
 }
+
+/** QR platba je zapnutá, ale bez čísla účtu se nenabízí (doplní se v Nastavení → Platby). */
+export function defaultPaymentSettings(): PaymentSettings {
+  return { qrEnabled: true, accountNumber: '', iban: '', recipientName: 'Klinika pohyb', qrDueHours: 48, demoAccount: false };
+}
+
+/** Smyšlený účet pro ukázková data (QR nese upozornění „neplatit“). */
+export const DEMO_ACCOUNT = { accountNumber: '1234567020/0710', iban: 'CZ4207100000001234567020' } as const;
 
 /** Prázdná klinika s výchozím nastavením a katalogem služeb. */
 export function createBaseState(validFrom = '2025-01-01'): ClinicState {
@@ -297,6 +315,7 @@ export function createBaseState(validFrom = '2025-01-01'): ClinicState {
     makeups: [],
     ledger: [],
     payments: [],
+    paymentRequests: [],
     waitlist: [],
     messages: [],
     templates: clone(DEFAULT_TEMPLATES),

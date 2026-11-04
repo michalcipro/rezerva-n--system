@@ -109,6 +109,7 @@ const MONEY_TEXT: Record<MoneyMethod | 'credit', string> = {
   cash: 'hotově',
   online: 'online',
   transfer: 'převodem',
+  qr: 'QR platbou',
   credit: 'z kreditu',
 };
 

@@ -10,8 +10,10 @@ import { clientName, getClient, getTherapist, therapistName } from '../engine/se
 export type AdminRoute =
   | { name: 'prehled' }
   | { name: 'kalendar' }
+  | { name: 'skupiny' }
   | { name: 'klienti' }
   | { name: 'klient'; clientId: Id }
+  | { name: 'vstupy' }
   | { name: 'permanentky' }
   | { name: 'sluzby' }
   | { name: 'tym' }
@@ -59,7 +61,7 @@ function initialRoleFromHash(s: Session): Session {
     const hash = typeof location !== 'undefined' ? location.hash.replace('#', '') : '';
     if (hash === 'klient') return { ...s, role: 'client' };
     if (hash === 'recepce') return { ...s, role: 'reception' };
-    const adminRoutes = ['prehled', 'kalendar', 'klienti', 'permanentky', 'sluzby', 'tym', 'komunikace', 'statistiky', 'nastaveni'];
+    const adminRoutes = ['prehled', 'kalendar', 'skupiny', 'klienti', 'vstupy', 'permanentky', 'sluzby', 'tym', 'komunikace', 'statistiky', 'nastaveni'];
     if (adminRoutes.includes(hash)) return { ...s, role: s.role === 'client' ? 'owner' : s.role, route: { name: hash } as AdminRoute };
   } catch {
     /* ignore */

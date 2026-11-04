@@ -198,6 +198,8 @@ export function paymentLabel(s: ClinicState, b: Booking): string {
       return 'náhradní termín za omluvenku';
     case 'free':
       return 'zdarma';
+    case 'qr':
+      return b.payment.paid ? `QR platbou (${formatMoney(b.payment.paidAmount)})` : `QR platbou předem (${formatMoney(b.price)}, čeká na připsání)`;
     default:
       return `na místě (${formatMoney(b.price)})`;
   }

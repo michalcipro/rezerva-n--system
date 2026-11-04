@@ -284,6 +284,7 @@ export const MONEY_METHOD_LABEL: Record<MoneyMethod | 'credit', string> = {
   card: 'kartou',
   cash: 'hotově',
   transfer: 'převodem',
+  qr: 'QR platbou',
   online: 'online',
   credit: 'z kreditu',
 };

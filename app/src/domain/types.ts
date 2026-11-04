@@ -169,7 +169,8 @@ export interface PackageTemplate {
   order: number;
 }
 
-export type MoneyMethod = 'cash' | 'card' | 'online' | 'transfer';
+/** Jak klinika peníze přijala. `qr` = převod naskenovanou QR Platbou. */
+export type MoneyMethod = 'cash' | 'card' | 'online' | 'transfer' | 'qr';
 
 export interface ClientPackage {
   id: Id;
@@ -200,7 +201,8 @@ export type BookingStatus =
   | 'excused'
   | 'clinic_cancelled';
 
-export type PaymentMethod = 'package' | 'credit' | 'online' | 'onsite' | 'makeup' | 'free';
+/** `qr` = předem převodem přes QR Platbu; dokud platba nedorazí, je termín nezaplacený. */
+export type PaymentMethod = 'package' | 'credit' | 'online' | 'onsite' | 'qr' | 'makeup' | 'free';
 
 export interface BookingPayment {
   method: PaymentMethod;
@@ -311,7 +313,44 @@ export interface PaymentRecord {
   purpose: PaymentPurpose;
   bookingId?: Id;
   packageId?: Id;
+  /** Variabilní symbol (u plateb QR / převodem). */
+  vs?: string;
   note: string;
+}
+
+export type PaymentRequestStatus = 'pending' | 'paid' | 'cancelled';
+
+/**
+ * Platební výzva – QR Platba, kterou klient zaplatí převodem. Personál ji potvrdí,
+ * když peníze dorazí (podle variabilního symbolu na výpisu); teprve pak se rezervace
+ * označí jako zaplacená, vznikne permanentka, připíše se kredit nebo uhradí poplatek.
+ */
+export interface PaymentRequest {
+  id: Id;
+  clientId: Id;
+  /** Kdy výzva vznikla. */
+  at: LocalDateTime;
+  createdBy: 'client' | 'staff';
+  amount: number;
+  /** Variabilní symbol – jedinečný, jen číslice. */
+  vs: string;
+  /** Co se platí (pro klienta i pro zprávu v QR), např. „Permanentka Fyzio 10“. */
+  label: string;
+  purpose: PaymentPurpose;
+  /** Rezervace (u úhrady termínu i storno poplatku). */
+  bookingId?: Id;
+  /** Šablona permanentky – permanentka vznikne až po zaplacení. */
+  packageTemplateId?: Id;
+  /** Vzniklá permanentka (po zaplacení). */
+  packageId?: Id;
+  status: PaymentRequestStatus;
+  dueAt: LocalDateTime;
+  /** Klient v portálu oznámil, že platbu odeslal. */
+  clientNotifiedAt?: LocalDateTime;
+  resolvedAt?: LocalDateTime;
+  resolvedBy?: string;
+  /** Záznam o přijetí peněz (po zaplacení). */
+  paymentId?: Id;
 }
 
 export interface WaitlistOffer {
@@ -488,6 +527,22 @@ export interface CreditBonusRule {
   pct: number;
 }
 
+/** Platby převodem přes QR Platbu (český standard SPAYD). */
+export interface PaymentSettings {
+  /** Nabízet QR platbu na recepci i klientům v portálu. */
+  qrEnabled: boolean;
+  /** Číslo účtu: „[předčíslí-]číslo/kód banky“ nebo IBAN. */
+  accountNumber: string;
+  /** IBAN vypočtený z čísla účtu (prázdný, když účet chybí nebo je neplatný). */
+  iban: string;
+  /** Jméno příjemce v QR Platbě (max. 35 znaků). */
+  recipientName: string;
+  /** Splatnost QR platby zadané klientem v portálu (hodiny). */
+  qrDueHours: number;
+  /** Účet z ukázkových dat – QR nese upozornění „neplatit“. */
+  demoAccount: boolean;
+}
+
 export interface Settings {
   clinicName: string;
   clinicTagline: string;
@@ -498,6 +553,7 @@ export interface Settings {
   waitlist: WaitlistSettings;
   reminders: ReminderSettings;
   creditBonus: CreditBonusRule[];
+  payments: PaymentSettings;
   /** Testovací hodiny – null znamená skutečný čas. */
   simulatedNow: LocalDateTime | null;
 }
@@ -530,6 +586,7 @@ export interface ClinicState {
   makeups: MakeupRight[];
   ledger: LedgerEntry[];
   payments: PaymentRecord[];
+  paymentRequests: PaymentRequest[];
   waitlist: WaitlistEntry[];
   messages: Message[];
   templates: MessageTemplate[];

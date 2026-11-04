@@ -739,5 +739,6 @@ export const MONEY_LABEL: Record<string, string> = {
   card: 'kartou',
   online: 'kartou online',
   transfer: 'převodem',
+  qr: 'QR platbou',
   credit: 'z kreditu',
 };

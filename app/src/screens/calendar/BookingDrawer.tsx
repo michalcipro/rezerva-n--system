@@ -67,6 +67,7 @@ const MONEY_LABEL: Record<MoneyMethod | 'credit' | 'package_entry', string> = {
   card: 'kartou',
   online: 'online',
   transfer: 'převodem',
+  qr: 'QR platbou',
   credit: 'z kreditu',
   package_entry: 'vstupem z permanentky',
 };

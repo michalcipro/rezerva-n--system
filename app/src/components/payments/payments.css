@@ -1,0 +1,203 @@
+/* ---------------- QR Platba ---------------- */
+.qrpay {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.qrpay__code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+}
+.qr-code {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.qrpay__brand {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1f2a2a;
+}
+.qrpay__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.qrpay__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.qrpay__amount {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+}
+.qrpay__label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.qrpay__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.qrpay__value {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.qrpay__msg {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.qrpay__overdue {
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+}
+.qrpay__hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.qrpay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+@media (max-width: 560px) {
+  .qrpay {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .qrpay__code {
+    justify-self: center;
+  }
+}
+
+/* ---------------- Zdroj platby vstupu ---------------- */
+.visit-src {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.visit-src__badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.visit-src__detail {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- Čekající QR platby ---------------- */
+.pqr {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pqr__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2-5) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.pqr__row:first-child {
+  border-top: 0;
+}
+.pqr__main {
+  min-width: 0;
+}
+.pqr__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+.pqr__client {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+}
+.pqr__client:hover {
+  text-decoration-color: currentColor;
+}
+.pqr__client:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+.pqr__label {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.pqr__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-1-5);
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.pqr__overdue {
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+}
+.pqr__amount {
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.pqr__actions {
+  display: flex;
+  gap: var(--space-1-5);
+}
+.pqr__empty,
+.pqr__more {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.pqr__more {
+  padding-top: var(--space-2);
+}
+@media (max-width: 560px) {
+  .pqr__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pqr__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}

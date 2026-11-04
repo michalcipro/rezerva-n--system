@@ -1,5 +1,5 @@
 import type { ClinicState } from '../domain/types';
-import { SCHEMA_VERSION } from '../engine/defaults';
+import { SCHEMA_VERSION, defaultPaymentSettings } from '../engine/defaults';
 import { isoWeekKey, monthKey } from '../engine/time';
 
 /**
@@ -44,7 +44,7 @@ const META_KEYS = [
   'demoSeededAt',
 ] as const;
 
-export const COLLECTIONS = ['clients', 'bookings', 'packages', 'makeups', 'waitlist', 'ledger', 'payments', 'messages', 'campaigns', 'audit'] as const;
+export const COLLECTIONS = ['clients', 'bookings', 'packages', 'makeups', 'waitlist', 'ledger', 'payments', 'paymentRequests', 'messages', 'campaigns', 'audit'] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 const MAX_CHUNK_BYTES = 180_000;
@@ -57,6 +57,7 @@ function chunkKey(collection: CollectionName, item: Item, index: number): string
       return isoWeekKey(String(item.start));
     case 'ledger':
     case 'payments':
+    case 'paymentRequests':
     case 'audit':
       return monthKey(String(item.at));
     case 'messages':
@@ -120,6 +121,7 @@ export function sortCollection(name: CollectionName, items: readonly unknown[]):
       return sortBy(copy, (b) => b.start + b.id);
     case 'ledger':
     case 'payments':
+    case 'paymentRequests':
     case 'messages':
     case 'audit':
       return sortBy(copy, (x) => x.at + x.id);
@@ -136,9 +138,12 @@ export function normalizeState(s: ClinicState): ClinicState {
   for (const c of COLLECTIONS) if (!Array.isArray((s as unknown as Record<string, unknown>)[c])) (s as unknown as Record<string, unknown>)[c] = [];
   s.cancelledSessions = s.cancelledSessions ?? [];
   s.timeOff = s.timeOff ?? [];
+  // data uložená před zavedením QR plateb
+  if (s.settings && !s.settings.payments) s.settings.payments = defaultPaymentSettings();
   sortBy(s.bookings, (b) => b.start + b.id);
   sortBy(s.ledger, (e) => e.at + e.id);
   sortBy(s.payments, (p) => p.at + p.id);
+  sortBy(s.paymentRequests, (r) => r.at + r.id);
   sortBy(s.messages, (m) => m.at + m.id);
   sortBy(s.audit, (a) => a.at + a.id);
   sortBy(s.clients, (c) => c.createdAt + c.id);
