@@ -23,7 +23,7 @@ export type AdminRoute =
 
 export type PortalRoute =
   | { name: 'domu' }
-  | { name: 'rezervace'; serviceId?: Id; makeupId?: Id; rescheduleBookingId?: Id }
+  | { name: 'rezervace'; serviceId?: Id; makeupId?: Id; rescheduleBookingId?: Id; /** Předvybraný den a termín skupinové lekce (z rozvrhu lekcí). */ date?: LocalDate; sessionId?: Id }
   | { name: 'moje' }
   | { name: 'termin'; bookingId: Id }
   | { name: 'ucet' };

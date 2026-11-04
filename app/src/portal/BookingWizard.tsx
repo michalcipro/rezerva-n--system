@@ -176,11 +176,17 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
       if (svc) therapistId = autoTherapist(clinic, svc);
     }
     let date: LocalDate | null = null;
+    let slot: Slot | null = null;
     if (serviceId && therapistId) {
       const q: DayQuery = { serviceId, therapistId, now, clientId: client.id, ignoreBookingId: original?.id, lastDate: flow.lastDate };
-      date = nearestFreeDate(clinic, q, today) ?? today;
+      // z rozvrhu lekcí: rovnou den a termín, na který klient klikl (pokud je pořád volný)
+      const picked = route.date && route.sessionId && !original ? slotsFor(clinic, q, route.date).find((x) => x.sessionId === route.sessionId && (x.freeSpots ?? 1) > 0) : undefined;
+      if (picked && route.date) {
+        date = route.date;
+        slot = picked;
+      } else date = nearestFreeDate(clinic, q, today) ?? today;
     }
-    return { serviceId, therapistId, date };
+    return { serviceId, therapistId, date, slot };
     // jen při otevření průvodce
   }, []);
 
@@ -189,7 +195,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   const maxWin = maxWindowStart(clinic, flow, today);
   const [date, setDate] = useState<LocalDate | null>(init.date);
   const [winStart, setWinStart] = useState<LocalDate>(() => (init.date ? windowFor(init.date, today, maxWin) : today));
-  const [slot, setSlot] = useState<Slot | null>(null);
+  const [slot, setSlot] = useState<Slot | null>(init.slot);
   const [payKey, setPayKey] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [agree, setAgree] = useState(false);

@@ -146,7 +146,7 @@ export function GroupSchedule({ days = 7 }: GroupScheduleProps = {}): JSX.Elemen
                     bookable={!blocked && data.bookable.has(r.session.id)}
                     blocked={blocked}
                     bookedText={booked}
-                    onBook={() => go({ name: 'rezervace', serviceId: r.session.serviceId })}
+                    onBook={() => go({ name: 'rezervace', serviceId: r.session.serviceId, date: r.session.start.slice(0, 10), sessionId: r.session.id })}
                   />
                 ))}
               </ul>
