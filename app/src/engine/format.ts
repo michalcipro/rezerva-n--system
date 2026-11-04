@@ -153,6 +153,7 @@ export function formatSpan(minutes: number): string {
 export function prepZ(n: number): 'z' | 'ze' {
   const s = String(Math.abs(Math.round(n)));
   if (s.length === 2 && s[0] === '1') return '23467'.includes(s[1]) ? 'ze' : 'z';
+  if (s.length === 3 && s[0] === '1') return 'ze'; // ze sta…
   return '23467'.includes(s[0]) ? 'ze' : 'z';
 }
 

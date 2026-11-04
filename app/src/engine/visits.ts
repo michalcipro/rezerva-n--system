@@ -167,7 +167,7 @@ export function visitPaymentInfo(s: ClinicState, b: Booking, today: LocalDate, n
           kind: 'single',
           payState: 'qr_pending',
           label: VISIT_KIND_LABEL.single,
-          detail: `čeká na QR platbu · VS ${request.vs}${overdue ? ' · po splatnosti' : ` · do ${formatDateTimeShort(request.dueAt)}`}`,
+          detail: `QR platba · VS ${request.vs}${overdue ? ' · po splatnosti' : ` · splatná do ${formatDateTimeShort(request.dueAt)}`}`,
           amount: b.price,
           prepaid: false,
           request,

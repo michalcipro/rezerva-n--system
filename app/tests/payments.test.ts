@@ -19,6 +19,7 @@ import {
 import { createBaseState, DEMO_ACCOUNT } from '../src/engine/defaults';
 import { fillOf, groupSessionsOverview, groupTotals } from '../src/engine/groups';
 import { buildSpayd, formatIban, isValidIban, nextVs, parseAccount, paymentSpayd, spaydText } from '../src/engine/qr';
+import { prepZ } from '../src/engine/format';
 import { clientCredit, packagesOfClient } from '../src/engine/selectors';
 import { visitPaymentInfo, visitsCsv, visitsOverview } from '../src/engine/visits';
 
@@ -236,5 +237,11 @@ describe('skupinové lekce', () => {
     expect(groupTotals(rows)).toMatchObject({ sessions: 3, freeSpots: 24, full: 1, waitlist: 1 });
     expect(fillOf(8, 6)).toBe('almost');
     expect(fillOf(12, 5)).toBe('free');
+  });
+});
+
+describe('předložka z/ze před číslem', () => {
+  it('ze 2, ze 12, z 10, z 50, ze 100 až 199, z 1000', () => {
+    expect([2, 12, 10, 50, 100, 168, 200, 1000].map(prepZ)).toEqual(['ze', 'ze', 'z', 'z', 'ze', 'ze', 'ze', 'z']);
   });
 });
