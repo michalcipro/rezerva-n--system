@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
-import { Spinner, Toaster } from '../ui';
+import { SERVER_MODE } from '../api/config';
+import { Button, Spinner, Toaster } from '../ui';
 import { useStore } from '../store/hooks';
 import { useSession } from '../store/session';
 import { initStore, runSystemProcesses } from '../store/store';
+import { logout } from '../store/server';
 import { AdminApp } from './AdminApp';
+import { LoginScreen, RegisterScreen } from './Auth';
 import { ClientApp } from './ClientApp';
 import { Onboarding } from './Onboarding';
 
@@ -27,9 +30,9 @@ export function App(): JSX.Element {
     void initStore();
   }, []);
 
-  // automatické procesy: každou minutu a po posunu testovacích hodin
+  // automatické procesy: každou minutu a po posunu testovacích hodin (v ostrém provozu je spouští server)
   useEffect(() => {
-    if (status !== 'ready') return undefined;
+    if (status !== 'ready' || SERVER_MODE) return undefined;
     runSystemProcesses();
     const id = setInterval(runSystemProcesses, 60_000);
     return () => clearInterval(id);
@@ -43,11 +46,25 @@ export function App(): JSX.Element {
         <p className="app-center__text">Načítám data kliniky…</p>
       </div>
     );
+  } else if (status === 'signed-out') {
+    body = <LoginScreen />;
+  } else if (status === 'register') {
+    body = <RegisterScreen />;
   } else if (status === 'error') {
     body = (
       <div className="app-center" role="alert">
         <p className="app-center__title">Data se nepodařilo načíst</p>
         <p className="app-center__text">{error ?? 'Obnovte prosím stránku.'}</p>
+        {SERVER_MODE && (
+          <div className="app-center__actions">
+            <Button variant="primary" onClick={() => location.reload()}>
+              Zkusit znovu
+            </Button>
+            <Button variant="ghost" onClick={() => void logout()}>
+              Odhlásit se
+            </Button>
+          </div>
+        )}
       </div>
     );
   } else if (status === 'empty') {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Booking, Id, LocalDate, LocalDateTime, PaymentMethod } from '../../domain/types';
 import { availableSlots, checkBookingSlot } from '../../engine/availability';
-import { createBooking, joinWaitlist } from '../../engine/commands';
+import { cardPaymentsOn, createBooking, joinWaitlist } from '../../engine/commands';
 import {
   countLabel,
   formatDate,
@@ -215,7 +215,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
       aside: formatMoney(price),
       disabled: credit < price,
     });
-    out.push({ key: 'online', method: 'online', title: 'Kartou online', description: 'Simulace platební brány – zaplaceno ihned.', aside: formatMoney(price) });
+    if (cardPaymentsOn(clinic)) out.push({ key: 'online', method: 'online', title: 'Kartou online', description: 'Simulace platební brány – zaplaceno ihned.', aside: formatMoney(price) });
     out.push({ key: 'free', method: 'free', title: 'Zdarma', description: 'Např. kontrola nebo reklamace.', aside: formatMoney(0) });
     return out;
   }, [clinic, clientId, service, serviceId, effectiveStart, date, now, today, price]);

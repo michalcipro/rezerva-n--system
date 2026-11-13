@@ -84,6 +84,18 @@ export const SYSTEM_COMMANDS: Record<string, AnyCommand> = {
 /** Doplní další příkazy (např. import a GDPR z vlastních modulů). */
 export function registerCommands(extra: Record<string, CommandEntry>): void {
   Object.assign(COMMANDS, extra);
+  byFunction = null;
+}
+
+let byFunction: Map<AnyCommand, string> | null = null;
+
+/** Název příkazu podle funkce (prohlížeč posílá na server název, ne funkci). */
+export function commandName(cmd: AnyCommand): string | null {
+  if (!byFunction) {
+    byFunction = new Map();
+    for (const [name, e] of Object.entries(COMMANDS)) if (!byFunction.has(e.run)) byFunction.set(e.run, name);
+  }
+  return byFunction.get(cmd) ?? null;
 }
 
 export function commandFor(name: string, role: ActorRole): CommandEntry | 'unknown' | 'forbidden' {

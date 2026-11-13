@@ -5,7 +5,7 @@ import { formatDayShort, formatTime } from '../engine/format';
 import { clientName, therapistName } from '../engine/selectors';
 import { addDays, addHours, isValidLocalDateTime, nowLocal } from '../engine/time';
 import { useClinic, useCommand, useNow, useStore } from '../store/hooks';
-import { setSession, useSession } from '../store/session';
+import { actorFor, getServerIdentity, setSession, useSession } from '../store/session';
 import { loadDemoData, wipeAll } from '../store/store';
 import { Button, ConfirmDialog, Icon, IconButton, Menu, Segmented, Select } from '../ui';
 import { FeedbackButton } from './Feedback';
@@ -246,6 +246,8 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
 export function useTestPersonName(): string {
   const clinic = useClinic();
   const session = useSession();
+  const identity = getServerIdentity();
+  if (identity) return identity.role === 'client' ? actorFor(session, clinic).name : identity.name;
   if (session.role === 'client') {
     const c = clinic.clients.find((x) => x.id === session.clientId);
     return c ? clientName(c) : 'Klient';

@@ -20,6 +20,7 @@ import type {
   WaitlistEntry,
 } from '../domain/types';
 import { availableSlots, workingIntervals, type Slot } from '../engine/availability';
+import { cardPaymentsOn } from '../engine/commands';
 import { qrReady } from '../engine/qr';
 import {
   countLabel,
@@ -371,18 +372,20 @@ export function paymentOptions(
     });
   }
 
-  out.push({
-    key: 'online',
-    payment: { method: 'online' },
-    title: 'Kartou online',
-    description: 'Zaplatíte hned při potvrzení · v ukázce jen simulace platby',
-    aside: formatMoney(price),
-    disabled: false,
-    amount: price,
-    summary: `kartou online (${formatMoney(price)})`,
-    total: `K úhradě kartou ${formatMoney(price)}`,
-    icon: 'card',
-  });
+  if (cardPaymentsOn(s)) {
+    out.push({
+      key: 'online',
+      payment: { method: 'online' },
+      title: 'Kartou online',
+      description: 'Zaplatíte hned při potvrzení · v ukázce jen simulace platby',
+      aside: formatMoney(price),
+      disabled: false,
+      amount: price,
+      summary: `kartou online (${formatMoney(price)})`,
+      total: `K úhradě kartou ${formatMoney(price)}`,
+      icon: 'card',
+    });
+  }
   if (qrAvailable(s) && price > 0) {
     out.push({
       key: 'qr',

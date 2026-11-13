@@ -13,26 +13,15 @@ import {
   sortCollection,
   type PersistenceAdapter,
   type RemoteChange,
-  type StorageKind,
 } from './persistence';
+import { SERVER_MODE } from '../api/config';
+import { getStoreState, setStore, subscribeStore, type StoreState, type StoreStatus, type SyncStatus } from './core';
+import { dispatchServer, initServerStore, serverNow } from './server';
 import { actorFor, getSession } from './session';
 
-export type StoreStatus = 'loading' | 'empty' | 'ready' | 'error';
-export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
+export { getStoreState, subscribeStore };
+export type { StoreState, StoreStatus, SyncStatus };
 
-export interface StoreState {
-  status: StoreStatus;
-  clinic: ClinicState | null;
-  storage: StorageKind | null;
-  sync: SyncStatus;
-  error: string | null;
-  busy: string | null;
-  /** Kdy naposledy dorazila změna od jiného zařízení. */
-  remoteAt: number | null;
-}
-
-let state: StoreState = { status: 'loading', clinic: null, storage: null, sync: 'idle', error: null, busy: null, remoteAt: null };
-const listeners = new Set<() => void>();
 let adapter: PersistenceAdapter | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saving: Promise<void> | null = null;
@@ -41,22 +30,12 @@ let pendingSave = false;
 let localDirty = false;
 let remoteWaiting = false;
 
-function set(patch: Partial<StoreState>): void {
-  state = { ...state, ...patch };
-  listeners.forEach((l) => l());
-}
+const set = setStore;
+const current = (): StoreState => getStoreState();
 
-export function getStoreState(): StoreState {
-  return state;
-}
-
-export function subscribeStore(l: () => void): () => void {
-  listeners.add(l);
-  return () => listeners.delete(l);
-}
-
-/** Aktuální čas kliniky (testovací hodiny nebo skutečný čas). */
-export function clinicNow(clinic: ClinicState | null = state.clinic): LocalDateTime {
+/** Aktuální čas kliniky (testovací hodiny, v ostrém provozu pražský čas). */
+export function clinicNow(clinic: ClinicState | null = current().clinic): LocalDateTime {
+  if (SERVER_MODE) return serverNow();
   return clinic?.settings.simulatedNow ?? nowLocal();
 }
 
@@ -65,17 +44,17 @@ export function clinicNow(clinic: ClinicState | null = state.clinic): LocalDateT
 /* ------------------------------------------------------------------ */
 
 async function flush(): Promise<void> {
-  if (!adapter || !state.clinic) return;
+  const snapshot = current().clinic;
+  if (!adapter || !snapshot) return;
   if (saving) {
     pendingSave = true;
     return;
   }
-  const snapshot = state.clinic;
   set({ sync: 'saving' });
   saving = adapter
     .save(snapshot)
     .then(() => {
-      if (state.clinic === snapshot) localDirty = false;
+      if (current().clinic === snapshot) localDirty = false;
       set({ sync: 'saved', error: null });
     })
     .catch((e: unknown) => {
@@ -118,13 +97,14 @@ export async function saveNow(): Promise<void> {
 }
 
 function applyRemote(change: RemoteChange): void {
-  if (!state.clinic) return;
+  const clinic = current().clinic;
+  if (!clinic) return;
   if (localDirty || saving || saveTimer) {
     // nejdřív uložit vlastní změny, potom se dorovnat se serverem
     remoteWaiting = true;
     return;
   }
-  const next = produce(state.clinic, (d) => {
+  const next = produce(clinic, (d) => {
     if (change.kind === 'meta') {
       Object.assign(d, JSON.parse(JSON.stringify(change.meta)));
     } else {
@@ -145,6 +125,10 @@ let unsubscribeRemote: (() => void) | null = null;
 export async function initStore(): Promise<void> {
   if (initStarted) return;
   initStarted = true;
+  if (SERVER_MODE) {
+    await initServerStore();
+    return;
+  }
   set({ status: 'loading' });
   const db = await getArtifactDb();
   adapter = db ? createArtifactAdapter(db) : await createLocalAdapter();
@@ -219,10 +203,11 @@ export interface DispatchOptions {
 }
 
 export function dispatch<I, R>(cmd: Command<I, R>, input: I, opts: DispatchOptions = {}): CommandResult<R> {
-  const clinic = state.clinic;
+  const clinic = current().clinic;
   if (!clinic) return { ok: false, error: 'Data nejsou načtená.' };
   const actor = opts.actor ?? actorFor(getSession(), clinic);
   const now = opts.now ?? clinicNow(clinic);
+  if (SERVER_MODE) return dispatchServer(cmd, input, actor, now);
   let result: CommandResult<R> = { ok: false, error: 'Neznámá chyba.' };
   let next: ClinicState;
   try {
@@ -242,12 +227,12 @@ export function dispatch<I, R>(cmd: Command<I, R>, input: I, opts: DispatchOptio
   return result;
 }
 
-/** Automatické procesy (docházka, připomínky, propadání náhrad…). */
+/** Automatické procesy (docházka, připomínky, propadání náhrad…). V ostrém provozu je spouští server. */
 export function runSystemProcesses(): void {
-  if (!state.clinic) return;
+  if (SERVER_MODE || !current().clinic) return;
   dispatch(runProcesses, {}, { actor: { role: 'owner', name: 'Systém' } });
 }
 
 export function hasCollections(): boolean {
-  return !!state.clinic && COLLECTIONS.every((c) => Array.isArray((state.clinic as unknown as Record<string, unknown>)[c]));
+  return !!current().clinic && COLLECTIONS.every((c) => Array.isArray((current().clinic as unknown as Record<string, unknown>)[c]));
 }

@@ -10,8 +10,27 @@ import { DashboardScreen, StatsScreen } from '../screens/stats';
 import { VisitsScreen } from '../screens/visits';
 import { useClinic } from '../store/hooks';
 import { navigate, useSession, type AdminRoute } from '../store/session';
-import { AppShell, Avatar, Button, EmptyState, Icon, Kbd, type IconName } from '../ui';
+import { SERVER_MODE } from '../api/config';
+import { useStore } from '../store/hooks';
+import { logout } from '../store/server';
+import { AppShell, Avatar, Button, EmptyState, Icon, IconButton, Kbd, type IconName } from '../ui';
 import { TestBar, useTestPersonName } from './TestBar';
+
+/** Ostrý provoz: upozornění na výpadek spojení se serverem. */
+export function SyncBanner(): JSX.Element | null {
+  const sync = useStore((s) => s.sync);
+  const pending = useStore((s) => s.pending);
+  if (sync !== 'offline') return null;
+  return (
+    <div className="sync-banner" role="status">
+      <Icon name="alert" size={16} />
+      <span>
+        Bez spojení se serverem.{' '}
+        {pending ? `Neuložené změny (${pending}) se odešlou, jakmile bude spojení zpět.` : 'Zobrazená data nemusí být aktuální.'}
+      </span>
+    </div>
+  );
+}
 
 type NavId = Exclude<AdminRoute['name'], 'klient'>;
 
@@ -151,7 +170,7 @@ export function AdminApp(): JSX.Element {
       <EmptyState
         icon="lock"
         title="Sem tato role nemá přístup"
-        text="Statistiky a nastavení vidí jen majitelka. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře."
+        text={SERVER_MODE ? 'Statistiky a nastavení vidí jen majitel kliniky.' : 'Statistiky a nastavení vidí jen majitelka. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře.'}
         action={<Button variant="primary" onClick={() => navigate({ name: 'kalendar' })}>Otevřít kalendář</Button>}
       />
       </div>
@@ -210,7 +229,7 @@ export function AdminApp(): JSX.Element {
   return (
     <>
       <AppShell
-        banner={<TestBar />}
+        banner={SERVER_MODE ? <SyncBanner /> : <TestBar />}
         nav={nav}
         active={activeNav}
         onNavigate={(id) => navigate({ name: id as NavId } as AdminRoute)}
@@ -231,6 +250,9 @@ export function AdminApp(): JSX.Element {
               <span className="sb-user__name">{person}</span>
               <span className="sb-user__role">{ROLE_LABEL[session.role]}</span>
             </div>
+            {SERVER_MODE && (
+              <IconButton icon="logout" size="sm" variant="ghost" label="Odhlásit se" className="sb-user__logout" onClick={() => void logout()} />
+            )}
           </div>
         }
       >

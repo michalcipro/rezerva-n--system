@@ -8,7 +8,7 @@ import { isoWeekKey, monthKey } from '../engine/time';
  *  - Mimo artefakt (lokální vývoj): IndexedDB v prohlížeči.
  */
 
-export type StorageKind = 'artifact' | 'local' | 'memory';
+export type StorageKind = 'artifact' | 'local' | 'memory' | 'server';
 
 export type RemoteChange =
   | { kind: 'collection'; collection: CollectionName; items: unknown[] }

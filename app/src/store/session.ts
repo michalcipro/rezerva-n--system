@@ -117,8 +117,35 @@ export function navigatePortal(portalRoute: PortalRoute): void {
   if (typeof window !== 'undefined') window.scrollTo?.({ top: 0 });
 }
 
-/** Kdo právě jedná (podle zvolené testovací role). */
+/** Ostrý provoz: kdo je přihlášený (určuje server, ne testovací panel). */
+let serverIdentity: Actor | null = null;
+
+export function setServerIdentity(actor: Actor | null): void {
+  serverIdentity = actor;
+  if (actor) {
+    setSession({
+      role: actor.role,
+      clientId: actor.clientId ?? null,
+      therapistId: actor.therapistId ?? null,
+    });
+  } else {
+    listeners.forEach((l) => l());
+  }
+}
+
+export function getServerIdentity(): Actor | null {
+  return serverIdentity;
+}
+
+/** Kdo právě jedná (v ostrém provozu přihlášený uživatel, jinak zvolená testovací role). */
 export function actorFor(s: Session, clinic: ClinicState | null): Actor {
+  if (serverIdentity) {
+    if (serverIdentity.role === 'client' && clinic && serverIdentity.clientId) {
+      const c = getClient(clinic, serverIdentity.clientId);
+      if (c) return { ...serverIdentity, name: clientName(c) };
+    }
+    return serverIdentity;
+  }
   switch (s.role) {
     case 'client': {
       const c = clinic && s.clientId ? getClient(clinic, s.clientId) : undefined;
