@@ -1,3 +1,4 @@
+import { TERMS_URL } from '../api/config';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Booking, ClinicState, Id, LocalDate, LocalDateTime, MakeupRight, Service } from '../domain/types';
 import { TherapistAvatar, ToneDot } from '../components/domain';
@@ -459,8 +460,8 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
     : online && payment
       ? `Zaplatit ${formatMoney(payment.amount)} a rezervovat`
       : qr
-        ? 'Rezervovat a zobrazit QR'
-        : 'Potvrdit rezervaci';
+        ? 'Závazně rezervovat a zaplatit QR'
+        : 'Závazně rezervovat s povinností platby';
 
   const confirm = (): void => {
     if (original) {
@@ -541,7 +542,14 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           className="por-agree"
           checked={agree}
           onChange={setAgree}
-          label="Souhlasím se storno podmínkami"
+          label={
+            <>
+              Souhlasím se storno podmínkami a{' '}
+              <a href={TERMS_URL} target="_blank" rel="noreferrer">
+                obchodními podmínkami
+              </a>
+            </>
+          }
           description={
             client.email
               ? `Potvrzení pošleme na ${client.email}.`

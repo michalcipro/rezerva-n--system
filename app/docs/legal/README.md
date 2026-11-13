@@ -108,6 +108,20 @@ Zjištěno při porovnání návrhů s kódem (commit 6d3d6d6). Seřazeno podle 
 16. **Platba za zrušený termín** se připisuje na kredit jako dobití včetně bonusu (`applyTopUp`) – zvážit, zda bonus v tomto případě přiznávat.
 17. **Potvrzení přijaté QR platby** klientovi e-mailem (texty-v-aplikaci.md, část E3) – `confirmPaymentRequest` dnes klientovi nic neposílá; VOP čl. 4.2 má proto potvrzení v hranaté závorce.
 
+### Stav po úpravách (13. 11. 2026)
+
+| Bod | Stav |
+|---|---|
+| 1. Odstoupení od smlouvy | **Hotovo pro permanentky** koupené v portálu: tlačítko „Odstoupit od smlouvy“ do 14 dnů, potvrzení e-mailem, výpočet vrácení (cena minus využité vstupy), zrušení rezervovaných termínů, evidence vrácení pro recepci. Permanentky na fyzioterapii mají odstoupení vypnuté (`PackageTemplate.withdrawalAllowed = false`). **Kredit dobitý online zatím ne** – rozhodnout s advokátem (případně dobíjení kreditu online vypnout). |
+| 2. Verzování podmínek | **Hotovo pro storno pravidla** (`settings.policyHistory`, rezervace se řídí pravidly z doby vzniku). Verze textu VOP a souhlasů se zatím neukládá. |
+| 4. Servisní zprávy | **Hotovo:** `after_visit` jen se souhlasem s obchodními sděleními, `package_low` bez výzvy k nákupu. |
+| 5. Obchodní sdělení | **Hotovo:** označení „obchodní sdělení“, podepsaný odkaz na odhlášení jedním kliknutím, hlavičky List-Unsubscribe (RFC 8058), odhlášení se zpracuje hned. |
+| 6. Zdravotní údaje v textech | **Hotovo:** neutrální nápověda v poznámce k rezervaci, zpráva pro příjemce v QR platbě bez názvu služby. |
+| 10. Výmaz a anonymizace | **Export údajů a anonymizace klienta hotové** (karta klienta, jen majitel). Automatický výmaz po uplynutí lhůt zatím ne. |
+| 12. Tlačítko rezervace | **Hotovo:** „Závazně rezervovat s povinností platby“ a nezaškrtnuté potvrzení storno podmínek s odkazem na VOP. |
+| 17. Potvrzení přijaté platby | **Hotovo:** e-mail „Platba přijata“ (šablona `payment_received`). |
+| 3, 7, 8, 9, 11, 13, 14, 15, 16 | Otevřené – rozhodnutí kliniky / advokáta nebo další vývoj. |
+
 ## Kontrolní seznam pro advokáta
 
 **Spotřebitelské právo a obchodní podmínky**

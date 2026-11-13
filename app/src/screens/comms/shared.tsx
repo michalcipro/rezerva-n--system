@@ -133,7 +133,7 @@ export function MarketingFooter({ clinic }: { clinic: ClinicState }): JSX.Elemen
   return (
     <>
       <p>
-        Tento e-mail dostáváte, protože jste nám udělili souhlas se zasíláním novinek.{' '}
+        Toto je obchodní sdělení kliniky {clinic.settings.clinicName}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek.{' '}
         <span className="com-email__link">Odhlásit odběr</span> · <span className="com-email__link">Nastavení preferencí</span>
       </p>
       <p className="com-email__legal">

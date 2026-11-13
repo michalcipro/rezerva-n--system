@@ -160,6 +160,6 @@ export function campaignPlainText(c: Campaign, vars: TemplateVars): string {
     else if (b.type === 'button') parts.push(`→ ${b.label}`);
     else if (b.type === 'divider') parts.push('—');
   }
-  parts.push('Tento e-mail dostáváte, protože jste nám udělili souhlas se zasíláním novinek. Odhlásit odběr můžete jedním kliknutím v patičce nebo ve svém účtu.');
+  parts.push(`Toto je obchodní sdělení ${vars.klinika ? `kliniky ${vars.klinika}` : 'kliniky'}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek. Odhlásit odběr můžete jedním kliknutím v patičce nebo ve svém účtu.`);
   return parts.join('\n\n');
 }
