@@ -220,11 +220,11 @@ export function defaultGroupTemplates(validFrom: string): GroupTemplate[] {
 
 export const DEFAULT_PACKAGE_TEMPLATES: PackageTemplate[] = [
   {
-    id: 'pt_fyzio10', name: 'Fyzio 10', description: '10× fyzioterapie 45 min', entries: 10, serviceIds: ['s_fyzio45'],
+    id: 'pt_fyzio10', name: 'Fyzio 10', description: '10× fyzioterapie 45 min', entries: 10, serviceIds: ['s_fyzio45'], withdrawalAllowed: false,
     priceCzk: 10900, validityDays: 183, excusesAllowed: 2, active: true, order: 0,
   },
   {
-    id: 'pt_fyzio5', name: 'Fyzio 5', description: '5× fyzioterapie 45 min', entries: 5, serviceIds: ['s_fyzio45'],
+    id: 'pt_fyzio5', name: 'Fyzio 5', description: '5× fyzioterapie 45 min', entries: 5, serviceIds: ['s_fyzio45'], withdrawalAllowed: false,
     priceCzk: 5650, validityDays: 120, excusesAllowed: 1, active: true, order: 1,
   },
   {

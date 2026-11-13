@@ -183,6 +183,17 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     body: 'Dobrý den, [jméno],\n\nděkujeme, platbu [částka] (variabilní symbol [vs]) jsme přijali.\n[co_zaplaceno]\n\n[klinika]',
     smsBody: '',
   },
+  {
+    key: 'withdrawal_received',
+    name: 'Odstoupení od smlouvy',
+    description: 'Potvrzení, že jsme přijali odstoupení od nákupu permanentky online (povinné ze zákona).',
+    channels: ['email'],
+    enabled: true,
+    subject: 'Potvrzení odstoupení od smlouvy – [permanentka]',
+    body:
+      'Dobrý den, [jméno],\n\npotvrzujeme, že jsme přijali vaše odstoupení od smlouvy o permanentce [permanentka].\n[zrušené_termíny]\nVrátíme vám [částka] nejpozději do [vrátit_do], stejným způsobem, jakým jste platili (převodem na účet, ze kterého platba přišla), pokud se nedomluvíme jinak. Částka je snížená o vstupy, které jste už využili.\n\n[klinika]',
+    smsBody: '',
+  },
 ];
 
 /** Šablony, které jsou obchodním sdělením – vyžadují souhlas s marketingem. */

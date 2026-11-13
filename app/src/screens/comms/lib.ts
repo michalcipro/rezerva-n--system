@@ -429,7 +429,7 @@ export const TEMPLATE_GROUPS: { id: string; label: string; keys: TemplateKey[] }
   { id: 'visits', label: 'Rezervace a návštěvy', keys: ['booking_confirmation', 'reminder', 'reschedule', 'after_visit'] },
   { id: 'cancel', label: 'Storna a omluvenky', keys: ['cancellation', 'excuse', 'late_cancel', 'no_show', 'clinic_cancel'] },
   { id: 'offers', label: 'Čekací listina, náhrady a permanentky', keys: ['waitlist_offer', 'makeup_reminder', 'package_low', 'package_expiring'] },
-  { id: 'payments', label: 'Platby', keys: ['payment_received'] },
+  { id: 'payments', label: 'Platby a odstoupení', keys: ['payment_received', 'withdrawal_received'] },
   { id: 'marketing', label: 'Obchodní sdělení', keys: ['reactivation', 'birthday'] },
 ];
 
@@ -465,6 +465,8 @@ export function templateVariableKeys(key: TemplateKey): string[] {
       return [...PERSON, 'permanentka', 'zbývá', 'platnost_do'];
     case 'payment_received':
       return [...PERSON, 'částka', 'vs', 'co_zaplaceno'];
+    case 'withdrawal_received':
+      return [...PERSON, 'permanentka', 'částka', 'vrátit_do', 'zrušené_termíny'];
     default:
       return PERSON;
   }
@@ -476,6 +478,8 @@ const EXTRA_VARIABLE_LABELS: Record<string, string> = {
   částka: 'Zaplacená částka',
   vs: 'Variabilní symbol',
   co_zaplaceno: 'Co je zaplacené',
+  vrátit_do: 'Do kdy vrátíme peníze',
+  zrušené_termíny: 'Zrušené rezervace',
 };
 
 export function variableLabel(key: string): string {
@@ -522,6 +526,8 @@ export function templateTiming(t: MessageTemplate, s: ClinicState): string {
       return 'v den narozenin';
     case 'payment_received':
       return 'když dorazí QR platba';
+    case 'withdrawal_received':
+      return 'když klient odstoupí od nákupu permanentky online';
     default:
       return t.description;
   }
@@ -593,6 +599,8 @@ export function sampleVars(s: ClinicState, now: LocalDateTime): TemplateVars {
     částka: formatMoney(price),
     vs: '26110007',
     co_zaplaceno: 'Termín je zaplacený.',
+    vrátit_do: formatDayShort(addDays(dateOf(now), 14)),
+    zrušené_termíny: 'Zrušili jsme 2 rezervované termíny.',
     klinika: s.settings.clinicName,
   };
 }

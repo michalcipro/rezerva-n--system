@@ -47,6 +47,8 @@ export const COMMANDS: Record<string, CommandEntry> = {
   sellPackage: entry(C.sellPackage, ALL),
   topUpCredit: entry(C.topUpCredit, ALL),
   extendPackage: entry(C.extendPackage, FRONT),
+  withdrawFromPackage: entry(C.withdrawFromPackage, ALL),
+  markWithdrawalRefunded: entry(C.markWithdrawalRefunded, FRONT),
   cancelPackage: entry(C.cancelPackage, FRONT),
   adjustCredit: entry(C.adjustCredit, FRONT),
   // čekací listina

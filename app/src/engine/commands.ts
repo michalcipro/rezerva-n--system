@@ -6,6 +6,7 @@ import type {
   Category,
   Channel,
   Client,
+  ClientPackage,
   ClientConsents,
   ClinicState,
   Command,
@@ -35,7 +36,7 @@ import type {
 import { checkBookingSlot } from './availability';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
-import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage } from './messages';
+import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage, type TemplateVars } from './messages';
 import { bookingPolicy, evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { formatIban, isVsFree, nextVs, parseAccount, qrReady } from './qr';
 import { evaluateSegment, campaignPlainText } from './segments';
@@ -1033,7 +1034,7 @@ function applyRequestPayment(d: ClinicState, ctx: Ctx, r: PaymentRequest): strin
       }
       const id = newId('pk');
       const rec = addPayment(d, ctx, { clientId: r.clientId, amount: r.amount, method: 'qr', purpose: 'package', packageId: id, vs: r.vs, note });
-      issuePackage(d, ctx, r.clientId, { ...tpl, priceCzk: r.amount }, 'qr', id);
+      issuePackage(d, ctx, r.clientId, { ...tpl, priceCzk: r.amount }, 'qr', id, undefined, r.createdBy === 'client');
       r.paymentId = rec.id;
       r.packageId = id;
       message = `Permanentka ${tpl.name} je aktivní.`;
@@ -1113,7 +1114,16 @@ export const notifyPaymentSent: Command<{ requestId: Id }> = (d, input, ctx) => 
 /* ------------------------------------------------------------------ */
 
 /** Vydá klientovi permanentku podle šablony (platbu řeší volající). */
-function issuePackage(d: ClinicState, ctx: Ctx, clientId: Id, tpl: PackageTemplate, paidBy: MoneyMethod | 'credit', id: Id = newId('pk'), startDate?: LocalDate): Id {
+function issuePackage(
+  d: ClinicState,
+  ctx: Ctx,
+  clientId: Id,
+  tpl: PackageTemplate,
+  paidBy: MoneyMethod | 'credit',
+  id: Id = newId('pk'),
+  startDate?: LocalDate,
+  onlinePurchase = false,
+): Id {
   const start = startDate ?? dateOf(ctx.now);
   d.packages.push({
     id,
@@ -1129,6 +1139,7 @@ function issuePackage(d: ClinicState, ctx: Ctx, clientId: Id, tpl: PackageTempla
     paidBy,
     cancelled: false,
     extendedDays: 0,
+    ...(onlinePurchase ? { onlinePurchase: true } : {}),
   });
   return id;
 }
@@ -1149,9 +1160,96 @@ export const sellPackage: Command<{ clientId: Id; templateId: Id; paidBy: MoneyM
   } else {
     addPayment(d, ctx, { clientId: client.id, amount: tpl.priceCzk, method: input.paidBy, purpose: 'package', packageId: id, note: `Permanentka ${tpl.name}` });
   }
-  issuePackage(d, ctx, client.id, tpl, input.paidBy, id, input.startDate);
+  issuePackage(d, ctx, client.id, tpl, input.paidBy, id, input.startDate, ctx.actor.role === 'client');
   audit(d, ctx, 'Prodej permanentky', `${tpl.name} · ${client.firstName} ${client.lastName} · ${formatMoney(tpl.priceCzk)} ${MONEY_LABEL[input.paidBy]}`, { clientId: client.id });
   return ok(id);
+};
+
+/* ------------------------------------------------------------------ */
+/* Odstoupení od smlouvy (permanentka koupená online)                  */
+/* ------------------------------------------------------------------ */
+
+/** Lhůta pro odstoupení od smlouvy uzavřené na dálku (§ 1829 OZ). */
+export const WITHDRAWAL_DAYS = 14;
+/** Peníze je nutné vrátit do 14 dnů od odstoupení (§ 1831 OZ). */
+export const WITHDRAWAL_REFUND_DAYS = 14;
+
+export interface WithdrawalInfo {
+  allowed: boolean;
+  /** Proč odstoupit nejde (pro vysvětlení v portálu). */
+  reason?: string;
+  /** Do kdy lze odstoupit. */
+  until: LocalDateTime;
+  /** Spotřebované vstupy (proběhlé, propadlé) – za ně klient platí poměrnou částku. */
+  usedEntries: number;
+  /** Rezervované budoucí termíny z permanentky – odstoupením se zruší. */
+  reservedEntries: number;
+  refundAmount: number;
+}
+
+export function withdrawalInfo(s: ClinicState, p: ClientPackage, now: LocalDateTime): WithdrawalInfo {
+  const until = addDays(p.purchasedAt, WITHDRAWAL_DAYS);
+  const u = packageUsage(s, p, dateOf(now));
+  const usedEntries = u.used + u.forfeited;
+  const unit = p.entriesTotal > 0 ? p.priceCzk / p.entriesTotal : 0;
+  const refundAmount = Math.max(0, Math.round(p.priceCzk - usedEntries * unit));
+  const base = { until, usedEntries, reservedEntries: u.reserved, refundAmount };
+  const tpl = getPackageTemplate(s, p.templateId);
+  if (!p.onlinePurchase) return { ...base, allowed: false, reason: 'Permanentka nebyla koupena online.' };
+  if (p.withdrawal) return { ...base, allowed: false, reason: 'Od smlouvy jste už odstoupili.' };
+  if (p.cancelled) return { ...base, allowed: false, reason: 'Permanentka je zrušená.' };
+  if (tpl?.withdrawalAllowed === false) return { ...base, allowed: false, reason: 'U zdravotních služeb zákon odstoupení neumožňuje.' };
+  if (now >= until) return { ...base, allowed: false, reason: 'Lhůta 14 dnů od nákupu uplynula.' };
+  return { ...base, allowed: true };
+}
+
+/**
+ * Odstoupení od smlouvy do 14 dnů od nákupu permanentky online. Budoucí termíny z permanentky se zruší
+ * bez poplatku, permanentka skončí a klinika vrátí cenu snížených o spotřebované vstupy (§ 1834 OZ).
+ * Klient dostane potvrzení e-mailem (§ 1830a OZ).
+ */
+export const withdrawFromPackage: Command<{ packageId: Id }, { refundAmount: number }> = (d, input, ctx) => {
+  const p = d.packages.find((x) => x.id === input.packageId);
+  if (!p) return fail('Permanentka neexistuje.');
+  if (ctx.actor.role === 'client' && ctx.actor.clientId !== p.clientId) return fail('Nemáte oprávnění.');
+  const info = withdrawalInfo(d, p, ctx.now);
+  if (!info.allowed) return fail(info.reason ?? 'Od smlouvy už nelze odstoupit.');
+  let cancelledBookings = 0;
+  for (const b of d.bookings) {
+    if (b.payment.packageId !== p.id || b.status !== 'confirmed' || b.start <= ctx.now) continue;
+    b.status = 'cancelled';
+    b.cancel = { at: ctx.now, by: isStaff(ctx) ? 'staff' : 'client', phase: 'free', excuse: false, reason: 'Odstoupení od smlouvy', grace: false };
+    cancelledBookings++;
+    offerFreedSlot(d, ctx, { serviceId: b.serviceId, therapistId: b.therapistId, start: b.start, end: b.end, sessionId: b.sessionId, excludeClientId: b.clientId });
+  }
+  const refundDue = addDays(dateOf(ctx.now), WITHDRAWAL_REFUND_DAYS);
+  p.cancelled = true;
+  p.withdrawal = { at: ctx.now, by: ctx.actor.name, usedEntries: info.usedEntries, refundAmount: info.refundAmount, refundDue };
+  const vars: TemplateVars = {
+    permanentka: p.name,
+    částka: formatMoney(info.refundAmount),
+    vrátit_do: formatDayShort(refundDue),
+    zrušené_termíny: cancelledBookings ? `Zrušili jsme ${countLabel(cancelledBookings, ['rezervovaný termín', 'rezervované termíny', 'rezervovaných termínů'])}.` : '',
+  };
+  queueTemplateMessage(d, { key: 'withdrawal_received', clientId: p.clientId, now: ctx.now, vars });
+  audit(d, ctx, 'Odstoupení od smlouvy', `${p.name} · vrátit ${formatMoney(info.refundAmount)} do ${formatDayShort(refundDue)}`, { clientId: p.clientId });
+  const notices = [`Vrátit ${formatMoney(info.refundAmount)} do ${formatDayShort(refundDue)}.`];
+  if (cancelledBookings) notices.push(`Zrušeno ${countLabel(cancelledBookings, ['rezervovaný termín', 'rezervované termíny', 'rezervovaných termínů'])}.`);
+  return ok({ refundAmount: info.refundAmount }, notices);
+};
+
+/** Recepce: peníze za odstoupení od smlouvy jsou vrácené (převodem nebo hotově). */
+export const markWithdrawalRefunded: Command<{ packageId: Id; method: MoneyMethod }> = (d, input, ctx) => {
+  if (!isStaff(ctx)) return fail('Vrácení peněz zapisuje personál.');
+  const p = d.packages.find((x) => x.id === input.packageId);
+  if (!p?.withdrawal) return fail('U permanentky není odstoupení od smlouvy.');
+  if (p.withdrawal.refundedAt) return fail('Vrácení je už zapsané.');
+  p.withdrawal.refundedAt = ctx.now;
+  if (p.withdrawal.refundAmount > 0) {
+    addPayment(d, ctx, { clientId: p.clientId, amount: -p.withdrawal.refundAmount, method: input.method, purpose: 'package', packageId: p.id, note: `Vrácení platby – odstoupení od smlouvy (${p.name})` });
+  }
+  audit(d, ctx, 'Vrácení platby po odstoupení', `${p.name} · ${formatMoney(p.withdrawal.refundAmount)}`, { clientId: p.clientId });
+  return ok(undefined);
 };
 
 export const extendPackage: Command<{ packageId: Id; days: number; reason: string }> = (d, input, ctx) => {

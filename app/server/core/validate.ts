@@ -84,6 +84,7 @@ export const CLIENT_INPUTS: Record<string, Check> = {
   notifyPaymentSent: V.obj({ requestId: V.id }),
   sellPackage: V.obj({ clientId: V.id, templateId: V.id, paidBy: V.oneOf('online', 'credit'), 'startDate?': V.date }),
   topUpCredit: V.obj({ clientId: V.id, amount: V.int(1, 100_000), method: V.oneOf('online') }),
+  withdrawFromPackage: V.obj({ packageId: V.id }),
   joinWaitlist: V.obj({
     clientId: V.id,
     serviceId: V.id,

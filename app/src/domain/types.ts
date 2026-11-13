@@ -167,6 +167,11 @@ export interface PackageTemplate {
   excusesAllowed: number;
   active: boolean;
   order: number;
+  /**
+   * Od nákupu v klientském portálu lze odstoupit do 14 dnů (smlouva uzavřená na dálku).
+   * Neplatí pro zdravotní služby (fyzioterapie, § 1840 OZ) – tam false. Chybí = povoleno.
+   */
+  withdrawalAllowed?: boolean;
 }
 
 /** Jak klinika peníze přijala. `qr` = převod naskenovanou QR Platbou. */
@@ -186,6 +191,10 @@ export interface ClientPackage {
   paidBy: MoneyMethod | 'credit';
   cancelled: boolean;
   extendedDays: number;
+  /** Koupeno klientem v portálu (smlouva uzavřená na dálku – právo odstoupit do 14 dnů). */
+  onlinePurchase?: boolean;
+  /** Odstoupení od smlouvy: kolik se vrací a kdy klinika peníze poslala. */
+  withdrawal?: { at: LocalDateTime; by: string; usedEntries: number; refundAmount: number; refundDue: LocalDate; refundedAt?: LocalDateTime };
   /** Kdy klient dostal upozornění „zbývají poslední vstupy". */
   lowNoticeAt?: LocalDateTime;
   /** Kdy klient dostal upozornění „permanentka brzy končí". */
@@ -394,7 +403,8 @@ export type TemplateKey =
   | 'after_visit'
   | 'reactivation'
   | 'birthday'
-  | 'payment_received';
+  | 'payment_received'
+  | 'withdrawal_received';
 
 export type Channel = 'email' | 'sms';
 
