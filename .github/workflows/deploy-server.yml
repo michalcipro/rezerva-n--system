@@ -1,0 +1,54 @@
+# Ruční nasazení serveru a databáze do Supabase (Actions → Nasazení serveru → Run workflow).
+# Potřebné tajné hodnoty repozitáře (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  osobní token Supabase (Account → Access Tokens)
+#   SUPABASE_PROJECT_REF   ID projektu (část adresy <ref>.supabase.co)
+#   SUPABASE_DB_PASSWORD   heslo databáze (jen pro migrace)
+name: Nasazení serveru
+
+on:
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: Spustit i migrace databáze
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Testy a sestavení serveru
+        working-directory: app
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build:edge
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Migrace databáze
+        if: ${{ inputs.migrate }}
+        run: |
+          supabase link --project-ref "$PROJECT_REF"
+          supabase db push
+      - name: Nasazení Edge Function
+        run: supabase functions deploy api --project-ref "$PROJECT_REF" --no-verify-jwt

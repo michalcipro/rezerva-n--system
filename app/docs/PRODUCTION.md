@@ -64,8 +64,35 @@ supabase/functions/api Edge Function (tenký obal nad app/server, sestavuje se e
 
 | Příkaz | Režim | K čemu |
 |---|---|---|
-| `npm run build` | testovací (`VITE_BACKEND` nenastaveno) | artefakt a veřejný náhled, data v prohlížeči, testovací panel |
-| `npm run build:prod` | ostrý (`VITE_BACKEND=server`) | přihlášení, data na serveru, bez testovacích funkcí |
+| `npm run build` | testovací | artefakt a veřejný náhled, data v prohlížeči, testovací panel |
+| `npm run build:prod` | ostrý (`--mode prod`, `VITE_BACKEND=server`) | `dist-prod` pro Cloudflare Pages: přihlášení, data na serveru, bez testovacích funkcí, písmo z vlastního webu |
+| `npm run build:edge` | server | `supabase/functions/api/server.js` – jeden soubor bez závislostí pro Edge Function |
+| `npm run dev:server` + `npm run dev:live` | lokální vývoj | API nad PGlite s ukázkovou klinikou + aplikace v ostrém režimu, přihlášení bez e-mailu |
 
-Proměnné prostředí webu: `VITE_BACKEND=server`, `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-Proměnné serveru (tajné, nastavují se v Supabase): `BREVO_API_KEY`, `FIO_TOKEN` (volitelně), `CRON_SECRET`.
+Proměnné webu: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (veřejné), `VITE_BACKEND=server` je v `.env.prod`.
+Proměnné serveru (Supabase → Edge Functions → Secrets): `CRON_SECRET`, `ADMIN_SECRET` (jen při založení),
+`ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`, `FIO_TOKEN`
+– popis v [DEPLOY.md](DEPLOY.md).
+
+## API
+
+| Trasa | Kdo | Co dělá |
+|---|---|---|
+| `GET /api/session` | přihlášený | role (personál / klient); klienta s ověřeným e-mailem propojí s kartou v kartotéce |
+| `POST /api/register` | nový klient | založí kartu klienta (souhlasy) a propojí ji s přihlášením |
+| `GET /api/state`, `GET /api/changes?since=` | personál, klient | stav po částech (personál) / vlastní pohled (klient), dočítání změn |
+| `POST /api/command` | podle role | příkaz enginu; kontrola role, tvaru vstupu, opakované odeslání se neprovede dvakrát |
+| `GET/POST/DELETE /api/members` | majitel | přístupy týmu |
+| `POST /api/cron` | plánovač (`x-cron-secret`) | automatika, odeslání zpráv, párování plateb, údržba |
+| `GET/POST /api/unsubscribe` | odkaz v e-mailu | odhlášení z obchodních sdělení (podepsaný odkaz, List-Unsubscribe) |
+| `POST /api/admin/bootstrap` | `x-admin-secret` | jednorázové založení kliniky a majitele |
+
+## Bezpečnost (shrnutí)
+
+- Tabulky ve schématu `app` mají zapnutou ochranu řádků bez politik; role `anon`/`authenticated` k nim
+  ani k funkcím nemají práva (ověřeno testem). Data čte a zapisuje jen server se služebním klíčem.
+- Klient může volat jen vyjmenované příkazy s přesně popsaným vstupem (`server/core/validate.ts`);
+  engine navíc hlídá, že jedná jen za sebe. Platba kartou online bez platební brány neprojde.
+- Personál vidí celý stav kliniky (včetně terapeutů) – omezení podle role je jen v rozhraní.
+- Žádné vstupy příkazů se neukládají do logu; log obsahuje jen název akce, roli a výsledek.
+- Přihlašovací tokeny ověřuje Supabase Auth; zakládání účtů personálu bez pozvánek (`ensureUser`).
