@@ -65,6 +65,9 @@ export const fail = (error: string): CommandResult<never> => ({ ok: false, error
 
 const isStaff = (ctx: Ctx): boolean => ctx.actor.role !== 'client';
 
+/** Platba kartou online (v testovací verzi simulace; v ostrém provozu jen s platební bránou). */
+export const cardPaymentsOn = (s: ClinicState): boolean => s.settings.features?.cardPayments !== false;
+
 function audit(d: ClinicState, ctx: Ctx, action: string, detail: string, refs: { bookingId?: Id; clientId?: Id } = {}): void {
   d.audit.push({ id: newId('a'), at: ctx.now, actor: ctx.actor.name, action, detail, ...refs });
   if (d.audit.length > 2500) d.audit.splice(0, d.audit.length - 2500);
@@ -255,6 +258,7 @@ export const setConsent: Command<{ clientId: Id; key: keyof ClientConsents; valu
 
 export const addClinicalNote: Command<{ clientId: Id; text: string }, Id> = (d, input, ctx) => {
   if (!isStaff(ctx)) return fail('Poznámky může psát jen personál.');
+  if (d.settings.features && !d.settings.features.clinicalNotes) return fail('Klinické poznámky jsou v nastavení vypnuté.');
   const c = d.clients.find((x) => x.id === input.clientId);
   if (!c) return fail('Klient neexistuje.');
   const text = input.text.trim();
@@ -347,6 +351,7 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
       break;
     }
     case 'online': {
+      if (!cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
       addPayment(d, ctx, { clientId: client.id, amount: price, method: 'online', purpose: 'booking', bookingId: id, note: 'Platba kartou online (simulace platební brány)' });
       payment.paid = true;
       payment.paidAmount = price;
@@ -1120,6 +1125,7 @@ function issuePackage(d: ClinicState, ctx: Ctx, clientId: Id, tpl: PackageTempla
 export const sellPackage: Command<{ clientId: Id; templateId: Id; paidBy: MoneyMethod | 'credit'; startDate?: LocalDate }, Id> = (d, input, ctx) => {
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
   if (ctx.actor.role === 'client' && input.paidBy !== 'online' && input.paidBy !== 'credit') return fail('Online lze platit kartou, kreditem nebo QR platbou.');
+  if (input.paidBy === 'online' && !cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
   const tpl = getPackageTemplate(d, input.templateId);
   if (!tpl || !tpl.active) return fail('Permanentka není v nabídce.');
   const client = getClient(d, input.clientId);
@@ -1178,6 +1184,7 @@ function applyTopUp(d: ClinicState, ctx: Ctx, clientId: Id, amount: number, meth
 
 export const topUpCredit: Command<{ clientId: Id; amount: number; method: MoneyMethod }, { bonus: number }> = (d, input, ctx) => {
   if (ctx.actor.role === 'client' && (ctx.actor.clientId !== input.clientId || input.method !== 'online')) return fail('Kredit lze online dobít kartou nebo QR platbou.');
+  if (input.method === 'online' && !cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
   const amount = Math.round(input.amount);
