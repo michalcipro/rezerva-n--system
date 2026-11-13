@@ -214,7 +214,9 @@ export const updateClient: Command<UpdateClientInput> = (d, input, ctx) => {
   const c = d.clients.find((x) => x.id === input.clientId);
   if (!c) return fail('Klient neexistuje.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== c.id) return fail('Nemáte oprávnění.');
-  if (ctx.actor.role === 'client' && input.patch.blocked !== undefined) return fail('Nemáte oprávnění.');
+  // klient smí měnit jen své kontaktní údaje – ne štítky, interní poznámku ani blokaci
+  if (ctx.actor.role === 'client' && (input.patch.blocked !== undefined || input.patch.internalNote !== undefined || input.patch.tags !== undefined))
+    return fail('Nemáte oprávnění.');
   const p = input.patch;
   if (p.email !== undefined) {
     const email = p.email.trim().toLowerCase();
@@ -322,7 +324,7 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
     sessionId: input.sessionId,
   });
   if (!check.ok) return fail(check.errors[0]);
-  if (check.warnings.length && !input.override) return fail(check.warnings[0] + ' Potvrďte prosím vytvoření i přesto.');
+  if (check.warnings.length && !(input.override && mode === 'staff')) return fail(check.warnings[0] + ' Potvrďte prosím vytvoření i přesto.');
 
   const price = service.priceCzk;
   const payment: BookingPayment = { method: input.payment.method, paid: false, paidAmount: 0 };
@@ -711,7 +713,7 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
     ignoreBookingId: b.id,
   });
   if (!check.ok) return fail(check.errors[0]);
-  if (check.warnings.length && !input.override) return fail(check.warnings[0] + ' Potvrďte prosím přesun i přesto.');
+  if (check.warnings.length && !(input.override && isStaff(ctx))) return fail(check.warnings[0] + ' Potvrďte prosím přesun i přesto.');
   const old = { start: b.start, end: b.end, therapistId: b.therapistId, sessionId: b.sessionId };
   if (service.kind === 'group' && input.sessionId) {
     const ses = getSession(d, input.sessionId);

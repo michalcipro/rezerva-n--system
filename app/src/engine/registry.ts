@@ -1,6 +1,6 @@
-import type { ActorRole, Command } from '../../src/domain/types';
-import * as C from '../../src/engine/commands';
-import { runProcesses } from '../../src/engine/processes';
+import type { ActorRole, Command } from '../domain/types';
+import * as C from './commands';
+import { runProcesses } from './processes';
 
 /**
  * Příkazy, které smí API spustit, a role, které je smí volat. Engine navíc sám hlídá, že klient jedná

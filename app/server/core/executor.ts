@@ -18,6 +18,8 @@ export interface ExecOk {
   version: number;
   /** Změněné části stavu (prázdné, když příkaz nic nezměnil). */
   changes: ChunkChange[];
+  /** Příkaz se stejným ID už byl zapsán dřív (opakované odeslání) – nic se neprovedlo. */
+  duplicate?: boolean;
 }
 export interface ExecFail {
   ok: false;
@@ -114,10 +116,14 @@ export class ClinicEngine {
 
       const { changes, chunkJson } = computeChanges(loaded, next);
       if (!changes.length) return { ok: true, value: r.value, notices: r.notices, version: loaded.version, changes: [] };
-      const saved = await this.store.applyChanges(clinicId, loaded.version, changes);
+      const saved = await this.store.applyChanges(clinicId, loaded.version, changes, ctx.commandId);
       if (saved.ok) {
         this.cache.set(clinicId, { version: saved.version, state: next, chunkJson });
         return { ok: true, value: r.value, notices: r.notices, version: saved.version, changes };
+      }
+      if (saved.duplicate) {
+        this.cache.delete(clinicId);
+        return { ok: true, value: null, notices: [], version: saved.version, changes: [], duplicate: true };
       }
       // někdo stav mezitím změnil – načíst znovu a zopakovat
       this.cache.delete(clinicId);

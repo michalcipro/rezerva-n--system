@@ -38,6 +38,23 @@ export function nowLocal(): LocalDateTime {
   return fromDate(new Date());
 }
 
+let PRAGUE: Intl.DateTimeFormat | null = null;
+
+/** Místní čas kliniky (Europe/Prague) nezávisle na časovém pásmu zařízení – server běží v UTC. */
+export function pragueNow(date: Date = new Date()): LocalDateTime {
+  PRAGUE ??= new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Prague',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(PRAGUE.formatToParts(date).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
 export const dateOf = (dt: LocalDateTime): LocalDate => dt.slice(0, 10);
 export const timeOf = (dt: LocalDateTime): TimeOfDay => dt.slice(11, 16);
 export const combine = (date: LocalDate, time: TimeOfDay): LocalDateTime => date + 'T' + time;

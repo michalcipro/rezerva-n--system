@@ -8,7 +8,7 @@ import { createBaseState } from '../src/engine/defaults';
 import { generateDemoState } from '../src/engine/seed';
 import { ClinicEngine } from '../server/core/executor';
 import { projectForClient } from '../server/core/projection';
-import { commandFor } from '../server/core/registry';
+import { commandFor } from '../src/engine/registry';
 import { chunksToState, computeChanges, stateToChunkJson } from '../server/core/state';
 import { pragueNow } from '../server/core/time';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';

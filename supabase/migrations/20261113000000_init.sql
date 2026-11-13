@@ -26,6 +26,8 @@ create table app.members (
   -- u terapeuta jeho záznam v katalogu (Therapist.id)
   therapist_id text,
   display_name text not null default '',
+  -- přihlašovací e-mail (jen pro přehled přístupů; přihlášení řeší Supabase Auth)
+  email text not null default '',
   created_at timestamptz not null default now(),
   primary key (clinic_id, user_id)
 );
@@ -53,6 +55,16 @@ create table app.state_chunks (
 );
 create index state_chunks_version_idx on app.state_chunks (clinic_id, version);
 
+-- Provedené příkazy podle ID z prohlížeče: opakované odeslání (výpadek sítě) se neprovede dvakrát.
+create table app.applied_commands (
+  clinic_id uuid not null references app.clinics(id) on delete cascade,
+  command_id text not null,
+  version bigint not null,
+  at timestamptz not null default now(),
+  primary key (clinic_id, command_id)
+);
+create index applied_commands_at_idx on app.applied_commands (at);
+
 -- Kdo kdy jaký příkaz spustil (bez vstupních dat – žádné osobní údaje navíc).
 create table app.command_log (
   id bigserial primary key,
@@ -73,6 +85,7 @@ alter table app.members enable row level security;
 alter table app.client_accounts enable row level security;
 alter table app.state_chunks enable row level security;
 alter table app.command_log enable row level security;
+alter table app.applied_commands enable row level security;
 
 revoke all on schema app from public;
 revoke all on all tables in schema app from public;
@@ -113,7 +126,8 @@ $$;
 
 -- Zapíše změněné části, jen když se stav mezitím nezměnil (porovnání a výměna verze).
 -- p_changes = [{ "key": "bookings/2026-W46", "data": [...] | null }, ...]
-create or replace function public.app_apply_changes(p_clinic uuid, p_expected bigint, p_changes jsonb)
+-- p_command_id: ID příkazu z prohlížeče – stejný příkaz se zapíše nejvýš jednou.
+create or replace function public.app_apply_changes(p_clinic uuid, p_expected bigint, p_changes jsonb, p_command_id text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -122,11 +136,19 @@ as $$
 declare
   v_new bigint;
 begin
+  if p_command_id is not null and exists (
+    select 1 from app.applied_commands where clinic_id = p_clinic and command_id = p_command_id
+  ) then
+    return jsonb_build_object('ok', false, 'duplicate', true, 'version', (select version from app.clinics where id = p_clinic));
+  end if;
   update app.clinics set version = version + 1
    where id = p_clinic and version = p_expected
   returning version into v_new;
   if v_new is null then
     return jsonb_build_object('ok', false, 'version', (select version from app.clinics where id = p_clinic));
+  end if;
+  if p_command_id is not null then
+    insert into app.applied_commands (clinic_id, command_id, version) values (p_clinic, p_command_id, v_new);
   end if;
   insert into app.state_chunks (clinic_id, key, data, version, updated_at)
   select p_clinic,
@@ -139,6 +161,28 @@ begin
      set data = excluded.data, version = excluded.version, updated_at = excluded.updated_at;
   return jsonb_build_object('ok', true, 'version', v_new);
 end;
+$$;
+
+-- Verze, ve které se příkaz zapsal (null = zatím neproběhl). Pro opakované odeslání po výpadku sítě.
+create or replace function public.app_command_applied(p_clinic uuid, p_command_id text)
+returns bigint
+language sql
+stable
+security definer
+set search_path = app, public
+as $$
+  select version from app.applied_commands where clinic_id = p_clinic and command_id = p_command_id;
+$$;
+
+-- Údržba: zapomene ID příkazů starší 30 dnů a log příkazů starší 13 měsíců.
+create or replace function public.app_maintenance()
+returns void
+language sql
+security definer
+set search_path = app, public
+as $$
+  delete from app.applied_commands where at < now() - interval '30 days';
+  delete from app.command_log where at < now() - interval '13 months';
 $$;
 
 -- Role přihlášeného uživatele: členství v personálu a klientské účty.
@@ -159,7 +203,7 @@ as $$
 $$;
 
 -- Založí kliniku s prvním stavem a majitelem (spouští se jednou při zprovoznění).
-create or replace function public.app_create_clinic(p_name text, p_owner uuid, p_owner_name text, p_chunks jsonb)
+create or replace function public.app_create_clinic(p_name text, p_owner uuid, p_owner_name text, p_chunks jsonb, p_owner_email text default '')
 returns uuid
 language plpgsql
 security definer
@@ -169,7 +213,8 @@ declare
   v_id uuid;
 begin
   insert into app.clinics (name, version) values (p_name, 1) returning id into v_id;
-  insert into app.members (clinic_id, user_id, role, display_name) values (v_id, p_owner, 'owner', coalesce(p_owner_name, ''));
+  insert into app.members (clinic_id, user_id, role, display_name, email)
+  values (v_id, p_owner, 'owner', coalesce(p_owner_name, ''), lower(coalesce(p_owner_email, '')));
   insert into app.state_chunks (clinic_id, key, data, version)
   select v_id, c->>'key', c->'data', 1 from jsonb_array_elements(coalesce(p_chunks, '[]'::jsonb)) as c;
   return v_id;
@@ -177,16 +222,17 @@ end;
 $$;
 
 -- Přidá nebo upraví člena personálu.
-create or replace function public.app_upsert_member(p_clinic uuid, p_user uuid, p_role text, p_therapist text, p_name text)
+create or replace function public.app_upsert_member(p_clinic uuid, p_user uuid, p_role text, p_therapist text, p_name text, p_email text default '')
 returns void
 language sql
 security definer
 set search_path = app, public
 as $$
-  insert into app.members (clinic_id, user_id, role, therapist_id, display_name)
-  values (p_clinic, p_user, p_role, p_therapist, coalesce(p_name, ''))
+  insert into app.members (clinic_id, user_id, role, therapist_id, display_name, email)
+  values (p_clinic, p_user, p_role, p_therapist, coalesce(p_name, ''), lower(coalesce(p_email, '')))
   on conflict (clinic_id, user_id) do update
-     set role = excluded.role, therapist_id = excluded.therapist_id, display_name = excluded.display_name;
+     set role = excluded.role, therapist_id = excluded.therapist_id, display_name = excluded.display_name,
+         email = case when excluded.email = '' then app.members.email else excluded.email end;
 $$;
 
 create or replace function public.app_remove_member(p_clinic uuid, p_user uuid)
@@ -207,9 +253,38 @@ security definer
 set search_path = app, public
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-      'userId', m.user_id, 'role', m.role, 'therapistId', m.therapist_id, 'displayName', m.display_name)
+      'userId', m.user_id, 'role', m.role, 'therapistId', m.therapist_id, 'displayName', m.display_name, 'email', m.email)
       order by m.created_at), '[]'::jsonb)
     from app.members m where m.clinic_id = p_clinic;
+$$;
+
+-- Seznam klinik (zprovoznění a noční automatika).
+create or replace function public.app_list_clinics()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = app, public
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name, 'version', c.version) order by c.created_at), '[]'::jsonb)
+    from app.clinics c;
+$$;
+
+-- ID uživatele Supabase Auth podle e-mailu (přidání personálu bez pozvánek).
+-- plpgsql: tělo se ověřuje až při volání, takže migrace projde i bez schématu auth (lokální testy).
+create or replace function public.app_user_id_by_email(p_email text)
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  select u.id into v_id from auth.users u where lower(u.email) = lower(p_email) order by u.created_at limit 1;
+  return v_id;
+end;
 $$;
 
 -- Propojí klientský účet s klientem v kartotéce.
@@ -221,6 +296,16 @@ set search_path = app, public
 as $$
   insert into app.client_accounts (clinic_id, user_id, client_id) values (p_clinic, p_user, p_client)
   on conflict (clinic_id, user_id) do update set client_id = excluded.client_id;
+$$;
+
+-- Zruší propojení účtu s klientem (výmaz / anonymizace klienta).
+create or replace function public.app_unlink_client(p_clinic uuid, p_client text)
+returns void
+language sql
+security definer
+set search_path = app, public
+as $$
+  delete from app.client_accounts where clinic_id = p_clinic and client_id = p_client;
 $$;
 
 -- Záznam o spuštěném příkazu.
@@ -242,13 +327,18 @@ declare
 begin
   foreach f in array array[
     'public.app_get_chunks(uuid, bigint)',
-    'public.app_apply_changes(uuid, bigint, jsonb)',
+    'public.app_apply_changes(uuid, bigint, jsonb, text)',
+    'public.app_command_applied(uuid, text)',
+    'public.app_maintenance()',
     'public.app_whoami(uuid)',
-    'public.app_create_clinic(text, uuid, text, jsonb)',
-    'public.app_upsert_member(uuid, uuid, text, text, text)',
+    'public.app_create_clinic(text, uuid, text, jsonb, text)',
+    'public.app_upsert_member(uuid, uuid, text, text, text, text)',
     'public.app_remove_member(uuid, uuid)',
     'public.app_list_members(uuid)',
+    'public.app_list_clinics()',
+    'public.app_user_id_by_email(text)',
     'public.app_link_client(uuid, uuid, text)',
+    'public.app_unlink_client(uuid, text)',
     'public.app_log_command(uuid, uuid, text, text, boolean, text, bigint)'
   ] loop
     execute format('revoke all on function %s from public', f);
