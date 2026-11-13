@@ -65,6 +65,13 @@ create table app.applied_commands (
 );
 create index applied_commands_at_idx on app.applied_commands (at);
 
+-- Zámky automatiky (aby se dvě souběžná spuštění neodesílala stejné zprávy).
+create table app.locks (
+  name text primary key,
+  holder text not null,
+  until timestamptz not null
+);
+
 -- Kdo kdy jaký příkaz spustil (bez vstupních dat – žádné osobní údaje navíc).
 create table app.command_log (
   id bigserial primary key,
@@ -86,6 +93,7 @@ alter table app.client_accounts enable row level security;
 alter table app.state_chunks enable row level security;
 alter table app.command_log enable row level security;
 alter table app.applied_commands enable row level security;
+alter table app.locks enable row level security;
 
 revoke all on schema app from public;
 revoke all on all tables in schema app from public;
@@ -183,6 +191,34 @@ set search_path = app, public
 as $$
   delete from app.applied_commands where at < now() - interval '30 days';
   delete from app.command_log where at < now() - interval '13 months';
+$$;
+
+-- Získá zámek na p_seconds sekund (true = získán; vyprší sám, kdyby proces spadl).
+create or replace function public.app_acquire_lock(p_name text, p_holder text, p_seconds integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = app, public
+as $$
+declare
+  v_ok boolean;
+begin
+  insert into app.locks (name, holder, until) values (p_name, p_holder, now() + make_interval(secs => p_seconds))
+  on conflict (name) do update
+     set holder = excluded.holder, until = excluded.until
+   where app.locks.until < now() or app.locks.holder = excluded.holder
+  returning true into v_ok;
+  return coalesce(v_ok, false);
+end;
+$$;
+
+create or replace function public.app_release_lock(p_name text, p_holder text)
+returns void
+language sql
+security definer
+set search_path = app, public
+as $$
+  delete from app.locks where name = p_name and holder = p_holder;
 $$;
 
 -- Role přihlášeného uživatele: členství v personálu a klientské účty.
@@ -330,6 +366,8 @@ begin
     'public.app_apply_changes(uuid, bigint, jsonb, text)',
     'public.app_command_applied(uuid, text)',
     'public.app_maintenance()',
+    'public.app_acquire_lock(text, text, integer)',
+    'public.app_release_lock(text, text)',
     'public.app_whoami(uuid)',
     'public.app_create_clinic(text, uuid, text, jsonb, text)',
     'public.app_upsert_member(uuid, uuid, text, text, text, text)',

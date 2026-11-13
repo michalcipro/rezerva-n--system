@@ -11,7 +11,7 @@ import type {
   StatePayload,
 } from '../src/api/protocol';
 import type { Actor, ClinicState } from '../src/domain/types';
-import { createClient } from '../src/engine/commands';
+import { createClient, setConsent } from '../src/engine/commands';
 import { createBaseState } from '../src/engine/defaults';
 import { runProcesses } from '../src/engine/processes';
 import { commandFor } from '../src/engine/registry';
@@ -22,6 +22,7 @@ import { ClinicEngine, isValidCommandId } from './core/executor';
 import { projectForClient } from './core/projection';
 import { stateToChunkJson } from './core/state';
 import { pragueNow } from './core/time';
+import { verifyUnsubscribe } from './core/unsubscribe';
 import { validateInput } from './core/validate';
 import type { StateStore } from './store/types';
 
@@ -38,6 +39,7 @@ import type { StateStore } from './store/types';
  *   GET|POST|DELETE /api/members    přístupy personálu (jen majitel)
  *   POST /api/cron                  automatika (hlavička x-cron-secret)
  *   POST /api/admin/bootstrap       první založení kliniky (hlavička x-admin-secret)
+ *   GET|POST /api/unsubscribe       odhlášení z novinek odkazem z e-mailu (podepsaný odkaz)
  *   POST /api/dev/login             přihlášení bez e-mailu – jen při lokálním vývoji
  */
 
@@ -68,6 +70,8 @@ export interface ApiDeps {
   cardPayments?: boolean;
   /** Další práce automatiky po spuštění procesů (odeslání zpráv, párování plateb). */
   cronJobs?: ((ctx: CronContext) => Promise<Record<string, unknown>>)[];
+  /** Tajemství pro podpis odkazů na odhlášení z novinek. */
+  unsubscribeSecret?: string;
   /** Akce po úspěšném příkazu (např. zrušení propojení účtu po anonymizaci klienta). */
   afterCommand?: Record<string, (ctx: { clinicId: string; input: unknown; store: StateStore }) => Promise<void>>;
   log?: (message: string, detail?: Record<string, unknown>) => void;
@@ -476,6 +480,16 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
 
   async function cron(req: Request): Promise<Response> {
     checkSecret(req, 'x-cron-secret', deps.cronSecret);
+    const holder = crypto.randomUUID();
+    if (!(await store.acquireLock('cron', holder, 240))) return json(req, 200, { ok: true, skipped: 'Automatika už běží.' });
+    try {
+      return json(req, 200, await runCron());
+    } finally {
+      await store.releaseLock('cron', holder).catch(() => undefined);
+    }
+  }
+
+  async function runCron(): Promise<Record<string, unknown>> {
     const report: Record<string, unknown>[] = [];
     for (const clinic of await store.listClinics()) {
       const item: Record<string, unknown> = { clinicId: clinic.id };
@@ -493,7 +507,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       report.push(item);
     }
     await store.maintenance().catch((e: unknown) => log('Údržba databáze selhala', { error: String(e) }));
-    return json(req, 200, { ok: true, at: now(), clinics: report });
+    return { ok: true, at: now(), clinics: report };
   }
 
   async function bootstrap(req: Request): Promise<Response> {
@@ -510,6 +524,33 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     const clinicId = await store.createClinic(clinicName, ownerId, ownerName, chunks, ownerEmail);
     defaultClinicCache = null;
     return json(req, 200, { ok: true, clinicId });
+  }
+
+  function page(req: Request, status: number, title: string, body: string): Response {
+    const esc = (t: string): string => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const html = `<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>body{font-family:system-ui,sans-serif;max-width:520px;margin:12vh auto;padding:0 16px;color:#16262b;line-height:1.55}button{font:inherit;padding:10px 18px;border-radius:8px;border:0;background:#0f766e;color:#fff;cursor:pointer}@media (prefers-color-scheme:dark){body{background:#0d181b;color:#e6eeef}}</style></head><body><h1>${esc(title)}</h1>${body}</body></html>`;
+    return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', ...corsHeaders(req) } });
+  }
+
+  /** Odhlášení z obchodních sdělení: GET ukáže potvrzení, POST odhlásí (i jedním kliknutím z poštovního programu). */
+  async function unsubscribe(req: Request, url: URL): Promise<Response> {
+    const c = url.searchParams.get('c') ?? '';
+    const k = url.searchParams.get('k') ?? '';
+    const sig = url.searchParams.get('s') ?? '';
+    if (!deps.unsubscribeSecret || !(await verifyUnsubscribe(deps.unsubscribeSecret, c, k, sig)))
+      return page(req, 400, 'Odkaz není platný', '<p>Odkaz pro odhlášení je neplatný nebo neúplný. Odběr můžete vypnout i ve svém účtu v sekci Souhlasy.</p>');
+    if (req.method === 'GET') {
+      const action = `?${url.searchParams.toString()}`;
+      return page(
+        req,
+        200,
+        'Odhlášení z novinek',
+        `<p>Opravdu už nechcete dostávat novinky a nabídky e-mailem? Zprávy k vašim rezervacím (potvrzení, připomínky) budou chodit dál.</p><form method="post" action="${action.replace(/"/g, '&quot;')}"><button type="submit">Odhlásit odběr</button></form>`,
+      );
+    }
+    const r = await engine.execute(c, setConsent, { clientId: k, key: 'marketingEmail', value: false }, { actor: { role: 'reception', name: 'Odhlášení z e-mailu' }, now: now(), commandId: newCommandId('unsub') });
+    if (!r.ok && r.error !== 'Klient neexistuje.') return page(req, 500, 'Odhlášení se nepovedlo', '<p>Zkuste to prosím později, nebo odběr vypněte ve svém účtu v sekci Souhlasy.</p>');
+    return page(req, 200, 'Odhlášeno', '<p>Novinky a nabídky vám už posílat nebudeme. Souhlas můžete kdykoli znovu zapnout ve svém účtu.</p>');
   }
 
   async function devLogin(req: Request): Promise<Response> {
@@ -531,7 +572,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) });
     try {
       const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'local';
-      if ((path === '/dev/login' || path === '/admin/bootstrap') && !openLimiter.allow('ip:' + ip, Date.now()))
+      if ((path === '/dev/login' || path === '/admin/bootstrap' || path === '/unsubscribe') && !openLimiter.allow('ip:' + ip, Date.now()))
         throw new HttpError(429, 'Příliš mnoho pokusů.', 'rate_limited');
       const route = `${req.method} ${path}`;
       switch (route) {
@@ -557,6 +598,9 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
           return await bootstrap(req);
         case 'POST /dev/login':
           return await devLogin(req);
+        case 'GET /unsubscribe':
+        case 'POST /unsubscribe':
+          return await unsubscribe(req, url);
         default:
           return json(req, 404, { error: 'Nenalezeno.', code: 'not_found' } satisfies ApiError);
       }

@@ -165,17 +165,19 @@ export function createBrevoMessenger(cfg: BrevoConfig): Messenger {
       const subject = (m.subject ?? '').replace(/\s+/gu, ' ').trim() || senderName || senderEmail;
       if (!text.trim() && !m.html?.trim()) return { ok: false, permanent: true, error: 'E-mail nemá žádný text.' };
       // Bez HTML verze ji sestavíme z textu – e-mail pak vypadá stejně jako ostatní.
-      const html = m.html?.trim() ? m.html : renderEmailHtml({ clinicName: senderName || senderEmail, subject, body: text });
+      const fromName = m.fromName?.replace(/\s+/gu, ' ').trim() || senderName;
+      const html = m.html?.trim() ? m.html : renderEmailHtml({ clinicName: fromName || senderEmail, subject, body: text });
       const toName = m.toName?.trim();
       const replyTo = m.replyTo?.trim();
       const payload: Record<string, unknown> = {
-        sender: senderName ? { name: senderName, email: senderEmail } : { email: senderEmail },
+        sender: fromName ? { name: fromName, email: senderEmail } : { email: senderEmail },
         to: [toName ? { email: to, name: toName } : { email: to }],
         subject,
         htmlContent: html,
       };
       if (text.trim()) payload.textContent = text;
       if (replyTo && isEmail(replyTo)) payload.replyTo = { email: replyTo };
+      if (m.headers && Object.keys(m.headers).length) payload.headers = m.headers;
       return post(BREVO_EMAIL_ENDPOINT, payload, 'email');
     },
 

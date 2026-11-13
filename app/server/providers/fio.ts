@@ -273,6 +273,8 @@ export function matchBankPayments(requests: readonly PaymentRequest[], txs: read
       if (matchedTx.has(order)) return;
       const request = byVs.get(vs)?.find((r) => {
         if (usedRequests.has(r.id)) return false;
+        // platba odeslaná před vznikem výzvy k ní nepatří (náhodná shoda variabilního symbolu)
+        if (tx.date < r.at.slice(0, 10)) return false;
         const diff = cents - toCents(r.amount);
         return pass === 'exact' ? Math.abs(diff) <= ROUNDING_CENTS : diff > ROUNDING_CENTS;
       });

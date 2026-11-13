@@ -978,7 +978,7 @@ export const createPaymentRequest: Command<PaymentRequestInput, { requestId: Id;
       body: `Dobrý den, ${client.firstName},\n\nposíláme platební údaje k platbě „${req.label}“. Nejrychleji zaplatíte naskenováním QR kódu v bankovní aplikaci.\n\n${paymentDetailsText(d, req)}\n\n${d.settings.senderName}`,
       now: ctx.now,
     });
-    if (isStaff(ctx)) notices.push('Platební údaje odeslány e-mailem (simulace).');
+    if (isStaff(ctx)) notices.push(outgoingStatus(d) === 'queued' ? 'Platební údaje odcházejí klientovi e-mailem.' : 'Platební údaje odeslány e-mailem (simulace).');
   }
   audit(d, ctx, 'Platební výzva QR', `${req.label} · ${formatMoney(req.amount)} · VS ${req.vs}`, { clientId: req.clientId, bookingId: req.bookingId });
   return ok({ requestId: req.id, vs: req.vs }, notices);
@@ -1549,7 +1549,11 @@ export const sendCampaign: Command<{ campaignId: Id }, number> = (d, input, ctx)
   const sent = deliverCampaign(d, ctx, c);
   if (!sent) return fail('Segment neobsahuje žádného klienta se souhlasem s obchodními sděleními.');
   audit(d, ctx, 'Odeslání kampaně', `${c.name} · ${sent} příjemců`);
-  return ok(sent, [`Odesláno ${countLabel(sent, ['příjemci', 'příjemcům', 'příjemcům'])} (simulace odeslání).`]);
+  return ok(sent, [
+    outgoingStatus(d) === 'queued'
+      ? `Zařazeno k odeslání ${countLabel(sent, ['příjemci', 'příjemcům', 'příjemcům'])} – e-maily odcházejí postupně během několika minut.`
+      : `Odesláno ${countLabel(sent, ['příjemci', 'příjemcům', 'příjemcům'])} (simulace odeslání).`,
+  ]);
 };
 
 export const scheduleCampaign: Command<{ campaignId: Id; at: LocalDateTime | null }> = (d, input, ctx) => {
@@ -1574,7 +1578,7 @@ export const sendManualMessage: Command<{ clientId: Id; channel: Channel; subjec
   if (input.channel === 'sms' && !c.phone) return fail('Klient nemá telefon.');
   const msg = addManualMessage(d, { clientId: c.id, channel: input.channel, subject: input.subject.trim(), body: input.body.trim(), now: ctx.now });
   audit(d, ctx, 'Zpráva klientovi', input.subject || input.channel, { clientId: c.id });
-  return ok(msg.id, ['Zpráva odeslána (simulace).']);
+  return ok(msg.id, [outgoingStatus(d) === 'queued' ? 'Zpráva se odesílá.' : 'Zpráva odeslána (simulace).']);
 };
 
 /* ------------------------------------------------------------------ */

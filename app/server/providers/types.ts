@@ -14,6 +14,10 @@ export interface OutgoingEmail {
   /** HTML verze, např. z `renderEmailHtml`. */
   html?: string;
   replyTo?: string;
+  /** Jméno odesílatele u této zprávy (jinak jméno z konfigurace). */
+  fromName?: string;
+  /** Doplňkové hlavičky, např. List-Unsubscribe u obchodních sdělení. */
+  headers?: Record<string, string>;
 }
 
 export interface OutgoingSms {

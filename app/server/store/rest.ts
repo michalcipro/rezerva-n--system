@@ -53,6 +53,12 @@ export function createRestStore(cfg: { url: string; serviceKey: string; fetchImp
     async maintenance() {
       await rpc('app_maintenance', {});
     },
+    async acquireLock(name, holder, seconds) {
+      return (await rpc<boolean>('app_acquire_lock', { p_name: name, p_holder: holder, p_seconds: seconds })) === true;
+    },
+    async releaseLock(name, holder) {
+      await rpc('app_release_lock', { p_name: name, p_holder: holder });
+    },
     whoami(userId) {
       return rpc<Whoami>('app_whoami', { p_user: userId });
     },

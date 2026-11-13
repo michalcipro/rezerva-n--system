@@ -68,6 +68,9 @@ export interface StateStore {
   commandApplied(clinicId: string, commandId: string): Promise<number | null>;
   /** Pravidelná údržba (staré záznamy o příkazech). */
   maintenance(): Promise<void>;
+  /** Zámek na danou dobu (true = získán). */
+  acquireLock(name: string, holder: string, seconds: number): Promise<boolean>;
+  releaseLock(name: string, holder: string): Promise<void>;
   whoami(userId: string): Promise<Whoami>;
   createClinic(name: string, ownerId: string, ownerName: string, chunks: { key: string; data: unknown }[], ownerEmail?: string): Promise<string>;
   upsertMember(clinicId: string, userId: string, role: StaffRole, therapistId: string | null, displayName: string, email?: string): Promise<void>;

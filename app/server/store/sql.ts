@@ -34,6 +34,13 @@ export function createSqlStore(query: QueryFn): StateStore {
     async maintenance() {
       await query('select public.app_maintenance()', []);
     },
+    async acquireLock(name, holder, seconds) {
+      const r = await query('select public.app_acquire_lock($1, $2, $3::integer) as r', [name, holder, seconds]);
+      return r.rows[0]?.r === true;
+    },
+    async releaseLock(name, holder) {
+      await query('select public.app_release_lock($1, $2)', [name, holder]);
+    },
     async whoami(userId) {
       return one<Whoami>('select public.app_whoami($1::uuid) as r', [userId]);
     },
