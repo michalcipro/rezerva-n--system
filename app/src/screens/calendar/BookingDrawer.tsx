@@ -21,7 +21,7 @@ import {
   formatSpan,
   formatTimeRange,
 } from '../../engine/format';
-import { evaluateCancellation, type CancellationEvaluation } from '../../engine/policy';
+import { bookingPolicy, evaluateCancellation, type CancellationEvaluation } from '../../engine/policy';
 import { pendingRequestFor } from '../../engine/qr';
 import { VISIT_PAY_STATE_LABEL, VISIT_STATUSES, visitPaymentInfo, type VisitPaymentInfo } from '../../engine/visits';
 import {
@@ -452,7 +452,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
 }
 
 function noShowConsequence(clinic: ClinicState, b: Booking): string {
-  const pct = clinic.settings.policy.noShowFeePct;
+  const pct = bookingPolicy(clinic, b).noShowFeePct;
   const limit = clinic.settings.policy.blockAfterNoShows;
   let text: string;
   if (b.payment.method === 'package') text = 'Vstup z permanentky propadne.';

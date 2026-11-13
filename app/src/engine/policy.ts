@@ -1,4 +1,4 @@
-import type { Booking, ClinicState, LocalDateTime, Service } from '../domain/types';
+import type { Booking, CancellationPolicy, ClinicState, LocalDateTime, Service } from '../domain/types';
 import { formatDayShort, formatMoney, formatPercent, prepZ } from './format';
 import {
   bookingsOfClient,
@@ -67,13 +67,24 @@ function feeBase(s: ClinicState, b: Booking): number {
 function lateImpactText(s: ClinicState, b: Booking, pct: number, amount: number, isGroup: boolean): string {
   if (pct <= 0) return 'Bez poplatku.';
   if (b.payment.method === 'package') {
-    if (isGroup || s.settings.policy.packageLateHandling === 'forfeit_entry')
+    if (isGroup || bookingPolicy(s, b).packageLateHandling === 'forfeit_entry')
       return 'Vstup z permanentky propadne.';
     return `Vstup se vrátí na permanentku, storno poplatek ${formatMoney(amount)} (${formatPercent(pct)}).`;
   }
   if (b.payment.method === 'makeup') return 'Náhradní termín propadne.';
   if (b.payment.paid) return `Vrátí se ${formatMoney(Math.max(0, b.payment.paidAmount - amount))} na kredit, poplatek ${formatMoney(amount)} (${formatPercent(pct)}).`;
   return `Storno poplatek ${formatMoney(amount)} (${formatPercent(pct)}).`;
+}
+
+/** Storno podmínky platné v daném okamžiku (historie změn, jinak aktuální nastavení). */
+export function policyAt(s: ClinicState, at: LocalDateTime): CancellationPolicy {
+  for (const h of s.settings.policyHistory ?? []) if (at < h.until) return h.policy;
+  return s.settings.policy;
+}
+
+/** Storno podmínky, kterými se řídí rezervace – ty, které platily, když vznikla. */
+export function bookingPolicy(s: ClinicState, b: Booking): CancellationPolicy {
+  return policyAt(s, b.createdAt);
 }
 
 export function isGroupBooking(s: ClinicState, b: Booking): boolean {
@@ -83,7 +94,7 @@ export function isGroupBooking(s: ClinicState, b: Booking): boolean {
 
 /** První pozdní storno za posledních 12 měsíců je zdarma (pokud je pravidlo zapnuté). */
 function graceAvailable(s: ClinicState, b: Booking, now: LocalDateTime): boolean {
-  if (!s.settings.policy.graceFirstLateCancel) return false;
+  if (!bookingPolicy(s, b).graceFirstLateCancel) return false;
   const since = addDays(now, -365);
   return !bookingsOfClient(s, b.clientId).some(
     (x) => x.id !== b.id && (x.status === 'late_cancelled' || x.status === 'no_show') && (x.cancel?.at ?? x.start) >= since,
@@ -96,7 +107,7 @@ export function evaluateCancellation(
   now: LocalDateTime,
   role: 'client' | 'staff',
 ): CancellationEvaluation {
-  const policy = s.settings.policy;
+  const policy = bookingPolicy(s, b);
   const isGroup = isGroupBooking(s, b);
   const minutesBefore = diffMinutes(b.start, now);
   const freeHours = isGroup ? policy.groupCancelHours : policy.freeCancelHours;

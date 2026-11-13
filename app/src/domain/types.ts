@@ -575,6 +575,11 @@ export interface Settings {
   senderEmail: string;
   bookingRules: BookingRules;
   policy: CancellationPolicy;
+  /**
+   * Dřívější storno podmínky: každá změna podmínek uloží předchozí znění s časem, do kdy platilo.
+   * Rezervace se řídí podmínkami platnými v době, kdy vznikla (obchodní podmínky čl. 17).
+   */
+  policyHistory?: { until: LocalDateTime; policy: CancellationPolicy }[];
   waitlist: WaitlistSettings;
   reminders: ReminderSettings;
   creditBonus: CreditBonusRule[];

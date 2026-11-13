@@ -2,6 +2,7 @@ import type {
   Booking,
   BookingPayment,
   Campaign,
+  CancellationPolicy,
   Category,
   Channel,
   Client,
@@ -35,7 +36,7 @@ import { checkBookingSlot } from './availability';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
 import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage } from './messages';
-import { evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
+import { bookingPolicy, evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { formatIban, isVsFree, nextVs, parseAccount, qrReady } from './qr';
 import { evaluateSegment, campaignPlainText } from './segments';
 import {
@@ -451,7 +452,8 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
 };
 
 function freeUntilLabel(d: ClinicState, b: Booking): string {
-  const hours = isGroupBooking(d, b) ? d.settings.policy.groupCancelHours : d.settings.policy.freeCancelHours;
+  const pol = bookingPolicy(d, b);
+  const hours = isGroupBooking(d, b) ? pol.groupCancelHours : pol.freeCancelHours;
   const t = addHours(b.start, -hours);
   return `${formatDayShort(t)} ${formatTime(t)}`;
 }
@@ -623,7 +625,7 @@ export const cancelBooking: Command<CancelBookingInput, { message: string }> = (
       b.status = 'late_cancelled';
       b.cancel = { at: ctx.now, by, phase: 'late', excuse: false, reason, grace: false };
       const pct = ev.feePct;
-      if (b.payment.method === 'package' && (ev.isGroup || d.settings.policy.packageLateHandling === 'forfeit_entry')) {
+      if (b.payment.method === 'package' && (ev.isGroup || bookingPolicy(d, b).packageLateHandling === 'forfeit_entry')) {
         b.fee = { amount: ev.feeBase, pct: 100, status: 'paid', reason: 'late_cancel', settledBy: 'package_entry' };
         message = 'Vstup z permanentky propadl.';
       } else if (b.payment.method === 'package') {
@@ -802,7 +804,7 @@ export const markNoShow: Command<{ bookingId: Id }, { message: string }> = (d, i
   if (!b) return fail('Rezervace neexistuje.');
   if (b.status !== 'confirmed' && b.status !== 'completed') return fail('Nedostavení lze zapsat jen u potvrzeného termínu.');
   if (b.start > ctx.now) return fail('Termín ještě nezačal.');
-  const pct = d.settings.policy.noShowFeePct;
+  const pct = bookingPolicy(d, b).noShowFeePct;
   b.status = 'no_show';
   let message: string;
   if (b.payment.method === 'package') {
@@ -1453,9 +1455,12 @@ export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
   if (waitlist) Object.assign(s.waitlist, waitlist);
   if (reminders) Object.assign(s.reminders, reminders);
   if (policy) {
+    const before = JSON.parse(JSON.stringify(s.policy)) as CancellationPolicy;
     const { excuses, ...p } = policy;
     Object.assign(s.policy, p);
     if (excuses) Object.assign(s.policy.excuses, excuses);
+    // dosavadní znění zůstává platné pro rezervace vzniklé do této chvíle
+    if (JSON.stringify(before) !== JSON.stringify(s.policy)) s.policyHistory = [...(s.policyHistory ?? []), { until: ctx.now, policy: before }];
   }
   // validace
   const pol = s.policy;
