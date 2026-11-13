@@ -142,6 +142,12 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   const openLimiter = new RateLimiter(20, 60_000);
   const registering = new Set<string>();
   let defaultClinicCache: { id: string | null; at: number } | null = null;
+  /** Role uživatelů na krátkou dobu (změna přístupu se projeví nejpozději do minuty). */
+  const roleCache = new Map<string, { r: Resolved; until: number }>();
+  const ROLE_TTL_MS = 60_000;
+  const forgetRole = (userId: string): void => {
+    roleCache.delete(userId);
+  };
 
   /* ---------------------------- pomocné ---------------------------- */
 
@@ -197,6 +203,18 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   }
 
   async function resolve(user: AuthUser): Promise<Resolved> {
+    const hit = roleCache.get(user.id);
+    if (hit && hit.until > Date.now()) return hit.r;
+    const r = await resolveFresh(user);
+    // nepropojeného uživatele si nepamatujeme – po registraci musí hned dostat roli
+    if (r.kind !== 'none') {
+      if (roleCache.size > 5000) roleCache.clear();
+      roleCache.set(user.id, { r, until: Date.now() + ROLE_TTL_MS });
+    }
+    return r;
+  }
+
+  async function resolveFresh(user: AuthUser): Promise<Resolved> {
     const who = await store.whoami(user.id);
     const preferred = deps.defaultClinicId;
     const member = who.members.find((m) => !preferred || m.clinicId === preferred) ?? who.members[0];
@@ -466,6 +484,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       if (userId === user.id && body.role !== 'owner' && current.filter((m) => m.role === 'owner').length <= 1)
         throw new HttpError(400, 'Klinika musí mít aspoň jednoho majitele.');
       await store.upsertMember(r.clinicId, userId, body.role, therapistId, displayName, email);
+      forgetRole(userId);
       return json(req, 200, await list());
     }
     if (req.method === 'DELETE') {
@@ -473,6 +492,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new HttpError(400, 'Neplatný uživatel.');
       if (userId === user.id) throw new HttpError(400, 'Sami sebe odebrat nemůžete.');
       await store.removeMember(r.clinicId, userId);
+      forgetRole(userId);
       return json(req, 200, await list());
     }
     throw new HttpError(405, 'Nepodporovaná metoda.');

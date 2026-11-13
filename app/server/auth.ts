@@ -34,17 +34,30 @@ export interface SupabaseAuthConfig {
   fetchImpl?: typeof fetch;
 }
 
+/** Ověřené tokeny na krátkou dobu v paměti – aplikace se ptá na změny každých 15 s. */
+const VERIFY_TTL_MS = 60_000;
+
 export function supabaseAuth(cfg: SupabaseAuthConfig): AuthService {
   const f = cfg.fetchImpl ?? fetch;
   const base = cfg.url.replace(/\/$/, '');
+  const verified = new Map<string, { user: AuthUser; until: number }>();
   return {
     async verify(token) {
       if (!token) return null;
+      const now = Date.now();
+      const hit = verified.get(token);
+      if (hit && hit.until > now) return hit.user;
       const res = await f(`${base}/auth/v1/user`, { headers: { apikey: cfg.anonKey, Authorization: `Bearer ${token}` } });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        verified.delete(token);
+        return null;
+      }
       const u = (await res.json()) as { id?: string; email?: string; email_confirmed_at?: string | null; confirmed_at?: string | null };
       if (!u.id || !u.email) return null;
-      return { id: u.id, email: u.email.toLowerCase(), emailVerified: !!(u.email_confirmed_at ?? u.confirmed_at) };
+      const user: AuthUser = { id: u.id, email: u.email.toLowerCase(), emailVerified: !!(u.email_confirmed_at ?? u.confirmed_at) };
+      if (verified.size > 2000) verified.clear();
+      verified.set(token, { user, until: now + VERIFY_TTL_MS });
+      return user;
     },
     async ensureUser(email) {
       const normalized = email.trim().toLowerCase();
