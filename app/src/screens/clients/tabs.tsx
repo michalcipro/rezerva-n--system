@@ -38,6 +38,7 @@ import {
 } from './model';
 import { BookingTable } from './OverviewTab';
 import { CONSENT_META, Pagination, SignedMoney, useMediaQuery, usePaged, type Permissions } from './parts';
+import { isUnsent, MessageStatusBadge, messageStatusDetail } from './messageStatus';
 
 /* ------------------------------------------------------------------ */
 /* Rezervace                                                           */
@@ -82,7 +83,8 @@ export function BookingsTab({
   now: LocalDateTime;
   finance: boolean;
   onOpen: (id: Id) => void;
-  onNew: () => void;
+  /** Bez tlačítka (např. u anonymizovaného klienta). */
+  onNew?: () => void;
 }): JSX.Element {
   const clinic = useClinic();
   const compact = useMediaQuery('(max-width: 640px)');
@@ -101,9 +103,11 @@ export function BookingsTab({
         title="Rezervace"
         meta={countLabel(all.length, ['termín', 'termíny', 'termínů']) + ' celkem'}
         actions={
-          <Button size="sm" variant="secondary" icon="calendarPlus" onClick={onNew}>
-            Nová rezervace
-          </Button>
+          onNew ? (
+            <Button size="sm" variant="secondary" icon="calendarPlus" onClick={onNew}>
+              Nová rezervace
+            </Button>
+          ) : undefined
         }
       />
       <div className="cli-tabtools">
@@ -118,11 +122,13 @@ export function BookingsTab({
           compact
           icon="calendar"
           title="Klient zatím nemá žádnou rezervaci"
-          text="První termín vytvoříte tlačítkem Nová rezervace."
+          text={onNew ? 'První termín vytvoříte tlačítkem Nová rezervace.' : undefined}
           action={
-            <Button size="sm" variant="primary" icon="calendarPlus" onClick={onNew}>
-              Nová rezervace
-            </Button>
+            onNew ? (
+              <Button size="sm" variant="primary" icon="calendarPlus" onClick={onNew}>
+                Nová rezervace
+              </Button>
+            ) : undefined
           }
         />
       ) : list.length === 0 ? (
@@ -169,10 +175,11 @@ export function FinanceTab({
   now: LocalDateTime;
   credit: number;
   spent: number;
-  onSell: () => void;
+  /** Bez prodeje a dobití (např. u anonymizovaného klienta). */
+  onSell?: () => void;
   onExtend: (p: ClientPackage) => void;
   onCancelPkg: (p: ClientPackage) => void;
-  onTopUp: () => void;
+  onTopUp?: () => void;
   onAdjust: () => void;
   onSettle: (i: DebtItem) => void;
   onWaive: (i: DebtItem) => void;
@@ -204,9 +211,11 @@ export function FinanceTab({
           title="Permanentky"
           meta={packages.length ? countLabel(packages.length, ['permanentka', 'permanentky', 'permanentek']) : undefined}
           actions={
-            <Button size="sm" variant="secondary" icon="ticket" onClick={onSell}>
-              Prodat permanentku
-            </Button>
+            onSell ? (
+              <Button size="sm" variant="secondary" icon="ticket" onClick={onSell}>
+                Prodat permanentku
+              </Button>
+            ) : undefined
           }
         />
         {packages.length === 0 ? (
@@ -229,9 +238,11 @@ export function FinanceTab({
           meta={<span className="tnum">zůstatek {formatMoney(credit)}</span>}
           actions={
             <>
-              <Button size="sm" variant="secondary" icon="plus" onClick={onTopUp}>
-                Dobít
-              </Button>
+              {onTopUp && (
+                <Button size="sm" variant="secondary" icon="plus" onClick={onTopUp}>
+                  Dobít
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={onAdjust}>
                 Upravit
               </Button>
@@ -492,15 +503,33 @@ export function DocsTab({ client, perms, onGrantHealth }: { client: Client; perm
 /* Komunikace                                                          */
 /* ------------------------------------------------------------------ */
 
-type MsgFilter = 'all' | 'email' | 'sms' | 'skipped';
+type MsgFilter = 'all' | 'email' | 'sms' | 'queued' | 'unsent';
 
-export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => void }): JSX.Element {
+export function CommsTab({ client, onWrite }: { client: Client; onWrite?: () => void }): JSX.Element {
   const clinic = useClinic();
+  const compact = useMediaQuery('(max-width: 640px)');
   const [filter, setFilter] = useState<MsgFilter>('all');
   const all = useMemo(() => messagesOfClient(clinic, client.id), [clinic, client.id]);
-  const list = all.filter((m) => (filter === 'all' ? true : filter === 'skipped' ? m.status === 'skipped' : m.channel === filter));
+  const counts = useMemo(() => {
+    let queued = 0;
+    let unsent = 0;
+    for (const m of all) {
+      if (m.status === 'queued') queued++;
+      else if (isUnsent(m)) unsent++;
+    }
+    return { queued, unsent };
+  }, [all]);
+  const list = all.filter((m) =>
+    filter === 'all' ? true : filter === 'unsent' ? isUnsent(m) : filter === 'queued' ? m.status === 'queued' : m.channel === filter,
+  );
   const { page, setPage, pageItems, pageCount } = usePaged(list, 20, filter + client.id);
-  const skipped = all.filter((m) => m.status === 'skipped').length;
+  const options: { value: MsgFilter; label: string }[] = [
+    { value: 'all', label: `Vše (${all.length})` },
+    { value: 'email', label: 'E-mail' },
+    { value: 'sms', label: 'SMS' },
+    ...(counts.queued || filter === 'queued' ? [{ value: 'queued' as const, label: `Čeká na odeslání (${counts.queued})` }] : []),
+    { value: 'unsent', label: `Neodeslané (${counts.unsent})` },
+  ];
 
   return (
     <Card padding="none" as="section" aria-label="Komunikace s klientem">
@@ -509,25 +538,20 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => v
         title="Odeslané zprávy"
         meta={all.length ? countLabel(all.length, ['zpráva', 'zprávy', 'zpráv']) : undefined}
         actions={
-          <Button size="sm" variant="secondary" icon="send" onClick={onWrite}>
-            Napsat zprávu
-          </Button>
+          onWrite ? (
+            <Button size="sm" variant="secondary" icon="send" onClick={onWrite}>
+              Napsat zprávu
+            </Button>
+          ) : undefined
         }
       />
       {all.length > 0 && (
         <div className="cli-tabtools">
-          <Segmented
-            aria-label="Filtr zpráv"
-            size="sm"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: `Vše (${all.length})` },
-              { value: 'email', label: 'E-mail' },
-              { value: 'sms', label: 'SMS' },
-              { value: 'skipped', label: `Neodeslané (${skipped})` },
-            ]}
-          />
+          {compact ? (
+            <Select aria-label="Filtr zpráv" size="sm" value={filter} onValueChange={(v) => setFilter(v as MsgFilter)} options={options} />
+          ) : (
+            <Segmented aria-label="Filtr zpráv" size="sm" value={filter} onChange={setFilter} options={options} />
+          )}
         </div>
       )}
       {all.length === 0 ? (
@@ -537,45 +561,42 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => v
           title="Zatím žádná komunikace"
           text="Potvrzení, připomínky a ruční zprávy se zobrazí tady."
           action={
-            <Button size="sm" variant="primary" icon="send" onClick={onWrite}>
-              Napsat zprávu
-            </Button>
+            onWrite ? (
+              <Button size="sm" variant="primary" icon="send" onClick={onWrite}>
+                Napsat zprávu
+              </Button>
+            ) : undefined
           }
         />
       ) : list.length === 0 ? (
-        <EmptyState compact icon="filter" title="Žádná zpráva neodpovídá filtru" />
+        <EmptyState compact icon="filter" title="Žádná zpráva neodpovídá filtru" action={<Button size="sm" onClick={() => setFilter('all')}>Zobrazit vše</Button>} />
       ) : (
         <>
           <ul className="cli-msgs">
-            {pageItems.map((m) => (
-              <li key={m.id} className="cli-msg">
-                <span className={cx('cli-msg__icon', m.status === 'skipped' && 'cli-msg__icon--skipped')} aria-hidden="true">
-                  <Icon name={m.channel === 'sms' ? 'smartphone' : 'mail'} size={16} />
-                </span>
-                <div className="cli-msg__body">
-                  <div className="cli-msg__top">
-                    <span className="cli-msg__title">{m.subject || messageKindLabel(clinic, m)}</span>
-                    {m.status === 'sent' ? (
-                      <Badge tone="success" dot>
-                        Odesláno
-                      </Badge>
-                    ) : (
-                      <Badge tone="warning" dot="square">
-                        Neodesláno
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="cli-msg__meta tnum">
-                    {m.channel === 'sms' ? 'SMS' : 'E-mail'} · {messageKindLabel(clinic, m)} · {formatDayShort(m.at)} {formatTime(m.at)}
+            {pageItems.map((m) => {
+              const detail = messageStatusDetail(m);
+              return (
+                <li key={m.id} className="cli-msg">
+                  <span className={cx('cli-msg__icon', m.status !== 'sent' && `cli-msg__icon--${m.status}`)} aria-hidden="true">
+                    <Icon name={m.channel === 'sms' ? 'smartphone' : 'mail'} size={16} />
                   </span>
-                  {m.skipReason && <span className="cli-msg__reason">Důvod: {m.skipReason}</span>}
-                  <details className="cli-msg__details">
-                    <summary>Zobrazit text</summary>
-                    <p className="cli-msg__text">{m.body}</p>
-                  </details>
-                </div>
-              </li>
-            ))}
+                  <div className="cli-msg__body">
+                    <div className="cli-msg__top">
+                      <span className="cli-msg__title">{m.subject || messageKindLabel(clinic, m)}</span>
+                      <MessageStatusBadge message={m} />
+                    </div>
+                    <span className="cli-msg__meta tnum">
+                      {m.channel === 'sms' ? 'SMS' : 'E-mail'} · {messageKindLabel(clinic, m)} · {formatDayShort(m.at)} {formatTime(m.at)}
+                    </span>
+                    {detail && <span className={cx('cli-msg__reason', `cli-msg__reason--${detail.tone}`)}>{detail.text}</span>}
+                    <details className="cli-msg__details">
+                      <summary>Zobrazit text</summary>
+                      <p className="cli-msg__text">{m.body}</p>
+                    </details>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <div className="cli-cardfoot">
             <Pagination page={page} pageCount={pageCount} total={list.length} pageSize={20} onChange={setPage} label="Stránkování zpráv" />
@@ -590,7 +611,7 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite: () => v
 /* Souhlasy                                                            */
 /* ------------------------------------------------------------------ */
 
-export function ConsentsTab({ client }: { client: Client }): JSX.Element {
+export function ConsentsTab({ client, readOnly }: { client: Client; /** Anonymizovaný klient – souhlasy jen pro čtení. */ readOnly?: boolean }): JSX.Element {
   const run = useCommand();
   const [confirm, setConfirm] = useState<keyof ClientConsents | null>(null);
 
@@ -613,7 +634,7 @@ export function ConsentsTab({ client }: { client: Client }): JSX.Element {
             <li key={m.key} className="cli-consent-row">
               <Switch
                 checked={!!rec}
-                disabled={locked}
+                disabled={locked || readOnly}
                 label={m.label}
                 description={
                   <>

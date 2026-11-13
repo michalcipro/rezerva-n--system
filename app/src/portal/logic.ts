@@ -20,7 +20,7 @@ import type {
   WaitlistEntry,
 } from '../domain/types';
 import { availableSlots, workingIntervals, type Slot } from '../engine/availability';
-import { cardPaymentsOn } from '../engine/commands';
+import { cardPaymentsOn } from '../engine/features';
 import { qrReady } from '../engine/qr';
 import {
   countLabel,
@@ -372,6 +372,7 @@ export function paymentOptions(
     });
   }
 
+  // platba kartou online jen se zapnutou funkcí (Nastavení → Funkce); engine ji jinak odmítne
   if (cardPaymentsOn(s)) {
     out.push({
       key: 'online',
@@ -425,6 +426,22 @@ export const QR_ICON: IconName = 'grid';
 /** Nabízí klinika QR platbu (zapnutá a s platným účtem)? */
 export function qrAvailable(s: ClinicState): boolean {
   return qrReady(s.settings.payments);
+}
+
+/** Jak může klient v portálu zaplatit nákup (permanentka, dobití kreditu): kartou online, QR platbou. */
+export function onlinePurchase(s: ClinicState): { card: boolean; qr: boolean; any: boolean } {
+  const card = cardPaymentsOn(s);
+  const qr = qrAvailable(s);
+  return { card, qr, any: card || qr };
+}
+
+/** Nápověda k dobití kreditu podle dostupných plateb. */
+export function topUpHint(s: ClinicState): string {
+  const { card, qr } = onlinePurchase(s);
+  if (card && qr) return 'Zůstatek, pohyby, dobití kartou nebo QR';
+  if (card) return 'Zůstatek, pohyby, dobití kartou';
+  if (qr) return 'Zůstatek, pohyby, dobití QR platbou';
+  return 'Zůstatek a pohyby';
 }
 
 /** Splatnost QR platby, jak ji určí engine: za `qrDueHours`, u termínu nejpozději jeho začátek. */

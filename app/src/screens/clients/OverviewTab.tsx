@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Booking, Client, Id, LocalDateTime } from '../../domain/types';
 import { countLabel, formatDayShort, formatTime, formatTimeRange } from '../../engine/format';
+import { isAnonymized } from '../../engine/gdpr';
 import {
   getRoom,
   getService,
@@ -21,6 +22,7 @@ import { Badge, Button, Card, CardHeader, EmptyState, Icon, IconButton, Menu, St
 import { visitContextOf } from '../payments/qrStaff';
 import { bookingMoneyNote, messageKindLabel, messagesOfClient, policyBar, policyLines, stornoChip, upcomingPaymentNote } from './model';
 import { CONSENT_META, ConsentState, consentDate, DateBlock, Eyebrow, StornoChipView, type Permissions } from './parts';
+import { messageStatusShort } from './messageStatus';
 
 export function openInCalendar(start: LocalDateTime): void {
   setSession({ calendarDate: dateOf(start), calendarView: 'day', calendarTherapist: 'all' });
@@ -115,7 +117,8 @@ export function UpcomingCard({
   now: LocalDateTime;
   finance: boolean;
   onOpen: (id: Id) => void;
-  onNew: () => void;
+  /** Bez tlačítka (např. u anonymizovaného klienta). */
+  onNew?: () => void;
 }): JSX.Element {
   const clinic = useClinic();
   const list = upcomingBookingsOfClient(clinic, client.id, now);
@@ -138,11 +141,13 @@ export function UpcomingCard({
           compact
           icon="calendar"
           title="Žádné nadcházející termíny"
-          text={`${client.firstName} teď nemá rezervovaný žádný termín.`}
+          text={`${isAnonymized(client) ? 'Klient' : client.firstName} teď nemá rezervovaný žádný termín.`}
           action={
-            <Button size="sm" variant="primary" icon="calendarPlus" onClick={onNew}>
-              Nová rezervace
-            </Button>
+            onNew ? (
+              <Button size="sm" variant="primary" icon="calendarPlus" onClick={onNew}>
+                Nová rezervace
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -371,19 +376,22 @@ export function CommsCard({ client, onShowAll }: { client: Client; onShowAll: ()
         <p className="cli-side__muted">Klientovi zatím nic neodešlo.</p>
       ) : (
         <ul className="cli-comms-mini">
-          {last.map((m) => (
-            <li key={m.id}>
-              <Icon name={m.channel === 'sms' ? 'smartphone' : 'mail'} size={16} className="cli-side__icon" />
-              <span className="cli-comms-mini__text">
-                <span className="truncate">
-                  {m.channel === 'sms' ? 'SMS' : 'E-mail'} · {messageKindLabel(clinic, m)}
+          {last.map((m) => {
+            const status = messageStatusShort(m);
+            return (
+              <li key={m.id}>
+                <Icon name={m.channel === 'sms' ? 'smartphone' : 'mail'} size={16} className="cli-side__icon" />
+                <span className="cli-comms-mini__text">
+                  <span className="truncate">
+                    {m.channel === 'sms' ? 'SMS' : 'E-mail'} · {messageKindLabel(clinic, m)}
+                  </span>
+                  <span className="cli-side__meta tnum">
+                    {formatDayShort(m.at)} {formatTime(m.at)} · <span className={status.className}>{status.text}</span>
+                  </span>
                 </span>
-                <span className={cx('cli-side__meta tnum', m.status === 'skipped' && 'text-warning')}>
-                  {formatDayShort(m.at)} {formatTime(m.at)} · {m.status === 'sent' ? 'odesláno' : 'neodesláno'}
-                </span>
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>

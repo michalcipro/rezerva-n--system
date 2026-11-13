@@ -32,6 +32,8 @@ export interface Permissions {
   clinical: boolean;
   /** Komunikace s klientem a změny údajů. */
   manage: boolean;
+  /** Majitelka – anonymizace klienta (GDPR). */
+  owner: boolean;
 }
 
 export function usePermissions(): Permissions {
@@ -40,6 +42,7 @@ export function usePermissions(): Permissions {
     finance: role === 'owner' || role === 'reception',
     clinical: role === 'owner' || role === 'therapist',
     manage: role === 'owner' || role === 'reception',
+    owner: role === 'owner',
   };
 }
 

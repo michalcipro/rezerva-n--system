@@ -414,8 +414,9 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     const r = await resolve(user);
     if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s klinikou.', 'forbidden');
     if (!commandLimiter.allow('c:' + user.id, Date.now())) throw new HttpError(429, 'Příliš mnoho akcí za krátkou dobu. Zkuste to za chvíli.', 'rate_limited');
-    const isOwner = r.kind === 'staff' && r.role === 'owner';
-    const body = await readJson<CommandRequest & { retry?: boolean }>(req, isOwner ? 8_000_000 : r.kind === 'staff' ? 1_000_000 : 64_000);
+    // import dat posílá i tisíce řádků (majitel a recepce); terapeut a klient jen malé vstupy
+    const front = r.kind === 'staff' && (r.role === 'owner' || r.role === 'reception');
+    const body = await readJson<CommandRequest & { retry?: boolean }>(req, front ? 8_000_000 : r.kind === 'staff' ? 1_000_000 : 64_000);
     const name = typeof body?.name === 'string' ? body.name : '';
     const role = r.kind === 'staff' ? r.role : 'client';
     const entry = commandFor(name, role);
@@ -442,6 +443,12 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       .logCommand({ clinicId: r.clinicId, userId: user.id, role, command: name, ok: result.ok, error: result.ok ? null : result.error, version: result.version })
       .catch(() => undefined);
     if (!result.ok) return json(req, 200, { ok: false, error: result.error, version: result.version } satisfies CommandResponse);
+    if (!result.duplicate && name === 'anonymizeClient') {
+      // anonymizovaný klient se už nepřihlásí ke své (prázdné) kartě
+      const clientId = String(input.clientId ?? '');
+      await store.unlinkClient(r.clinicId, clientId).catch((e: unknown) => log('Zrušení propojení účtu selhalo', { error: String(e) }));
+      for (const [userId, cached] of roleCache) if (cached.r.kind === 'client' && cached.r.clientId === clientId) forgetRole(userId);
+    }
     if (!result.duplicate && deps.afterCommand?.[name]) {
       try {
         await deps.afterCommand[name]({ clinicId: r.clinicId, input, store });

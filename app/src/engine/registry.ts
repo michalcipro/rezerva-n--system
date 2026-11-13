@@ -1,5 +1,7 @@
 import type { ActorRole, Command } from '../domain/types';
 import * as C from './commands';
+import { anonymizeClient, logClientDataExport } from './gdpr';
+import { importClients, importCredits, importPackages } from './importer';
 import { runProcesses } from './processes';
 
 /**
@@ -74,6 +76,12 @@ export const COMMANDS: Record<string, CommandEntry> = {
   sendCampaign: entry(C.sendCampaign, FRONT),
   scheduleCampaign: entry(C.scheduleCampaign, FRONT),
   sendManualMessage: entry(C.sendManualMessage, FRONT),
+  // import dat a GDPR
+  importClients: entry(importClients, FRONT),
+  importPackages: entry(importPackages, FRONT),
+  importCredits: entry(importCredits, FRONT),
+  logClientDataExport: entry(logClientDataExport, FRONT),
+  anonymizeClient: entry(anonymizeClient, OWNER),
 };
 
 /** Příkazy, které spouští jen server sám (automatika, doručení zpráv). */

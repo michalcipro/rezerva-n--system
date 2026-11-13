@@ -817,3 +817,27 @@ strong.cli-stat__value { font-weight: var(--weight-semibold); }
   outline: none;
 }
 .cli-tags__input::placeholder { color: var(--text-muted); }
+
+/* ---------- Stavy doručení zpráv ---------- */
+.cli-msg__icon--failed { background: var(--danger-soft); color: var(--danger-fg); }
+.cli-msg__icon--queued { background: var(--info-soft); color: var(--info-fg); }
+.cli-msg__reason--danger { color: var(--danger-fg); }
+.cli-msg__reason--muted { color: var(--text-secondary); }
+
+/* ---------- Anonymizace (GDPR) ---------- */
+.cli-anon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.cli-anon__list {
+  margin: 0;
+  padding-left: 1.1em;
+}
+.cli-anon__list li + li { margin-top: var(--space-1); }
+.cli-anon__export {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  color: var(--text-secondary);
+}

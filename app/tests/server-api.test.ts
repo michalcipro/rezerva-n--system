@@ -207,6 +207,18 @@ describe('API', () => {
     expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });
 
+  it('anonymizace klienta (jen majitel) zruší i propojení jeho přihlášení', async () => {
+    const { state } = await staffState('owner');
+    const petr = state.clients.find((c) => c.email === 'petr@example.cz')!;
+    expect((await call<SessionInfo>('GET', '/session', { as: 'petr' })).body.role).toBe('client');
+    expect((await cmd('recepce', 'anonymizeClient', { clientId: petr.id })).status).toBe(403);
+    const r = await cmd('owner', 'anonymizeClient', { clientId: petr.id });
+    expect(r.body.ok).toBe(true);
+    const after = await call<SessionInfo>('GET', '/session', { as: 'petr' });
+    expect(after.body).toMatchObject({ role: null, needsRegistration: true });
+    expect((await call('GET', '/state', { as: 'petr' })).status).toBe(403);
+  });
+
   it('cesta funguje i s předponou Supabase Edge Function', async () => {
     const res = await handle(new Request('http://localhost/functions/v1/api/health'));
     expect(res.status).toBe(200);

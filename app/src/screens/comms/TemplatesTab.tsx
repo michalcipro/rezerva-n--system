@@ -123,13 +123,15 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const weekAgo = addDays(now, -7);
   const stats = useMemo(() => {
     let sent = 0;
+    let queued = 0;
     let skipped = 0;
     for (const m of clinic.messages) {
       if (m.kind !== tpl.key || m.at < weekAgo) continue;
       if (m.status === 'sent') sent++;
+      else if (m.status === 'queued') queued++;
       else skipped++;
     }
-    return { sent, skipped };
+    return { sent, queued, skipped };
   }, [clinic.messages, tpl.key, weekAgo]);
   const smsConsent = useMemo(() => clinic.clients.filter((c) => c.consents.sms && c.phone).length, [clinic.clients]);
   const sms = smsInfo(renderTemplate(value.smsBody, vars));
@@ -215,8 +217,9 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
         )}
         <span className="com-tedit__stats">
           Za posledních 7 dní: odesláno {formatNumber(stats.sent)}
+          {stats.queued > 0 && <> · čeká na odeslání {formatNumber(stats.queued)}</>}
           {stats.skipped > 0 && <> · neodesláno {formatNumber(stats.skipped)}</>}
-          {stats.sent + stats.skipped > 0 && (
+          {stats.sent + stats.queued + stats.skipped > 0 && (
             <>
               {' · '}
               <button type="button" className="link" onClick={() => onShowMessages(tpl.key)}>

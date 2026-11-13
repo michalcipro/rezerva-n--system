@@ -33,6 +33,13 @@ src/
     visits.ts            přehled vstupů: visitPaymentInfo (permanentka / kredit / jednorázově / náhrada / zdarma
                          + stav platby), visitsOverview (po zaměstnancích), visitsCsv
     groups.ts            obsazenost skupinových lekcí: groupSessionsOverview, groupTotals, groupServices, fillOf
+    importer.ts          import ze stávajícího systému (CSV z Excelu): parseCsv, readImportFile (české i anglické
+                         názvy sloupců), náhled checkClientRows / checkPackageRows / checkCreditRows, šablony
+                         importTemplateCsv; příkazy importClients, importPackages, importCredits
+    gdpr.ts              clientDataExport (export osobních údajů, české klíče), anonymizationCheck, isAnonymized;
+                         příkazy anonymizeClient, logClientDataExport
+    features.ts          přepínače funkcí stejně jako příkazy: clinicalNotesOn, cardPaymentsOn
+    auditLog.ts          pushAudit – historie změn pro příkazy mimo commands.ts
     defaults.ts          výchozí katalog (služby, terapeuti, permanentky, nastavení)
     seed.ts              generátor ukázkových dat (simulace provozu)
   store/
@@ -103,6 +110,10 @@ if (r.ok) onClose();
 | saveCampaign / deleteCampaign / sendCampaign / scheduleCampaign | Campaign / {campaignId} / {campaignId} / {campaignId, at} | id / – / počet / – |
 | sendManualMessage | clientId, channel, subject, body | id |
 | setSimulatedNow | value\|null | – |
+| importClients *(importer.ts)* | rows (texty ze souboru), onDuplicate 'skip'\|'update' – jen majitelka a recepce | {created, updated, skipped, errors, failed} |
+| importPackages / importCredits *(importer.ts)* | rows | {created, updated, skipped, errors, failed} |
+| anonymizeClient *(gdpr.ts)* | clientId – jen majitelka; odmítne s nadcházející rezervací nebo čekající QR platbou | {message} |
+| logClientDataExport *(gdpr.ts)* | clientId – záznam o stažení exportu do historie změn | – |
 
 Před vytvořením nebo přesunem termínu ukaž personálu výsledek `checkBookingSlot` (chyby blokují,
 varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber z `evaluateCancellation(s, b, now, 'staff'|'client').options`.
@@ -142,3 +153,14 @@ varování lze vědomě přejít a poslat `override: true`). Volby zrušení ber
   a zaplatí později (výzva čeká). Zaplacení termínu jinak (hotově, kartou, kreditem) i jeho zrušení
   čekající výzvu uzavře.
 - Párování s bankou (např. přes API banky) v testovací verzi není – platby se potvrzují ručně podle VS.
+
+## Funkce, import a GDPR
+
+- Přepínače `settings.features` (Nastavení → Funkce): bez klinických poznámek UI skryje záložku Dokumentace
+  a kartu Klinická poznámka (`clinicalNotesOn`), bez platby kartou se volba „Kartou online“ nenabízí v portálu
+  ani v nové rezervaci na recepci (`cardPaymentsOn`).
+- Import (Nastavení → Import dat): Klienti → Permanentky → Kredity. Náhled i příkaz kontrolují řádky stejnými
+  funkcemi, takže na serveru dopadne import stejně. Převedená permanentka má příponu „(převod)“ a pole
+  `importedAt`; kredit je pohyb „Převod zůstatku ze stávajícího systému“.
+- GDPR (detail klienta → menu): „Export údajů (GDPR)“ stáhne JSON, „Anonymizovat klienta“ (majitelka) odstraní
+  osobní údaje a nechá účetní záznamy. Anonymizovaný klient má `anonymizedAt` a štítek „Anonymizováno“.

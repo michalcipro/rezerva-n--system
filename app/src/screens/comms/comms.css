@@ -2214,3 +2214,18 @@ button.com-rule__main:hover {
     transition: none;
   }
 }
+
+/* Stavy doručení (fronta / chyba) */
+.com-cell-reason--error {
+  color: var(--danger-fg);
+}
+
+.com-outbox__statlink {
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+}
+
+.com-outbox__statlink:hover {
+  text-decoration: underline;
+}

@@ -66,6 +66,7 @@ export const ok = <R>(value: R, notices: string[] = []): CommandResult<R> => ({ 
 export const fail = (error: string): CommandResult<never> => ({ ok: false, error });
 
 const isStaff = (ctx: Ctx): boolean => ctx.actor.role !== 'client';
+const ANONYMIZED = 'Klient je anonymizovaný (výmaz osobních údajů) – akci nelze provést.';
 
 /** Platba kartou online (v testovací verzi simulace; v ostrém provozu jen s platební bránou). */
 export const cardPaymentsOn = (s: ClinicState): boolean => s.settings.features?.cardPayments !== false;
@@ -216,6 +217,7 @@ export const updateClient: Command<UpdateClientInput> = (d, input, ctx) => {
   const c = d.clients.find((x) => x.id === input.clientId);
   if (!c) return fail('Klient neexistuje.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== c.id) return fail('Nemáte oprávnění.');
+  if (c.anonymizedAt) return fail(ANONYMIZED);
   // klient smí měnit jen své kontaktní údaje – ne štítky, interní poznámku ani blokaci
   if (ctx.actor.role === 'client' && (input.patch.blocked !== undefined || input.patch.internalNote !== undefined || input.patch.tags !== undefined))
     return fail('Nemáte oprávnění.');
@@ -246,6 +248,7 @@ export const setConsent: Command<{ clientId: Id; key: keyof ClientConsents; valu
   const c = d.clients.find((x) => x.id === input.clientId);
   if (!c) return fail('Klient neexistuje.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== c.id) return fail('Nemáte oprávnění.');
+  if (c.anonymizedAt) return fail(ANONYMIZED);
   if (input.key === 'gdpr' && !input.value) return fail('Souhlas se zpracováním údajů nutných pro rezervace nelze odebrat. Pro výmaz účtu kontaktujte kliniku.');
   c.consents[input.key] = input.value
     ? { at: ctx.now, source: ctx.actor.role === 'client' ? 'klientský účet' : 'recepce' }
@@ -299,6 +302,7 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
   if (!service) return fail('Služba neexistuje.');
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
+  if (client.anonymizedAt) return fail(ANONYMIZED);
 
   let start = input.start;
   let therapistId = input.therapistId;
@@ -1152,6 +1156,7 @@ export const sellPackage: Command<{ clientId: Id; templateId: Id; paidBy: MoneyM
   if (!tpl || !tpl.active) return fail('Permanentka není v nabídce.');
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
+  if (client.anonymizedAt) return fail(ANONYMIZED);
   const id = newId('pk');
   if (input.paidBy === 'credit') {
     const balance = clientCredit(d, client.id);
@@ -1296,6 +1301,7 @@ export const topUpCredit: Command<{ clientId: Id; amount: number; method: MoneyM
   if (input.method === 'online' && !cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
+  if (client.anonymizedAt) return fail(ANONYMIZED);
   const amount = Math.round(input.amount);
   if (!Number.isFinite(amount) || amount < 100) return fail('Minimální dobití je 100 Kč.');
   if (amount > 100000) return fail('Maximální jednorázové dobití je 100 000 Kč.');
@@ -1683,6 +1689,7 @@ export const sendManualMessage: Command<{ clientId: Id; channel: Channel; subjec
   if (denied) return fail(denied);
   const c = getClient(d, input.clientId);
   if (!c) return fail('Klient neexistuje.');
+  if (c.anonymizedAt) return fail(ANONYMIZED);
   if (!input.body.trim()) return fail('Zpráva je prázdná.');
   if (input.channel === 'email' && !c.email) return fail('Klient nemá e-mail.');
   if (input.channel === 'sms' && !c.phone) return fail('Klient nemá telefon.');

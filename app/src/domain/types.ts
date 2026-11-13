@@ -154,6 +154,8 @@ export interface Client {
   reactivationSentAt?: LocalDateTime;
   /** Kdy klient naposledy dostal přání k narozeninám. */
   birthdaySentAt?: LocalDateTime;
+  /** Klient byl anonymizován (GDPR – výmaz osobních údajů); záznamy zůstávají bez vazby na osobu. */
+  anonymizedAt?: LocalDateTime;
 }
 
 export interface PackageTemplate {
@@ -193,6 +195,8 @@ export interface ClientPackage {
   extendedDays: number;
   /** Koupeno klientem v portálu (smlouva uzavřená na dálku – právo odstoupit do 14 dnů). */
   onlinePurchase?: boolean;
+  /** Převedeno importem ze stávající evidence. */
+  importedAt?: LocalDateTime;
   /** Odstoupení od smlouvy: kolik se vrací a kdy klinika peníze poslala. */
   withdrawal?: { at: LocalDateTime; by: string; usedEntries: number; refundAmount: number; refundDue: LocalDate; refundedAt?: LocalDateTime };
   /** Kdy klient dostal upozornění „zbývají poslední vstupy". */

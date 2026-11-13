@@ -215,6 +215,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
       aside: formatMoney(price),
       disabled: credit < price,
     });
+    // platba kartou online jen se zapnutou funkcí (Nastavení → Funkce)
     if (cardPaymentsOn(clinic)) out.push({ key: 'online', method: 'online', title: 'Kartou online', description: 'Simulace platební brány – zaplaceno ihned.', aside: formatMoney(price) });
     out.push({ key: 'free', method: 'free', title: 'Zdarma', description: 'Např. kontrola nebo reklamace.', aside: formatMoney(0) });
     return out;

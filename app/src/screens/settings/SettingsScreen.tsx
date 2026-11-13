@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
+import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
-import { formatIban, nextVs, parseAccount } from '../../engine/qr';
+import { formatIban, nextVs, parseAccount, qrReady } from '../../engine/qr';
 import { therapistName } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
 import { QrPaymentCard } from '../../components/payments';
@@ -43,20 +43,26 @@ import {
   type SettingsDraft,
   type SettingsErrors,
 } from './helpers';
+import { ImportSection } from './ImportSection';
 import { PolicyClientText, PolicyPreview } from './PolicyPreview';
 import { SettingRow, useSyncedDraft } from './shared';
 import './set-settings.css';
 
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
-const SECTIONS: { id: SectionId; label: string; icon: IconName }[] = [
+/** Kotvy v levém sloupci: sekce konceptu + Import dat (má vlastní tlačítko, do konceptu nepatří). */
+type AnchorId = SectionId | 'import';
+
+const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'booking', label: 'Rezervace online', icon: 'calendarPlus' },
   { id: 'policy', label: 'Storno podmínky', icon: 'shield' },
   { id: 'excuses', label: 'Omluvenky a náhrady', icon: 'refresh' },
   { id: 'waitlist', label: 'Čekací listina', icon: 'hourglass' },
   { id: 'reminders', label: 'Připomínky', icon: 'bell' },
   { id: 'payments', label: 'Platby', icon: 'card' },
+  { id: 'features', label: 'Funkce', icon: 'sliders' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
+  { id: 'import', label: 'Import dat', icon: 'upload' },
 ];
 
 const SECTION_OF_ERROR = (key: string): SectionId => {
@@ -67,7 +73,7 @@ const SECTION_OF_ERROR = (key: string): SectionId => {
   return 'policy';
 };
 
-const sectionLabel = (id: SectionId): string => SECTIONS.find((s) => s.id === id)?.label ?? id;
+const sectionLabel = (id: AnchorId): string => SECTIONS.find((s) => s.id === id)?.label ?? id;
 
 const NOTICE_OPTIONS = [0, 30, 60, 120, 180, 240, 360, 720, 1440, 2880];
 const OFFER_OPTIONS = [15, 30, 60, 120, 180, 240, 360, 720, 1440];
@@ -107,7 +113,7 @@ export function SettingsScreen(): JSX.Element {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
-  const [active, setActive] = useState<SectionId>('booking');
+  const [active, setActive] = useState<AnchorId>('booking');
   const [showErrors, setShowErrors] = useState(false);
 
   const errors = validateSettings(draft);
@@ -138,7 +144,7 @@ export function SettingsScreen(): JSX.Element {
     return () => observer.disconnect();
   }, []);
 
-  const goTo = (id: SectionId): void => {
+  const goTo = (id: AnchorId): void => {
     const el = document.getElementById(`set-sec-${id}`);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -154,6 +160,7 @@ export function SettingsScreen(): JSX.Element {
   const setWaitlist = (patch: Partial<WaitlistSettings>): void => setDraft((d) => ({ ...d, waitlist: { ...d.waitlist, ...patch } }));
   const setReminders = (patch: Partial<ReminderSettings>): void => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }));
   const setPayments = (patch: Partial<PaymentsDraft>): void => setDraft((d) => ({ ...d, payments: { ...d.payments, ...patch } }));
+  const setFeatures = (patch: Partial<FeatureSettings>): void => setDraft((d) => ({ ...d, features: { ...d.features, ...patch } }));
   const setText = (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string): void =>
     setDraft((d) => ({ ...d, [key]: value }));
 
@@ -178,6 +185,7 @@ export function SettingsScreen(): JSX.Element {
       if (p.accountNumber !== base.payments.accountNumber.trim()) payments.accountNumber = p.accountNumber;
       patch.payments = payments;
     }
+    if (changed.includes('features')) patch.features = { ...clinic.settings.features, ...n.features };
     if (changed.includes('clinic')) {
       patch.clinicName = n.clinicName;
       patch.clinicTagline = n.clinicTagline;
@@ -194,7 +202,7 @@ export function SettingsScreen(): JSX.Element {
 
   return (
     <div className="page set-page set-settings-page">
-      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky, platby a údaje kliniky" />
+      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky, platby, funkce, údaje kliniky a import dat" />
       {restored && dirty && (
         <Callout tone="info" title="Rozpracované změny">
           Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(sectionLabel).join(', ')}). Uložte je, nebo je zahoďte.
@@ -217,7 +225,7 @@ export function SettingsScreen(): JSX.Element {
                 >
                   <Icon name={s.icon} size={16} />
                   <span className="set-anchors__label">{s.label}</span>
-                  {changed.includes(s.id) && (
+                  {(changed as AnchorId[]).includes(s.id) && (
                     <span className="set-anchors__dot" title="Neuložené změny">
                       <span className="visually-hidden">(neuloženo)</span>
                     </span>
@@ -264,9 +272,24 @@ export function SettingsScreen(): JSX.Element {
             <PaymentsSection payments={draft.payments} onChange={setPayments} errors={visibleErrors} saved={clinic.settings.payments} />
           </Section>
 
+          <Section id="features" title="Funkce" subtitle="Funkce, které se v ostrém provozu zapínají vědomě – podle toho, co klinika potřebuje a má zajištěné.">
+            <FeaturesSection features={draft.features} onChange={setFeatures} clinic={clinic} />
+          </Section>
+
           <Section id="clinic" title="Klinika" subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
             <ClinicSection draft={draft} onChange={setText} errors={visibleErrors} />
           </Section>
+
+          <section id="set-sec-import" className="set-section" aria-labelledby="set-sec-import-h">
+            <Card className="set-section-card">
+              <SectionHeading
+                id="import"
+                title="Import dat"
+                subtitle="Převod klientů, permanentek a kreditů ze stávajícího systému. Data připravíte v Excelu a uložíte jako CSV."
+              />
+              <ImportSection />
+            </Card>
+          </section>
         </div>
       </div>
 
@@ -304,7 +327,7 @@ export function SettingsScreen(): JSX.Element {
 /* Rámec sekce                                                         */
 /* ------------------------------------------------------------------ */
 
-function SectionHeading({ id, title, subtitle }: { id: SectionId; title: string; subtitle: string }): JSX.Element {
+function SectionHeading({ id, title, subtitle }: { id: AnchorId; title: string; subtitle: string }): JSX.Element {
   return (
     <div className="set-section-heading">
       <h2 id={`set-sec-${id}-h`} className="set-section-heading__title" tabIndex={-1}>
@@ -1073,6 +1096,63 @@ function PaymentsSection({
             <span>Automatické párování plateb s bankou není součástí testovací verze – platby se potvrzují ručně.</span>
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Funkce                                                              */
+/* ------------------------------------------------------------------ */
+
+function FeaturesSection({
+  features,
+  onChange,
+  clinic,
+}: {
+  features: FeatureSettings;
+  onChange: (patch: Partial<FeatureSettings>) => void;
+  clinic: ClinicState;
+}): JSX.Element {
+  const noteCount = useMemo(() => clinic.clients.reduce((n, c) => n + c.notes.length, 0), [clinic.clients]);
+  const qr = qrReady(clinic.settings.payments);
+  return (
+    <div className="set-rows">
+      <div className="set-row set-row--switch">
+        <Switch
+          checked={features.clinicalNotes}
+          onChange={(v) => onChange({ clinicalNotes: v })}
+          label="Klinické poznámky"
+          description="Terapeuti zapisují ke klientovi průběh terapie, nález a plán. Jde o zdravotní údaje – zvláštní kategorii osobních údajů podle čl. 9 GDPR. Zapněte je, jen když máte zajištěné zabezpečení a souhlasy klientů. V ostrém provozu jsou výchozí vypnuté."
+        />
+        <p className="set-footnote set-feature-note" aria-live="polite">
+          <Icon name={features.clinicalNotes ? 'lock' : 'eyeOff'} size={14} />
+          <span>
+            {features.clinicalNotes
+              ? 'Poznámky vidí jen terapeuti a majitelka; recepce ne.'
+              : noteCount
+                ? `Záložka Dokumentace a karta Klinická poznámka se skryjí. Uložené poznámky (${noteCount}) zůstanou v datech, jen je nikdo neuvidí a nové nepůjde zapsat.`
+                : 'Záložka Dokumentace a karta Klinická poznámka se skryjí a nové poznámky nepůjde zapsat.'}
+          </span>
+        </p>
+      </div>
+      <div className="set-row set-row--switch">
+        <Switch
+          checked={features.cardPayments}
+          onChange={(v) => onChange({ cardPayments: v })}
+          label="Platba kartou online"
+          description="Klienti zaplatí kartou hned při rezervaci, nákupu permanentky nebo dobití kreditu. Vyžaduje napojení na platební bránu – v testovací verzi je platba jen simulovaná."
+        />
+        <p className="set-footnote set-feature-note" aria-live="polite">
+          <Icon name="info" size={14} />
+          <span>
+            {features.cardPayments
+              ? 'Volba „Kartou online“ se nabízí v klientském portálu i při rezervaci na recepci.'
+              : qr
+                ? 'Klienti zaplatí na místě, QR platbou nebo z kreditu.'
+                : 'Klienti zaplatí na místě nebo z kreditu. Permanentky a dobití kreditu koupí jen na recepci, dokud nenastavíte QR platbu.'}
+          </span>
+        </p>
       </div>
     </div>
   );
