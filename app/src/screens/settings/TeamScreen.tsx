@@ -1,3 +1,6 @@
+import { SERVER_MODE } from '../../api/config';
+import { useSession } from '../../store/session';
+import { StaffAccessCard } from './StaffAccessCard';
 import { useMemo, useState } from 'react';
 import type { Id, Therapist, TimeOff } from '../../domain/types';
 import { removeTimeOff } from '../../engine/commands';
@@ -43,6 +46,7 @@ import './set-team.css';
 
 export function TeamScreen(): JSX.Element {
   const clinic = useClinic();
+  const role = useSession().role;
   const now = useNow();
   const [edit, setEdit] = useState<{ therapist: Therapist; tab?: TherapistTab } | null>(null);
   const [timeOffFor, setTimeOffFor] = useState<{ therapistId?: Id | null } | null>(null);
@@ -132,6 +136,7 @@ export function TeamScreen(): JSX.Element {
         </div>
         <div className="split__aside">
           <TimeOffCard onAdd={(therapistId) => setTimeOffFor({ therapistId })} />
+          {SERVER_MODE && role === 'owner' && <StaffAccessCard />}
         </div>
       </div>
 

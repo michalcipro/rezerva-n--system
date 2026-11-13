@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { AuthError, devLogin, requestCode, verifyCode } from '../api/auth';
 import { ApiError } from '../api/client';
-import { DEV_LOGIN, PRIVACY_URL, TERMS_URL } from '../api/config';
+import { DEV_LOGIN, PRIVACY_URL, SUPABASE_URL, TERMS_URL } from '../api/config';
 import { useStore } from '../store/hooks';
 import { logout, registerClient } from '../store/server';
 import { Button, Checkbox, Field, Icon, Input } from '../ui';
@@ -59,6 +59,11 @@ export function LoginScreen(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
+      // lokální vývoj bez Supabase: přihlásit rovnou (žádný e-mail se neposílá)
+      if (DEV_LOGIN && !SUPABASE_URL) {
+        await devLogin(normalized);
+        return;
+      }
       await requestCode(normalized);
       setEmail(normalized);
       setStep('code');
@@ -191,7 +196,7 @@ export function LoginScreen(): JSX.Element {
 export function RegisterScreen(): JSX.Element {
   const session = useStore((s) => s.session);
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', birthDate: '' });
-  const [consents, setConsents] = useState({ gdpr: false, health: false, marketingEmail: false, sms: true });
+  const [consents, setConsents] = useState({ gdpr: false, health: false, marketingEmail: false, sms: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const titleId = useId();

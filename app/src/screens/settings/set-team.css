@@ -343,3 +343,51 @@
   .set-cap-head .card-header__actions { flex-basis: 100%; }
   .set-cap-nav { justify-content: flex-start; }
 }
+
+/* Přístupy do systému (ostrý provoz) */
+.set-access {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.set-access__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.set-access__row:last-child {
+  border-bottom: 0;
+}
+.set-access__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.set-access__name {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+.set-access__me {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+}
+.set-access__email {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.set-access__spacer {
+  width: 32px;
+  flex: none;
+}
+.set-access__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}

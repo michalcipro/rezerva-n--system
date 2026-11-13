@@ -80,6 +80,31 @@
   }
 }
 
+/* Ostrý provoz: na počítači běžná stránka (sloupec uprostřed), bez rámu telefonu a ukázkového textu */
+@media (min-width: 640px) {
+  .por-app--live .por-stage {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    background: var(--bg);
+  }
+  .por-app--live .por-device {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    display: block;
+    overflow: visible;
+    border: 0;
+    border-inline: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .por-app--live .por-scroll {
+    overflow: visible;
+    min-height: calc(100dvh - var(--por-offset, 0px));
+  }
+}
+
 @media (min-width: 1100px) {
   .por-aside {
     grid-column: 1;

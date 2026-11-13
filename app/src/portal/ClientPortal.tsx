@@ -1,3 +1,4 @@
+import { SERVER_MODE } from '../api/config';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Client, ClinicState, Id } from '../domain/types';
 import { getClient } from '../engine/selectors';
@@ -55,21 +56,23 @@ export function ClientPortal(): JSX.Element {
   }, [session.testBarOpen]);
 
   return (
-    <div ref={rootRef} className="por-app">
+    <div ref={rootRef} className={SERVER_MODE ? 'por-app por-app--live' : 'por-app'}>
       <div className="por-stage">
-        <aside className="por-aside" aria-label="O náhledu">
-          <span className="por-aside__eyebrow">Klientský portál</span>
-          <p className="por-aside__title">Takhle si u vás klienti rezervují</p>
-          <p className="por-aside__text">
-            Rezervace, zrušení, omluvenky i platby se hned propíšou do kalendáře recepce. Za kterého klienta portál zkoušíte, přepnete v
-            testovacím panelu nahoře.
-          </p>
-          <ul className="por-aside__list">
-            <li>Zarezervujte termín v 15minutových časech</li>
-            <li>Omluvte termín a vyberte si náhradní</li>
-            <li>Posuňte testovací čas a sledujte, jak se mění storno podmínky</li>
-          </ul>
-        </aside>
+        {!SERVER_MODE && (
+          <aside className="por-aside" aria-label="O náhledu">
+            <span className="por-aside__eyebrow">Klientský portál</span>
+            <p className="por-aside__title">Takhle si u vás klienti rezervují</p>
+            <p className="por-aside__text">
+              Rezervace, zrušení, omluvenky i platby se hned propíšou do kalendáře recepce. Za kterého klienta portál zkoušíte, přepnete v
+              testovacím panelu nahoře.
+            </p>
+            <ul className="por-aside__list">
+              <li>Zarezervujte termín v 15minutových časech</li>
+              <li>Omluvte termín a vyberte si náhradní</li>
+              <li>Posuňte testovací čas a sledujte, jak se mění storno podmínky</li>
+            </ul>
+          </aside>
+        )}
         <div className="por-device">
           {client ? (
             <PortalApp key={client.id} client={client} />
@@ -79,7 +82,11 @@ export function ClientPortal(): JSX.Element {
                 <EmptyState
                   icon="users"
                   title="Zatím tu není žádný klient"
-                  text="Založte klienta v administraci (Klienti → Nový klient) nebo načtěte ukázková data. Pak ho vyberte v testovacím panelu."
+                  text={
+                    SERVER_MODE
+                      ? 'Váš účet se nepodařilo načíst. Obnovte prosím stránku.'
+                      : 'Založte klienta v administraci (Klienti → Nový klient) nebo načtěte ukázková data. Pak ho vyberte v testovacím panelu.'
+                  }
                 />
               </Screen>
             </div>

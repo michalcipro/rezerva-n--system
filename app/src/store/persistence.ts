@@ -163,7 +163,8 @@ export function normalizeState(s: ClinicState): ClinicState {
   sortBy(s.messages, (m) => m.at + m.id);
   sortBy(s.audit, (a) => a.at + a.id);
   sortBy(s.clients, (c) => c.createdAt + c.id);
-  for (const w of s.waitlist) w.offeredStarts = w.offeredStarts ?? [];
+  // zapisovat jen chybějící hodnoty: části stavu ze serveru se znovu používají a mohou být zmrazené (Immer)
+  for (const w of s.waitlist) if (!w.offeredStarts) w.offeredStarts = [];
   return s;
 }
 
