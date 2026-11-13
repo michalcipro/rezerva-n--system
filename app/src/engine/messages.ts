@@ -173,6 +173,16 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     body: 'Dobrý den, [jméno],\n\npřejeme vám k narozeninám hodně zdraví a pohybu.\n\n[klinika]',
     smsBody: '',
   },
+  {
+    key: 'payment_received',
+    name: 'Přijatá platba',
+    description: 'Když dorazí QR platba (potvrzení recepcí nebo automaticky z banky).',
+    channels: ['email'],
+    enabled: true,
+    subject: 'Platba přijata – děkujeme',
+    body: 'Dobrý den, [jméno],\n\nděkujeme, platbu [částka] (variabilní symbol [vs]) jsme přijali.\n[co_zaplaceno]\n\n[klinika]',
+    smsBody: '',
+  },
 ];
 
 /** Šablony, které jsou obchodním sdělením – vyžadují souhlas s marketingem. */

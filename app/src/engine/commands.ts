@@ -1049,6 +1049,13 @@ function applyRequestPayment(d: ClinicState, ctx: Ctx, r: PaymentRequest): strin
   r.status = 'paid';
   r.resolvedAt = ctx.now;
   r.resolvedBy = ctx.actor.name;
+  queueTemplateMessage(d, {
+    key: 'payment_received',
+    clientId: r.clientId,
+    now: ctx.now,
+    bookingId: r.bookingId,
+    vars: { částka: formatMoney(r.amount), vs: r.vs, co_zaplaceno: message },
+  });
   return message;
 }
 

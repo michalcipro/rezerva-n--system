@@ -202,6 +202,8 @@ describe('automatika: párování plateb z Fio', () => {
     const s = (await new ClinicEngine(store).current(clinicId))!.state;
     expect(s.paymentRequests[0]).toMatchObject({ status: 'paid', resolvedBy: 'Banka (Fio)' });
     expect(s.bookings[0].payment.paid).toBe(true);
+    // klient dostane potvrzení o přijaté platbě
+    expect(s.messages.find((m) => m.kind === 'payment_received' && m.clientId === id)).toMatchObject({ status: 'queued', channel: 'email' });
 
     const again = await cron(handle);
     expect((again.clinics as { bank: unknown }[])[0].bank).toMatchObject({ pending: 0 });

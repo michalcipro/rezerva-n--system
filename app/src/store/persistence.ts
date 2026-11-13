@@ -1,5 +1,6 @@
 import type { ClinicState } from '../domain/types';
 import { DEFAULT_SERVICES, DEMO_ACCOUNT, SCHEMA_VERSION, defaultGroupTemplates, defaultPaymentSettings } from '../engine/defaults';
+import { DEFAULT_TEMPLATES } from '../engine/messages';
 import { isoWeekKey, monthKey } from '../engine/time';
 
 /**
@@ -163,6 +164,11 @@ export function normalizeState(s: ClinicState): ClinicState {
   sortBy(s.messages, (m) => m.at + m.id);
   sortBy(s.audit, (a) => a.at + a.id);
   sortBy(s.clients, (c) => c.createdAt + c.id);
+  // šablony přidané v novějších verzích (např. potvrzení přijaté platby)
+  if (Array.isArray(s.templates)) {
+    const missing = DEFAULT_TEMPLATES.filter((t) => !s.templates.some((x) => x.key === t.key));
+    if (missing.length) s.templates = [...s.templates, ...missing.map((t) => ({ ...t, channels: [...t.channels] }))];
+  }
   // zapisovat jen chybějící hodnoty: části stavu ze serveru se znovu používají a mohou být zmrazené (Immer)
   for (const w of s.waitlist) if (!w.offeredStarts) w.offeredStarts = [];
   return s;

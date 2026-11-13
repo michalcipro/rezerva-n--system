@@ -393,7 +393,8 @@ export type TemplateKey =
   | 'package_expiring'
   | 'after_visit'
   | 'reactivation'
-  | 'birthday';
+  | 'birthday'
+  | 'payment_received';
 
 export type Channel = 'email' | 'sms';
 

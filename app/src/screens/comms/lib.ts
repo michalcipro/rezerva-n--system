@@ -429,6 +429,7 @@ export const TEMPLATE_GROUPS: { id: string; label: string; keys: TemplateKey[] }
   { id: 'visits', label: 'Rezervace a návštěvy', keys: ['booking_confirmation', 'reminder', 'reschedule', 'after_visit'] },
   { id: 'cancel', label: 'Storna a omluvenky', keys: ['cancellation', 'excuse', 'late_cancel', 'no_show', 'clinic_cancel'] },
   { id: 'offers', label: 'Čekací listina, náhrady a permanentky', keys: ['waitlist_offer', 'makeup_reminder', 'package_low', 'package_expiring'] },
+  { id: 'payments', label: 'Platby', keys: ['payment_received'] },
   { id: 'marketing', label: 'Obchodní sdělení', keys: ['reactivation', 'birthday'] },
 ];
 
@@ -462,6 +463,8 @@ export function templateVariableKeys(key: TemplateKey): string[] {
     case 'package_low':
     case 'package_expiring':
       return [...PERSON, 'permanentka', 'zbývá', 'platnost_do'];
+    case 'payment_received':
+      return [...PERSON, 'částka', 'vs', 'co_zaplaceno'];
     default:
       return PERSON;
   }
@@ -470,6 +473,9 @@ export function templateVariableKeys(key: TemplateKey): string[] {
 const EXTRA_VARIABLE_LABELS: Record<string, string> = {
   platba_vratka: 'Informace o vrácení platby',
   náhrada_text: 'Informace o náhradním termínu',
+  částka: 'Zaplacená částka',
+  vs: 'Variabilní symbol',
+  co_zaplaceno: 'Co je zaplacené',
 };
 
 export function variableLabel(key: string): string {
@@ -514,6 +520,8 @@ export function templateTiming(t: MessageTemplate, s: ClinicState): string {
       return 'po 90 dnech bez návštěvy';
     case 'birthday':
       return 'v den narozenin';
+    case 'payment_received':
+      return 'když dorazí QR platba';
     default:
       return t.description;
   }
@@ -582,6 +590,9 @@ export function sampleVars(s: ClinicState, now: LocalDateTime): TemplateVars {
     zbývá: countLabel(2, ['vstup', 'vstupy', 'vstupů']),
     platnost_do: formatDate(addDays(dateOf(now), 14)),
     nabídka_do: `${formatDayShort(offerUntil)} ${formatTime(offerUntil)}`,
+    částka: formatMoney(price),
+    vs: '26110007',
+    co_zaplaceno: 'Termín je zaplacený.',
     klinika: s.settings.clinicName,
   };
 }
