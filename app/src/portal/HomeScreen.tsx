@@ -31,6 +31,7 @@ import {
   clientOffers,
   clientWaiting,
   greetingFor,
+  onlinePurchase,
   placeLabel,
   QR_ICON,
   qrAvailable,
@@ -61,6 +62,7 @@ export function ClinicBrand(): JSX.Element {
 
 export function HomeScreen(): JSX.Element {
   const clinic = useClinic();
+  const purchase = onlinePurchase(clinic);
   const now = useNow();
   const run = useCommand();
   const { client, go, openAccount } = usePortal();
@@ -228,9 +230,11 @@ export function HomeScreen(): JSX.Element {
           <div className="por-tile">
             <span className="por-tile__label">Kredit</span>
             <span className="por-tile__num tnum">{formatMoney(data.credit)}</span>
-            <Button size="sm" variant="secondary" icon="plus" className="por-tile__btn" onClick={() => openAccount('kredit', 'topup')}>
-              Dobít
-            </Button>
+            {purchase.any && (
+              <Button size="sm" variant="secondary" icon="plus" className="por-tile__btn" onClick={() => openAccount('kredit', 'topup')}>
+                Dobít
+              </Button>
+            )}
           </div>
           {excusesOn && (
             <div className="por-tile">
@@ -249,7 +253,7 @@ export function HomeScreen(): JSX.Element {
               <span className="por-tile__label">Permanentka</span>
               <span className="por-tile__cta-text">Ušetřete s permanentkou</span>
               <span className="por-tile__hint por-tile__hint--accent">
-                Koupit online <Icon name="arrowRight" size={14} />
+                {purchase.any ? 'Koupit online' : 'Více o permanentkách'} <Icon name="arrowRight" size={14} />
               </span>
             </button>
           )}

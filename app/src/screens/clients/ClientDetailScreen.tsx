@@ -1,7 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Client, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { setConsent } from '../../engine/commands';
+import { clinicalNotesOn } from '../../engine/features';
 import { countLabel, formatDate, formatMoney, plural } from '../../engine/format';
+import { isAnonymized } from '../../engine/gdpr';
 import { pendingPaymentRequests } from '../../engine/qr';
 import { activePackages, bookingsOfClient, clientSummary, getBooking, getClient, packageUsage } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
@@ -37,6 +39,7 @@ import {
   TopUpCreditDialog,
   WaiveFeeDialog,
 } from './dialogs';
+import { AnonymizedNotice, AnonymizeDialog, useClientExport } from './gdpr';
 import { ageOf, debtItems, digitsOf, messagesOfClient, type DebtItem, type PackageInfo } from './model';
 import { ClinicalNoteCard, CommsCard, ConsentsCard, InternalNoteCard, PolicyCard, RecentCard, UpcomingCard } from './OverviewTab';
 import { scrollContainerToTop, useMediaQuery, usePermissions } from './parts';
@@ -45,7 +48,7 @@ import { AuditTab, BookingsTab, CommsTab, ConsentsTab, DocsTab, FinanceTab } fro
 type TabId = 'prehled' | 'rezervace' | 'finance' | 'dokumentace' | 'komunikace' | 'souhlasy' | 'historie';
 
 type DialogState =
-  | { kind: 'edit' | 'tags' | 'message' | 'sell' | 'topup' | 'adjust' | 'block' }
+  | { kind: 'edit' | 'tags' | 'message' | 'sell' | 'topup' | 'adjust' | 'block' | 'anonymize' }
   | { kind: 'extend' | 'cancelPkg'; pkg: ClientPackage }
   | { kind: 'settle' | 'waive'; item: DebtItem }
   | null;
@@ -100,6 +103,9 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
   const today = dateOf(now);
   const titleId = useId();
   const tabPrefix = 'cli-tab-' + client.id;
+  const notesOn = clinicalNotesOn(clinic);
+  const anonymized = isAnonymized(client);
+  const exportData = useClientExport(client, perms.clinical);
 
   const summary = useMemo(() => clientSummary(clinic, client.id, now), [clinic, client.id, now]);
   const active: PackageInfo[] = useMemo(
@@ -115,7 +121,10 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
     ...(perms.finance ? [{ id: 'prehled' as const, label: 'Přehled' }] : []),
     { id: 'rezervace', label: 'Rezervace', count: bookingCount || undefined },
     ...(perms.finance ? [{ id: 'finance' as const, label: 'Permanentky a kredit' }] : []),
-    { id: 'dokumentace', label: 'Dokumentace', count: perms.clinical && client.notes.length ? client.notes.length : undefined },
+    // klinické poznámky jen se zapnutou funkcí (Nastavení → Funkce); anonymizovaný klient je nemá
+    ...(notesOn && !anonymized
+      ? [{ id: 'dokumentace' as const, label: 'Dokumentace', count: perms.clinical && client.notes.length ? client.notes.length : undefined }]
+      : []),
     ...(perms.manage ? [{ id: 'komunikace' as const, label: 'Komunikace', count: messageCount || undefined }] : []),
     { id: 'souhlasy', label: 'Souhlasy' },
     ...(perms.manage ? [{ id: 'historie' as const, label: 'Historie změn' }] : []),
@@ -144,26 +153,35 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
 
   /* ---------------- akce v hlavičce ---------------- */
   const menuItems: MenuEntry[] = [];
-  if (compact) {
-    if (perms.manage) menuItems.push({ id: 'msg', label: 'Napsat zprávu', icon: 'mail', onSelect: () => setDlg({ kind: 'message' }) });
-    if (perms.finance) {
-      menuItems.push({ id: 'sell', label: 'Prodat permanentku', icon: 'ticket', onSelect: () => setDlg({ kind: 'sell' }) });
-      menuItems.push({ id: 'topup', label: 'Dobít kredit', icon: 'wallet', onSelect: () => setDlg({ kind: 'topup' }) });
+  if (anonymized) {
+    // jen vyrovnání zůstatku kreditu (např. vyplacení po anonymizaci)
+    if (perms.finance) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
+  } else {
+    if (compact) {
+      if (perms.manage) menuItems.push({ id: 'msg', label: 'Napsat zprávu', icon: 'mail', onSelect: () => setDlg({ kind: 'message' }) });
+      if (perms.finance) {
+        menuItems.push({ id: 'sell', label: 'Prodat permanentku', icon: 'ticket', onSelect: () => setDlg({ kind: 'sell' }) });
+        menuItems.push({ id: 'topup', label: 'Dobít kredit', icon: 'wallet', onSelect: () => setDlg({ kind: 'topup' }) });
+      }
+      if (menuItems.length) menuItems.push({ type: 'separator', id: 'sep0' });
     }
-    if (menuItems.length) menuItems.push({ type: 'separator', id: 'sep0' });
-  }
-  if (perms.manage) {
-    menuItems.push({ id: 'edit', label: 'Upravit údaje', icon: 'edit', onSelect: () => setDlg({ kind: 'edit' }) });
-    menuItems.push({ id: 'tags', label: 'Upravit štítky', icon: 'tag', onSelect: () => setDlg({ kind: 'tags' }) });
-  }
-  if (perms.finance) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
-  if (perms.manage) {
-    menuItems.push({ type: 'separator', id: 'sep1' });
-    menuItems.push(
-      client.blocked
-        ? { id: 'unblock', label: 'Odblokovat online rezervace', icon: 'shieldCheck', onSelect: () => setDlg({ kind: 'block' }) }
-        : { id: 'block', label: 'Zablokovat online rezervace', icon: 'ban', danger: true, onSelect: () => setDlg({ kind: 'block' }) },
-    );
+    if (perms.manage) {
+      menuItems.push({ id: 'edit', label: 'Upravit údaje', icon: 'edit', onSelect: () => setDlg({ kind: 'edit' }) });
+      menuItems.push({ id: 'tags', label: 'Upravit štítky', icon: 'tag', onSelect: () => setDlg({ kind: 'tags' }) });
+    }
+    if (perms.finance) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
+    if (perms.manage) {
+      menuItems.push({ type: 'separator', id: 'sep1' });
+      menuItems.push(
+        client.blocked
+          ? { id: 'unblock', label: 'Odblokovat online rezervace', icon: 'shieldCheck', onSelect: () => setDlg({ kind: 'block' }) }
+          : { id: 'block', label: 'Zablokovat online rezervace', icon: 'ban', danger: true, onSelect: () => setDlg({ kind: 'block' }) },
+      );
+      menuItems.push({ type: 'separator', id: 'sep2' });
+      menuItems.push({ type: 'label', id: 'gdpr', label: 'Osobní údaje' });
+      menuItems.push({ id: 'export', label: 'Export údajů (GDPR)', icon: 'download', onSelect: () => void exportData() });
+      if (perms.owner) menuItems.push({ id: 'anonymize', label: 'Anonymizovat klienta', icon: 'userX', danger: true, onSelect: () => setDlg({ kind: 'anonymize' }) });
+    }
   }
 
   /* ---------------- souhrnné údaje ---------------- */
@@ -191,7 +209,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
               <PackagesCard
                 active={active}
                 today={today}
-                onSell={() => setDlg({ kind: 'sell' })}
+                onSell={anonymized ? undefined : () => setDlg({ kind: 'sell' })}
                 onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
                 onCancel={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
                 onShowAll={() => goTab('finance')}
@@ -199,19 +217,19 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
               <CreditCard
                 client={client}
                 credit={summary.credit}
-                onTopUp={() => setDlg({ kind: 'topup' })}
+                onTopUp={anonymized ? undefined : () => setDlg({ kind: 'topup' })}
                 onAdjust={() => setDlg({ kind: 'adjust' })}
                 onShowAll={() => goTab('finance')}
               />
               <ExcusesCard client={client} now={now} active={active} onBookMakeup={bookMakeup} />
             </div>
             </div>
-            <UpcomingCard client={client} now={now} finance={perms.finance} onOpen={setDrawer} onNew={newBooking} />
+            <UpcomingCard client={client} now={now} finance={perms.finance} onOpen={setDrawer} onNew={anonymized ? undefined : newBooking} />
             <RecentCard client={client} now={now} finance={perms.finance} onOpen={setDrawer} onShowAll={() => goTab('rezervace')} />
           </div>
           <aside className="split__aside" aria-label="Doplňující informace">
-            <ClinicalNoteCard client={client} perms={perms} onOpenDocs={() => goTab('dokumentace')} />
-            <InternalNoteCard client={client} onEdit={perms.manage ? () => setDlg({ kind: 'edit' }) : undefined} />
+            {notesOn && !anonymized && <ClinicalNoteCard client={client} perms={perms} onOpenDocs={() => goTab('dokumentace')} />}
+            <InternalNoteCard client={client} onEdit={perms.manage && !anonymized ? () => setDlg({ kind: 'edit' }) : undefined} />
             <ConsentsCard client={client} onManage={() => goTab('souhlasy')} />
             {perms.manage && <CommsCard client={client} onShowAll={() => goTab('komunikace')} />}
             <PolicyCard />
@@ -220,7 +238,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       );
       break;
     case 'rezervace':
-      content = <BookingsTab client={client} now={now} finance={perms.finance} onOpen={setDrawer} onNew={newBooking} />;
+      content = <BookingsTab client={client} now={now} finance={perms.finance} onOpen={setDrawer} onNew={anonymized ? undefined : newBooking} />;
       break;
     case 'finance':
       content = (
@@ -229,10 +247,10 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
           now={now}
           credit={summary.credit}
           spent={summary.spent}
-          onSell={() => setDlg({ kind: 'sell' })}
+          onSell={anonymized ? undefined : () => setDlg({ kind: 'sell' })}
           onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
           onCancelPkg={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
-          onTopUp={() => setDlg({ kind: 'topup' })}
+          onTopUp={anonymized ? undefined : () => setDlg({ kind: 'topup' })}
           onAdjust={() => setDlg({ kind: 'adjust' })}
           onSettle={(item) => setDlg({ kind: 'settle', item })}
           onWaive={(item) => setDlg({ kind: 'waive', item })}
@@ -251,10 +269,10 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       );
       break;
     case 'komunikace':
-      content = <CommsTab client={client} onWrite={() => setDlg({ kind: 'message' })} />;
+      content = <CommsTab client={client} onWrite={anonymized ? undefined : () => setDlg({ kind: 'message' })} />;
       break;
     case 'souhlasy':
-      content = <ConsentsTab client={client} />;
+      content = <ConsentsTab client={client} readOnly={anonymized} />;
       break;
     default:
       content = <AuditTab client={client} onOpen={setDrawer} />;
@@ -271,29 +289,36 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
               <h1 id={titleId} className="cli-hero__name">
                 {name}
               </h1>
-              {client.blocked && (
+              {client.blocked && !anonymized && (
                 <Badge tone="danger" icon="ban" size="md">
                   Online rezervace zablokované
+                </Badge>
+              )}
+              {anonymized && (
+                <Badge tone="neutral" icon="userX" size="md">
+                  Anonymizováno
                 </Badge>
               )}
             </div>
             <span className="cli-hero__meta tnum">{metaParts.join(' · ')}</span>
           </div>
           <div className="cli-hero__actions">
-            <Button variant="primary" icon="calendarPlus" onClick={newBooking}>
-              Nová rezervace
-            </Button>
-            {!compact && perms.manage && (
+            {!anonymized && (
+              <Button variant="primary" icon="calendarPlus" onClick={newBooking}>
+                Nová rezervace
+              </Button>
+            )}
+            {!compact && perms.manage && !anonymized && (
               <Button icon="mail" onClick={() => setDlg({ kind: 'message' })}>
                 Napsat zprávu
               </Button>
             )}
-            {!compact && perms.finance && (
+            {!compact && perms.finance && !anonymized && (
               <Button icon="ticket" onClick={() => setDlg({ kind: 'sell' })}>
                 Prodat permanentku
               </Button>
             )}
-            {!compact && perms.finance && (
+            {!compact && perms.finance && !anonymized && (
               <Button icon="wallet" onClick={() => setDlg({ kind: 'topup' })}>
                 Dobít kredit
               </Button>
@@ -323,7 +348,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
               {formatDate(client.birthDate)} ({ageOf(client.birthDate, today)} {plural(ageOf(client.birthDate, today), ['rok', 'roky', 'let'])})
             </span>
           )}
-          {(client.tags.length > 0 || perms.manage) && (
+          {!anonymized && (client.tags.length > 0 || perms.manage) && (
             <span className="cli-hero__tags">
               {client.tags.map((t) => (
                 <span key={t} className="cli-taglabel">
@@ -364,7 +389,8 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       </section>
 
       <div className="cli-body">
-        {client.blocked && (
+        {anonymized && <AnonymizedNotice client={client} />}
+        {client.blocked && !anonymized && (
           <Callout
             tone="danger"
             title="Online rezervace zablokované"
@@ -388,6 +414,9 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       {/* Dialogy a panely */}
       <NewBookingDialog open={booking !== null} onClose={() => setBooking(null)} initial={booking ?? undefined} />
       <BookingDrawer bookingId={drawer} onClose={() => setDrawer(null)} />
+      {perms.owner && !anonymized && (
+        <AnonymizeDialog client={client} open={dlg?.kind === 'anonymize'} onClose={close} onExport={() => void exportData()} />
+      )}
       {perms.manage && (
         <>
           <EditClientDialog client={client} open={dlg?.kind === 'edit'} onClose={close} />

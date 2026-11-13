@@ -1,5 +1,6 @@
 import type { Client, ClientPackage, LocalDateTime, MakeupRight, PaymentRequest } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, plural } from '../../engine/format';
+import { isImportedPackage, type ImportedPackage } from '../../engine/importer';
 import { pendingRequestFor } from '../../engine/qr';
 import { getBooking, getPackageTemplate, getService, type PackageUsage } from '../../engine/selectors';
 import { dateOf, daysBetween } from '../../engine/time';
@@ -83,7 +84,9 @@ export function PackageBlock({
       )}
       <StackedBar cells={u.total <= 30} segments={packageSegments(u)} label={`Vstupy permanentky ${pkg.name}`} />
       <p className="cli-pkg__foot tnum">
-        Zakoupeno {formatDate(pkg.purchasedAt)} za {formatMoney(pkg.priceCzk)} {PAID_BY[pkg.paidBy]} ·{' '}
+        {isImportedPackage(pkg)
+          ? `Převedeno ze stávajícího systému ${formatDate((pkg as ImportedPackage).importedAt ?? pkg.purchasedAt)} · `
+          : `Zakoupeno ${formatDate(pkg.purchasedAt)} za ${formatMoney(pkg.priceCzk)} ${PAID_BY[pkg.paidBy]} · `}
         {state === 'cancelled' ? (
           'zrušena'
         ) : (
@@ -131,7 +134,8 @@ export function PackagesCard({
 }: {
   active: PackageInfo[];
   today: string;
-  onSell: () => void;
+  /** Bez prodeje (např. u anonymizovaného klienta). */
+  onSell?: () => void;
   onExtend: (p: ClientPackage) => void;
   onCancel: (p: ClientPackage) => void;
   onShowAll: () => void;
@@ -142,12 +146,16 @@ export function PackagesCard({
       {shown.length === 0 ? (
         <>
           <Eyebrow as="h3">Permanentka</Eyebrow>
-          <p className="cli-balance__empty">Žádná aktivní permanentka. S permanentkou klient ušetří a má k dispozici omluvenky.</p>
-          <div>
-            <Button size="sm" icon="ticket" onClick={onSell}>
-              Prodat permanentku
-            </Button>
-          </div>
+          <p className="cli-balance__empty">
+            {onSell ? 'Žádná aktivní permanentka. S permanentkou klient ušetří a má k dispozici omluvenky.' : 'Žádná aktivní permanentka.'}
+          </p>
+          {onSell && (
+            <div>
+              <Button size="sm" icon="ticket" onClick={onSell}>
+                Prodat permanentku
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         shown.map((info) => <PackageBlock key={info.pkg.id} info={info} today={today} onExtend={onExtend} onCancel={onCancel} />)
@@ -165,7 +173,7 @@ export function PackagesCard({
 /* Kredit                                                              */
 /* ------------------------------------------------------------------ */
 
-export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { client: Client; credit: number; onTopUp: () => void; onAdjust: () => void; onShowAll: () => void }): JSX.Element {
+export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { client: Client; credit: number; onTopUp?: () => void; onAdjust: () => void; onShowAll: () => void }): JSX.Element {
   const clinic = useClinic();
   const last = ledgerOfClient(clinic, client.id).slice(0, 5);
   return (
@@ -194,9 +202,11 @@ export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { c
         <p className="cli-balance__empty">Zatím žádné pohyby. Kredit lze dobít předem a platit z něj termíny.</p>
       )}
       <div className="cli-balance__actions">
-        <Button size="sm" icon="plus" onClick={onTopUp}>
-          Dobít
-        </Button>
+        {onTopUp && (
+          <Button size="sm" icon="plus" onClick={onTopUp}>
+            Dobít
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onAdjust}>
           Upravit
         </Button>

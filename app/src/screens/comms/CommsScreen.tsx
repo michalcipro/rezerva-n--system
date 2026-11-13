@@ -68,7 +68,7 @@ export function CommsScreen(): JSX.Element {
         subtitle={
           <>
             {countLabel(consented, ['klient', 'klienti', 'klientů'])} se souhlasem s obchodními sděleními · {enabled} z {clinic.templates.length}{' '}
-            automatických zpráv zapnuto · odesílání je v prototypu simulované
+            automatických zpráv zapnuto · {clinic.settings.messaging?.deliver ? 'zprávy odesílá server' : 'odesílání je v prototypu simulované'}
           </>
         }
         actions={actions}

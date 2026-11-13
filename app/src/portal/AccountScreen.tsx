@@ -12,6 +12,7 @@ import {
   formatSignedMoney,
   formatTime,
 } from '../engine/format';
+import { isImportedPackage, type ImportedPackage } from '../engine/importer';
 import { clientCredit, packagesOfClient, packageUsage } from '../engine/selectors';
 import { addDays, dateOf, daysBetween } from '../engine/time';
 import { useClinic, useCommand, useNow } from '../store/hooks';
@@ -35,7 +36,7 @@ import {
 } from '../ui';
 import { usePortal, type AccountView } from './context';
 import { BlockedNotice } from './HomeScreen';
-import { clientMessages, clientPendingRequests, MONEY_LABEL, packageSavings, packageServicesLabel, QR_ICON, qrAvailable, zPrep } from './logic';
+import { clientMessages, clientPendingRequests, MONEY_LABEL, onlinePurchase, packageSavings, packageServicesLabel, QR_ICON, topUpHint, zPrep } from './logic';
 import { PolicyList, SimulatedPaymentNote, useSimulatedPayment } from './payment';
 import { ListRow, Screen, SectionTitle, Sheet } from './parts';
 import { PendingPaymentsSection, QR_HINT, QrStep, useQrStep } from './QrPay';
@@ -92,6 +93,7 @@ function AccountRoot(): JSX.Element {
     };
   }, [clinic, client.id, today]);
   const go = (v: AccountView): void => setAccountView(v);
+  const purchase = onlinePurchase(clinic);
   const consentCount = [client.consents.health, client.consents.marketingEmail, client.consents.sms].filter(Boolean).length;
 
   return (
@@ -119,7 +121,7 @@ function AccountRoot(): JSX.Element {
           <span className="por-tile__label">Kredit</span>
           <span className="por-tile__num tnum">{formatMoney(stats.credit)}</span>
           <span className="por-tile__hint por-tile__hint--accent">
-            Dobít a pohyby <Icon name="arrowRight" size={14} />
+            {purchase.any ? 'Dobít a pohyby' : 'Pohyby kreditu'} <Icon name="arrowRight" size={14} />
           </span>
         </button>
         <button type="button" className="por-tile por-tile--button" onClick={() => go('permanentky')}>
@@ -129,20 +131,20 @@ function AccountRoot(): JSX.Element {
             <span className="por-tile__of"> {stats.freeEntries === 1 ? 'volný vstup' : stats.freeEntries >= 2 && stats.freeEntries <= 4 ? 'volné vstupy' : 'volných vstupů'}</span>
           </span>
           <span className="por-tile__hint por-tile__hint--accent">
-            {stats.active ? countLabel(stats.active, ['aktivní', 'aktivní', 'aktivních']) : 'Koupit online'} <Icon name="arrowRight" size={14} />
+            {stats.active ? countLabel(stats.active, ['aktivní', 'aktivní', 'aktivních']) : purchase.any ? 'Koupit online' : 'Přehled'} <Icon name="arrowRight" size={14} />
           </span>
         </button>
       </div>
 
       <div className="por-group" role="list">
         <div role="listitem">
-          <ListRow icon="ticket" label="Permanentky" hint="Aktivní i prošlé, nákup online" onClick={() => go('permanentky')} />
+          <ListRow icon="ticket" label="Permanentky" hint={purchase.any ? 'Aktivní i prošlé, nákup online' : 'Aktivní i prošlé'} onClick={() => go('permanentky')} />
         </div>
         <div role="listitem">
           <ListRow
             icon="wallet"
             label="Kredit a platby"
-            hint={qrAvailable(clinic) ? 'Zůstatek, pohyby, dobití kartou nebo QR' : 'Zůstatek, pohyby, dobití kartou'}
+            hint={topUpHint(clinic)}
             value={formatMoney(stats.credit)}
             onClick={() => go('kredit')}
           />
@@ -438,7 +440,9 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
           </span>
         )}
         <span className="por-pkg__bought">
-          Zakoupeno {formatDate(pkg.purchasedAt)} za {formatMoney(pkg.priceCzk)} {MONEY_LABEL[pkg.paidBy] ?? ''}
+          {isImportedPackage(pkg)
+            ? `Převedeno z dřívějšího systému kliniky ${formatDate((pkg as ImportedPackage).importedAt ?? pkg.purchasedAt)}`
+            : `Zakoupeno ${formatDate(pkg.purchasedAt)} za ${formatMoney(pkg.priceCzk)} ${MONEY_LABEL[pkg.paidBy] ?? ''}`}
         </span>
       </div>
     </Card>
@@ -460,13 +464,15 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const tpl = templates.find((t) => t.id === tplId);
   const credit = clientCredit(clinic, client.id);
   const enoughCredit = !!tpl && credit >= tpl.priceCzk;
-  const qrOn = qrAvailable(clinic);
-  const effMethod: PackagePay = (method === 'credit' && !enoughCredit) || (method === 'qr' && !qrOn) ? 'online' : method;
+  const { card: cardOn, qr: qrOn } = onlinePurchase(clinic);
+  // dostupné způsoby: karta jen se zapnutou funkcí, QR jen s účtem, kredit jen když stačí
+  const available: PackagePay[] = [...(cardOn ? (['online'] as const) : []), ...(qrOn ? (['qr'] as const) : []), ...(enoughCredit ? (['credit'] as const) : [])];
+  const effMethod: PackagePay | null = available.includes(method) ? method : (available[0] ?? null);
   // na stejnou permanentku už může QR platba čekat – ukážeme ji místo nové
   const waiting = tpl ? clientPendingRequests(clinic, client.id, 'package').find((r) => r.packageTemplateId === tpl.id) : undefined;
 
   const buy = (): void => {
-    if (!tpl) return;
+    if (!tpl || !effMethod) return;
     if (effMethod === 'qr') {
       if (waiting) {
         setQrRequestId(waiting.id);
@@ -498,12 +504,14 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
       onClose={onClose}
       title="Koupit permanentku"
       footer={
-        <Button variant="primary" size="lg" full loading={pay.paying} disabled={!tpl} onClick={buy}>
+        <Button variant="primary" size="lg" full loading={pay.paying} disabled={!tpl || !effMethod} onClick={buy}>
           {pay.paying
             ? 'Probíhá platba…'
             : !tpl
               ? 'Vyberte permanentku'
-              : effMethod === 'qr'
+              : !effMethod
+                ? 'Koupíte na recepci'
+                : effMethod === 'qr'
                 ? waiting
                   ? 'Zobrazit čekající QR platbu'
                   : `Zaplatit ${formatMoney(tpl.priceCzk)} QR kódem`
@@ -532,7 +540,7 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
           value={effMethod}
           onChange={setMethod}
           options={[
-            { value: 'online', title: 'Kartou online', description: 'Platba proběhne hned (v ukázce jen simulace).' },
+            ...(cardOn ? [{ value: 'online' as const, title: 'Kartou online', description: 'Platba proběhne hned (v ukázce jen simulace).' }] : []),
             ...(qrOn
               ? [
                   {
@@ -555,6 +563,11 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
           ]}
         />
         {effMethod === 'online' && tpl && <SimulatedPaymentNote amount={formatMoney(tpl.priceCzk)} />}
+        {!effMethod && tpl && (
+          <Callout tone="info" icon="building">
+            Permanentku teď koupíte na recepci – kartou, hotově nebo převodem. Z kreditu ji tu zaplatíte, až na něm budete mít aspoň {formatMoney(tpl.priceCzk)}.
+          </Callout>
+        )}
         {effMethod === 'qr' && waiting && (
           <Callout tone="info" icon={QR_ICON}>
             Na tuto permanentku už čeká QR platba (VS {waiting.vs}). Ukážeme vám ji znovu, ať neplatíte dvakrát.
@@ -613,6 +626,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
     if (accountAction === 'topup') clearAccountAction();
   }, []);
   const credit = clientCredit(clinic, client.id);
+  const canTopUp = onlinePurchase(clinic).any;
   const ledger = useMemo(
     () => clinic.ledger.filter((e) => e.clientId === client.id).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)),
     [clinic.ledger, client.id],
@@ -629,11 +643,13 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
       onBack={onBack}
       backLabel="Zpět na účet"
       dock={
-        <ActionBar>
-          <Button variant="primary" size="lg" icon="plus" onClick={() => setTopupOpen(true)}>
-            Dobít kredit
-          </Button>
-        </ActionBar>
+        canTopUp ? (
+          <ActionBar>
+            <Button variant="primary" size="lg" icon="plus" onClick={() => setTopupOpen(true)}>
+              Dobít kredit
+            </Button>
+          </ActionBar>
+        ) : undefined
       }
     >
       <Card padding="md" className="por-credit">
@@ -646,6 +662,12 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
             : ''}
         </span>
       </Card>
+
+      {!canTopUp && (
+        <Callout tone="info" icon="building">
+          Kredit dobijete na recepci – hotově, kartou nebo převodem.
+        </Callout>
+      )}
 
       <PendingPaymentsSection title="Čeká na zaplacení" purpose="credit_topup" />
 
@@ -718,8 +740,9 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const [method, setMethod] = useState<'online' | 'qr'>('online');
   const [qrRequestId, setQrRequestId] = useState<Id | null>(null);
   const pay = useSimulatedPayment();
-  const qrOn = qrAvailable(clinic);
-  const effMethod = method === 'qr' && qrOn ? 'qr' : 'online';
+  const { card: cardOn, qr: qrOn } = onlinePurchase(clinic);
+  const methods: ('online' | 'qr')[] = [...(cardOn ? (['online'] as const) : []), ...(qrOn ? (['qr'] as const) : [])];
+  const effMethod: 'online' | 'qr' | null = methods.includes(method) ? method : (methods[0] ?? null);
   const valid = Number.isFinite(amount) && amount >= 100 && amount <= 100000;
   const bonus = valid ? creditBonusFor(clinic, amount) : 0;
   const rules = [...clinic.settings.creditBonus].filter((r) => r.pct > 0).sort((a, b) => a.minTopup - b.minTopup);
@@ -727,7 +750,7 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const pct = rules.filter((r) => amount >= r.minTopup).reduce((m, r) => Math.max(m, r.pct), 0);
 
   const submit = (): void => {
-    if (!valid) return;
+    if (!valid || !effMethod) return;
     if (effMethod === 'qr') {
       const r = run(createPaymentRequest, { clientId: client.id, purpose: 'credit_topup', amount }, { quiet: true });
       if (r.ok) setQrRequestId(r.value.requestId);
@@ -759,8 +782,8 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
       onClose={onClose}
       title="Dobít kredit"
       footer={
-        <Button variant="primary" size="lg" full loading={pay.paying} disabled={!valid} onClick={submit}>
-          {pay.paying ? 'Probíhá platba…' : `Zaplatit ${formatMoney(valid ? amount : 0)}${effMethod === 'qr' ? ' QR kódem' : ''}`}
+        <Button variant="primary" size="lg" full loading={pay.paying} disabled={!valid || !effMethod} onClick={submit}>
+          {pay.paying ? 'Probíhá platba…' : !effMethod ? 'Dobijete na recepci' : `Zaplatit ${formatMoney(valid ? amount : 0)}${effMethod === 'qr' ? ' QR kódem' : ''}`}
         </Button>
       }
     >
@@ -798,7 +821,7 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
             Od {formatMoney(nextRule.minTopup)} je bonus {formatPercent(nextRule.pct)}.
           </p>
         )}
-        {qrOn && (
+        {methods.length > 1 && (
           <RadioCards<'online' | 'qr'>
             legend="Platba"
             value={effMethod}
@@ -808,6 +831,14 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
               { value: 'qr', title: 'QR platba', description: 'Převodem z bankovní aplikace – naskenujete QR kód. Kredit se připíše po připsání platby.' },
             ]}
           />
+        )}
+        {methods.length === 1 && effMethod === 'qr' && (
+          <p className="por-note">Zaplatíte QR platbou z bankovní aplikace – kredit se připíše, jakmile platba dorazí.</p>
+        )}
+        {!effMethod && (
+          <Callout tone="info" icon="building">
+            Kredit teď dobijete na recepci – hotově, kartou nebo převodem.
+          </Callout>
         )}
         {effMethod === 'online' && <SimulatedPaymentNote />}
       </div>

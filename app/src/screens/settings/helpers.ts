@@ -563,7 +563,7 @@ export type PaymentsDraft = Pick<PaymentSettings, 'qrEnabled' | 'accountNumber' 
 
 export type SettingsDraft = Pick<
   Settings,
-  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders'
+  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'features'
 > & { payments: PaymentsDraft };
 
 export function settingsDraftOf(s: Settings): SettingsDraft {
@@ -576,6 +576,8 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
     policy: s.policy,
     waitlist: s.waitlist,
     reminders: s.reminders,
+    // starší data bez přepínačů: obojí zapnuté (stejně jako engine)
+    features: { clinicalNotes: s.features ? !!s.features.clinicalNotes : true, cardPayments: s.features?.cardPayments !== false },
     payments: {
       qrEnabled: s.payments.qrEnabled,
       accountNumber: s.payments.accountNumber,
@@ -588,7 +590,7 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
 /** Nejdelší jméno příjemce v QR Platbě (formát SPAYD). */
 export const RECIPIENT_MAX = 35;
 
-export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'clinic';
+export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'clinic';
 
 export function dirtySections(draft: SettingsDraft, base: SettingsDraft): SectionId[] {
   const out: SectionId[] = [];
@@ -600,6 +602,7 @@ export function dirtySections(draft: SettingsDraft, base: SettingsDraft): Sectio
   if (!deepEqual(draft.waitlist, base.waitlist)) out.push('waitlist');
   if (!deepEqual(draft.reminders, base.reminders)) out.push('reminders');
   if (!deepEqual(draft.payments, base.payments)) out.push('payments');
+  if (!deepEqual(draft.features, base.features)) out.push('features');
   if (
     draft.clinicName !== base.clinicName ||
     draft.clinicTagline !== base.clinicTagline ||

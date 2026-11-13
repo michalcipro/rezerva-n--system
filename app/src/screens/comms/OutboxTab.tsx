@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Channel, Client, ClinicState, Id, Message, MessageTemplate } from '../../domain/types';
-import { sendManualMessage } from '../../engine/commands';
-import { formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
+import { MAX_DELIVERY_ATTEMPTS, sendManualMessage } from '../../engine/commands';
+import { countLabel, formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
 import { getBooking, getClient, getService } from '../../engine/selectors';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
@@ -11,7 +11,6 @@ import {
   Button,
   Callout,
   Card,
-  Checkbox,
   DescriptionList,
   Dialog,
   Drawer,
@@ -27,15 +26,41 @@ import {
 } from '../../ui';
 import { fold, formatWhen, kindLabel, skipAdvice } from './lib';
 
+/** Filtr stavu doručení: „unsent“ = neodesláno z jakéhokoli důvodu (chyba i chybějící souhlas či kontakt). */
+export type OutboxStatusFilter = 'all' | 'sent' | 'queued' | 'unsent' | 'failed' | 'skipped';
+
 export interface OutboxFilter {
   q: string;
   channel: 'all' | Channel;
   kind: 'all' | Message['kind'];
-  unsentOnly: boolean;
+  status: OutboxStatusFilter;
   campaignId: Id | null;
 }
 
-export const DEFAULT_OUTBOX_FILTER: OutboxFilter = { q: '', channel: 'all', kind: 'all', unsentOnly: false, campaignId: null };
+export const DEFAULT_OUTBOX_FILTER: OutboxFilter = { q: '', channel: 'all', kind: 'all', status: 'all', campaignId: null };
+
+const STATUS_FILTER_OPTIONS: { value: OutboxStatusFilter; label: string }[] = [
+  { value: 'all', label: 'Všechny stavy' },
+  { value: 'sent', label: 'Odesláno' },
+  { value: 'queued', label: 'Čeká na odeslání' },
+  { value: 'unsent', label: 'Neodesláno (vše)' },
+  { value: 'failed', label: 'Neodesláno – chyba' },
+  { value: 'skipped', label: 'Neodesláno – souhlas, kontakt' },
+];
+
+function matchesStatus(m: Message, f: OutboxStatusFilter): boolean {
+  if (f === 'all') return true;
+  if (f === 'unsent') return m.status === 'failed' || m.status === 'skipped';
+  return m.status === f;
+}
+
+/** Proč zpráva neodešla nebo kdy odejde (pro řádek tabulky). */
+function statusReason(m: Message): string | null {
+  if (m.status === 'skipped') return m.skipReason ?? null;
+  if (m.status === 'failed') return m.error ?? 'Odeslání se nepodařilo.';
+  if (m.status === 'queued' && m.attempts && m.error) return `Další pokus (${m.attempts + 1} z ${MAX_DELIVERY_ATTEMPTS}) – ${m.error}`;
+  return null;
+}
 
 const PAGE = 50;
 
@@ -48,15 +73,72 @@ function initialsOf(c: Client | undefined): string {
 }
 
 function StatusBadge({ m }: { m: Message }): JSX.Element {
-  return m.status === 'sent' ? (
-    <Badge tone="success" dot plain>
-      Odesláno
-    </Badge>
-  ) : (
-    <Badge tone="warning" dot="square" plain>
-      Neodesláno
-    </Badge>
-  );
+  switch (m.status) {
+    case 'sent':
+      return (
+        <Badge tone="success" dot plain>
+          Odesláno
+        </Badge>
+      );
+    case 'queued':
+      return (
+        <Badge tone="info" dot="ring" plain>
+          Čeká na odeslání
+        </Badge>
+      );
+    case 'failed':
+      return (
+        <Badge tone="danger" dot="square" plain>
+          Neodesláno
+        </Badge>
+      );
+    default:
+      return (
+        <Badge tone="warning" dot="square" plain>
+          Neodesláno
+        </Badge>
+      );
+  }
+}
+
+/** Stav zprávy v detailu: kdy odešla, proč neodešla, nebo že čeká ve frontě. */
+function StatusCallout({ m, deliver }: { m: Message; deliver: boolean }): JSX.Element {
+  const when = `${formatDateLong(m.at, { capital: true })} v ${formatTime(m.at)}`;
+  switch (m.status) {
+    case 'sent':
+      return deliver || m.sentAt ? (
+        <Callout tone="success" title="Odesláno">
+          {m.sentAt ? `Zprávu převzal poskytovatel ${formatDateLong(m.sentAt)} v ${formatTime(m.sentAt)}.` : `${when}.`}
+          {m.attempts && m.attempts > 1 ? ` Podařilo se na ${m.attempts}. pokus.` : ''}
+        </Callout>
+      ) : (
+        <Callout tone="success" title="Odesláno (simulace)">
+          {when}. V ostrém provozu by zprávu doručila {m.channel === 'sms' ? 'SMS brána' : 'e-mailová služba'}.
+        </Callout>
+      );
+    case 'queued':
+      return (
+        <Callout tone="info" title="Čeká na odeslání" icon="hourglass">
+          {m.attempts && m.error
+            ? `Zatím se ji nepodařilo odeslat (${m.error}). Server to zkusí znovu – pokus ${m.attempts + 1} z ${MAX_DELIVERY_ATTEMPTS}.`
+            : 'Zpráva je ve frontě, server ji odešle během několika minut.'}
+        </Callout>
+      );
+    case 'failed':
+      return (
+        <Callout tone="danger" title="Neodesláno – chyba při odeslání">
+          <strong>{m.error ?? 'Odeslání se nepodařilo.'}</strong>{' '}
+          {m.attempts ? `Vzdali jsme to po ${countLabel(m.attempts, ['pokusu', 'pokusech', 'pokusech'])}. ` : ''}Zkontrolujte kontakt klienta a pošlete mu
+          zprávu znovu ručně.
+        </Callout>
+      );
+    default:
+      return (
+        <Callout tone="warning" title="Neodesláno">
+          <strong>{m.skipReason ?? 'Důvod nebyl zaznamenán.'}</strong> {skipAdvice(m.skipReason)}
+        </Callout>
+      );
+  }
 }
 
 function ChannelLabel({ channel }: { channel: Channel }): JSX.Element {
@@ -129,16 +211,7 @@ function MessageDrawer({
     >
       {m && (
         <div className="com-msg">
-          {m.status === 'sent' ? (
-            <Callout tone="success" title="Odesláno (simulace)">
-              {formatDateLong(m.at, { capital: true })} v {formatTime(m.at)}. V ostrém provozu by zprávu doručila{' '}
-              {m.channel === 'sms' ? 'SMS brána' : 'e-mailová služba'}.
-            </Callout>
-          ) : (
-            <Callout tone="warning" title="Neodesláno">
-              <strong>{m.skipReason ?? 'Důvod nebyl zaznamenán.'}</strong> {skipAdvice(m.skipReason)}
-            </Callout>
-          )}
+          <StatusCallout m={m} deliver={!!clinic.settings.messaging?.deliver} />
 
           <DescriptionList
             termWidth={96}
@@ -164,6 +237,7 @@ function MessageDrawer({
               { term: 'Kanál', detail: <ChannelLabel channel={m.channel} /> },
               { term: 'Typ', detail: kindLabel(m.kind, clinic.templates) },
               { term: 'Čas', detail: <span className="tnum">{`${formatDateLong(m.at, { capital: true })} ${formatTime(m.at)}`}</span> },
+              ...(m.attempts ? [{ term: 'Pokusy', detail: <span className="tnum">{`${m.attempts} z ${MAX_DELIVERY_ATTEMPTS}`}</span> }] : []),
               ...(booking
                 ? [
                     {
@@ -279,6 +353,7 @@ function ComposeDialog({
 }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const deliver = !!clinic.settings.messaging?.deliver;
   const [picked, setPicked] = useState<Id | null>(clientId);
   const [channel, setChannel] = useState<Channel>('email');
   const [subject, setSubject] = useState('');
@@ -308,7 +383,7 @@ function ComposeDialog({
     const r = run(
       sendManualMessage,
       { clientId: client.id, channel, subject: channel === 'email' ? subject : '', body },
-      { success: `Zpráva odeslána (simulace): ${clientLabel(client)}`, quiet: true },
+      { success: deliver ? `Zpráva čeká na odeslání: ${clientLabel(client)}` : `Zpráva odeslána (simulace): ${clientLabel(client)}`, quiet: true },
     );
     if (r.ok) {
       onSent();
@@ -370,7 +445,9 @@ function ComposeDialog({
             </Field>
             <p className="com-compose__sim">
               <Icon name="info" size={14} />
-              Simulace: zpráva se reálně neodešle, uloží se do Odeslaných a do komunikace klienta.
+              {deliver
+                ? 'Zprávu odešle server během několika minut; stav uvidíte v Odeslaných a v komunikaci klienta.'
+                : 'Simulace: zpráva se reálně neodešle, uloží se do Odeslaných a do komunikace klienta.'}
             </p>
           </>
         )}
@@ -420,7 +497,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
     for (const m of all) {
       if (filter.channel !== 'all' && m.channel !== filter.channel) continue;
       if (filter.kind !== 'all' && m.kind !== filter.kind) continue;
-      if (filter.unsentOnly && m.status !== 'skipped') continue;
+      if (!matchesStatus(m, filter.status)) continue;
       if (filter.campaignId && m.campaignId !== filter.campaignId) continue;
       if (term) {
         const c = m.clientId ? getClient(clinic, m.clientId) : undefined;
@@ -433,21 +510,26 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
   }, [all, filter, clinic]);
 
   const totals = useMemo(() => {
-    let skipped = 0;
+    let unsent = 0;
+    let failed = 0;
+    let queued = 0;
     let sms = 0;
     for (const m of all) {
-      if (m.status === 'skipped') skipped++;
+      if (m.status === 'skipped' || m.status === 'failed') unsent++;
+      if (m.status === 'failed') failed++;
+      if (m.status === 'queued') queued++;
       if (m.channel === 'sms') sms++;
     }
-    return { all: all.length, skipped, sms, email: all.length - sms };
+    return { all: all.length, unsent, failed, queued, sms, email: all.length - sms };
   }, [all]);
+  const deliver = !!clinic.settings.messaging?.deliver;
 
   const pages = Math.max(1, Math.ceil(list.length / PAGE));
   const current = Math.min(page, pages - 1);
   const rows = list.slice(current * PAGE, current * PAGE + PAGE);
   const openMessage = openId ? (all.find((m) => m.id === openId) ?? null) : null;
   const campaign = filter.campaignId ? clinic.campaigns.find((c) => c.id === filter.campaignId) : undefined;
-  const filtered = filter.q || filter.channel !== 'all' || filter.kind !== 'all' || filter.unsentOnly || filter.campaignId;
+  const filtered = filter.q || filter.channel !== 'all' || filter.kind !== 'all' || filter.status !== 'all' || filter.campaignId;
 
   return (
     <div className="com-outbox">
@@ -461,10 +543,26 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
         <span>
           <strong>{formatNumber(totals.sms)}</strong> SMS
         </span>
+        {totals.queued > 0 && (
+          <span>
+            <button type="button" className="link com-outbox__statlink" onClick={() => set({ status: 'queued' })}>
+              <strong className="text-info">{formatNumber(totals.queued)}</strong> čeká na odeslání
+            </button>
+          </span>
+        )}
         <span>
-          <strong className={totals.skipped ? 'text-warning' : undefined}>{formatNumber(totals.skipped)}</strong> neodesláno
+          {totals.unsent > 0 ? (
+            <button type="button" className="link com-outbox__statlink" onClick={() => set({ status: 'unsent' })}>
+              <strong className={totals.failed ? 'text-danger' : 'text-warning'}>{formatNumber(totals.unsent)}</strong> neodesláno
+              {totals.failed > 0 ? ` (${formatNumber(totals.failed)} s chybou)` : ''}
+            </button>
+          ) : (
+            <>
+              <strong>0</strong> neodesláno
+            </>
+          )}
         </span>
-        <span className="com-outbox__simnote">Simulace – zprávy se reálně neodesílají.</span>
+        <span className="com-outbox__simnote">{deliver ? 'Zprávy odesílá server.' : 'Simulace – zprávy se reálně neodesílají.'}</span>
       </div>
 
       <Card padding="none" className="com-outbox__card">
@@ -497,7 +595,14 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
             onValueChange={(kind) => set({ kind: kind as OutboxFilter['kind'] })}
             options={kindOptions(clinic.templates, all)}
           />
-          <Checkbox label="Jen neodeslané" checked={filter.unsentOnly} onChange={(unsentOnly) => set({ unsentOnly })} />
+          <Select
+            size="sm"
+            inline
+            aria-label="Stav doručení"
+            value={filter.status}
+            onValueChange={(status) => set({ status: status as OutboxStatusFilter })}
+            options={STATUS_FILTER_OPTIONS}
+          />
           {campaign && (
             <span className="com-filters__chip">
               Kampaň: {campaign.name}
@@ -573,7 +678,9 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                         </td>
                         <td className="com-cell-status">
                           <StatusBadge m={m} />
-                          {m.status === 'skipped' && m.skipReason && <span className="com-cell-reason truncate">{m.skipReason}</span>}
+                          {statusReason(m) && (
+                            <span className={m.status === 'failed' ? 'com-cell-reason com-cell-reason--error truncate' : 'com-cell-reason truncate'}>{statusReason(m)}</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -596,7 +703,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                       <span className="com-mrow__subject">{summaryOf(m)}</span>
                       <span className="com-mrow__meta">
                         <StatusBadge m={m} />
-                        <span className="truncate">{m.status === 'skipped' ? m.skipReason : kindLabel(m.kind, clinic.templates)}</span>
+                        <span className="truncate">{statusReason(m) ?? kindLabel(m.kind, clinic.templates)}</span>
                       </span>
                     </button>
                   </li>
