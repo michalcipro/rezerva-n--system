@@ -51,3 +51,42 @@
   line-height: var(--leading-sm);
 }
 .pay-card__toggle { font-size: var(--text-sm); white-space: nowrap; }
+
+/* Vrácení peněz po odstoupení od smlouvy */
+.pay-refunds {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+}
+.pay-refunds__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.pay-refunds__row:last-child {
+  border-bottom: 0;
+}
+.pay-refunds__who {
+  flex: 1 1 180px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pay-refunds__name {
+  font-weight: var(--weight-medium);
+  text-align: left;
+}
+.pay-refunds__meta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.pay-refunds__amount {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ClientConsents, ClientPackage, Id, LedgerEntry, Message } from '../domain/types';
 import { ClientAvatar } from '../components/domain';
-import { createPaymentRequest, creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient } from '../engine/commands';
+import { createPaymentRequest, creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient, withdrawalInfo, withdrawFromPackage } from '../engine/commands';
 import {
   countLabel,
   formatDate,
@@ -24,6 +24,7 @@ import {
   Button,
   Callout,
   Card,
+  Checkbox,
   ChoiceChips,
   EmptyState,
   Field,
@@ -453,7 +454,73 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
             : `Zakoupeno ${formatDate(pkg.purchasedAt)} za ${formatMoney(pkg.priceCzk)} ${MONEY_LABEL[pkg.paidBy] ?? ''}`}
         </span>
       </div>
+      <WithdrawalRow pkg={pkg} />
     </Card>
+  );
+}
+
+/** Odstoupení od smlouvy do 14 dnů od nákupu online (§ 1829 a § 1830a OZ). */
+function WithdrawalRow({ pkg }: { pkg: ClientPackage }): JSX.Element | null {
+  const clinic = useClinic();
+  const now = useNow();
+  const run = useCommand();
+  const [open, setOpen] = useState(false);
+  const [agree, setAgree] = useState(false);
+  if (pkg.withdrawal) {
+    return (
+      <p className="por-note">
+        Od smlouvy jste odstoupili {formatDate(pkg.withdrawal.at)}.{' '}
+        {pkg.withdrawal.refundedAt
+          ? `Částku ${formatMoney(pkg.withdrawal.refundAmount)} jsme vrátili ${formatDate(pkg.withdrawal.refundedAt)}.`
+          : `Vrátíme vám ${formatMoney(pkg.withdrawal.refundAmount)} nejpozději do ${formatDate(pkg.withdrawal.refundDue)}.`}
+      </p>
+    );
+  }
+  const info = withdrawalInfo(clinic, pkg, now);
+  if (!info.allowed) return null;
+  const confirm = (): void => {
+    const r = run(withdrawFromPackage, { packageId: pkg.id }, { success: 'Odstoupení od smlouvy jsme přijali' });
+    if (r.ok) setOpen(false);
+  };
+  return (
+    <>
+      <div className="por-pkg__withdraw">
+        <Button size="sm" variant="ghost" icon="undo" onClick={() => setOpen(true)}>
+          Odstoupit od smlouvy
+        </Button>
+        <span className="por-note">do {formatDateTimeShort(info.until)}</span>
+      </div>
+      {open && (
+        <Sheet
+          open
+          onClose={() => setOpen(false)}
+          title="Odstoupení od smlouvy"
+          footer={
+            <Button variant="danger" size="lg" full disabled={!agree} onClick={confirm}>
+              Odstoupit od smlouvy
+            </Button>
+          }
+        >
+          <div className="por-stack">
+            <p>
+              Permanentku <strong>{pkg.name}</strong> jste koupili online, proto od smlouvy můžete bez udání důvodu odstoupit do 14 dnů od nákupu.
+            </p>
+            <Callout tone="info" icon="wallet">
+              Vrátíme vám <strong>{formatMoney(info.refundAmount)}</strong>
+              {info.usedEntries > 0 ? ` (cena snížená o ${countLabel(info.usedEntries, ['využitý vstup', 'využité vstupy', 'využitých vstupů'])})` : ''} nejpozději do 14 dnů,
+              stejným způsobem, jakým jste platili.
+            </Callout>
+            {info.reservedEntries > 0 && (
+              <Callout tone="warning" icon="calendarX">
+                Zrušíme {countLabel(info.reservedEntries, ['rezervovaný termín', 'rezervované termíny', 'rezervovaných termínů'])} z této permanentky.
+              </Callout>
+            )}
+            <Checkbox checked={agree} onChange={setAgree} label="Chci od smlouvy o této permanentce odstoupit." />
+            <p className="por-note">Potvrzení vám pošleme e-mailem.</p>
+          </div>
+        </Sheet>
+      )}
+    </>
   );
 }
 

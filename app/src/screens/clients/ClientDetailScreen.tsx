@@ -1,3 +1,4 @@
+import { WithdrawalRefundsCard } from '../payments';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Client, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { setConsent } from '../../engine/commands';
@@ -204,6 +205,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
           <div className="split__main">
             <DebtPanel items={debts} onSettle={(item) => setDlg({ kind: 'settle', item })} onWaive={(item) => setDlg({ kind: 'waive', item })} />
             <PendingQrCard requests={pendingQr} />
+            <WithdrawalRefundsCard clientId={client.id} />
             <div className="cli-balances-wrap">
             <div className="cli-balances">
               <PackagesCard

@@ -3,6 +3,8 @@ import type { Channel, Client, ClientPackage, MoneyMethod } from '../../domain/t
 import {
   adjustCredit,
   cancelPackage,
+  withdrawalInfo,
+  withdrawFromPackage,
   creditBonusFor,
   extendPackage,
   payFee,
@@ -374,15 +376,21 @@ export function CancelPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
   const now = useNow();
   const run = useCommand();
   const [refund, setRefund] = useState(true);
+  const [withdraw, setWithdraw] = useState(false);
 
   useEffect(() => {
-    if (open) setRefund(true);
+    if (open) {
+      setRefund(true);
+      setWithdraw(false);
+    }
   }, [open]);
 
   if (!pkg) return null;
   const u = packageUsage(clinic, pkg, dateOf(now));
   const refundAmount = u.free * u.unitValue;
-  const blocked = u.reserved > 0;
+  const wInfo = withdrawalInfo(clinic, pkg, now);
+  // odstoupení od smlouvy (koupeno online, do 14 dnů) – termíny zruší samo, peníze se vrací na účet
+  const blocked = u.reserved > 0 && !withdraw;
 
   return (
     <ConfirmDialog
@@ -398,15 +406,25 @@ export function CancelPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
       confirmLabel="Zrušit permanentku"
       confirmDisabled={blocked}
       onConfirm={() => {
-        const r = run(
-          cancelPackage,
-          { packageId: pkg.id, refundToCredit: refund },
-          { success: refund && refundAmount > 0 ? `Permanentka zrušena, ${formatMoney(refundAmount)} vráceno na kredit` : 'Permanentka zrušena' },
-        );
+        const r = withdraw
+          ? run(withdrawFromPackage, { packageId: pkg.id }, { success: 'Odstoupení od smlouvy zapsáno' })
+          : run(
+              cancelPackage,
+              { packageId: pkg.id, refundToCredit: refund },
+              { success: refund && refundAmount > 0 ? `Permanentka zrušena, ${formatMoney(refundAmount)} vráceno na kredit` : 'Permanentka zrušena' },
+            );
         if (!r.ok) throw new Error(r.error);
       }}
     >
-      {blocked ? (
+      {wInfo.allowed && (
+        <Checkbox
+          checked={withdraw}
+          onChange={setWithdraw}
+          label="Klient odstupuje od smlouvy (koupeno online, do 14 dnů)"
+          description={`Zruší se i rezervované termíny, klient dostane potvrzení e-mailem a ${formatMoney(wInfo.refundAmount)} je potřeba vrátit na účet do 14 dnů.`}
+        />
+      )}
+      {withdraw ? null : blocked ? (
         <Callout tone="danger" title="Nejdřív termíny">
           Na permanentku {u.reserved === 1 ? 'je rezervovaný 1 termín' : `jsou rezervované ${countLabel(u.reserved, ['termín', 'termíny', 'termínů'])}`}. Zrušte je nebo změňte jejich platbu v kalendáři.
         </Callout>
