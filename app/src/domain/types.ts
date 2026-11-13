@@ -408,6 +408,12 @@ export interface MessageTemplate {
   smsBody: string;
 }
 
+/**
+ * queued = čeká na odeslání serverem (ostrý provoz) · sent = odesláno (v testovací verzi simulace)
+ * failed = odeslání selhalo · skipped = neodesláno (chybí souhlas, kontakt, vypnutá šablona…)
+ */
+export type MessageStatus = 'queued' | 'sent' | 'failed' | 'skipped';
+
 export interface Message {
   id: Id;
   clientId: Id | null;
@@ -416,7 +422,13 @@ export interface Message {
   subject: string;
   body: string;
   at: LocalDateTime;
-  status: 'sent' | 'skipped';
+  status: MessageStatus;
+  /** Kdy zprávu skutečně převzal poskytovatel (ostrý provoz). */
+  sentAt?: LocalDateTime;
+  /** Počet pokusů o odeslání. */
+  attempts?: number;
+  /** Chyba z posledního pokusu. */
+  error?: string;
   campaignId?: Id;
   bookingId?: Id;
   /** Proč nebyla zpráva odeslána (chybí souhlas, vypnutá šablona…). */
@@ -543,6 +555,19 @@ export interface PaymentSettings {
   demoAccount: boolean;
 }
 
+/** Funkce, které se v ostrém provozu zapínají vědomě. */
+export interface FeatureSettings {
+  /** Klinické poznámky (zdravotní údaje, GDPR čl. 9). V ostrém provozu výchozí vypnuto. */
+  clinicalNotes: boolean;
+  /** Platba kartou online. Bez platební brány vypnuto; v testovací verzi simulace. */
+  cardPayments: boolean;
+}
+
+export interface MessagingSettings {
+  /** Zprávy skutečně odesílá server (ostrý provoz). Jinak se jen zapíší jako odeslané (simulace). */
+  deliver: boolean;
+}
+
 export interface Settings {
   clinicName: string;
   clinicTagline: string;
@@ -554,6 +579,8 @@ export interface Settings {
   reminders: ReminderSettings;
   creditBonus: CreditBonusRule[];
   payments: PaymentSettings;
+  features: FeatureSettings;
+  messaging: MessagingSettings;
   /** Testovací hodiny – null znamená skutečný čas. */
   simulatedNow: LocalDateTime | null;
 }

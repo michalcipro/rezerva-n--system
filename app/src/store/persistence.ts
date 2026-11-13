@@ -144,6 +144,9 @@ export function normalizeState(s: ClinicState): ClinicState {
     // ukázková data dostanou ukázkový účet, aby šla QR platba hned vyzkoušet
     if (s.demoSeededAt) s.settings.payments = { ...s.settings.payments, accountNumber: DEMO_ACCOUNT.accountNumber, iban: DEMO_ACCOUNT.iban, demoAccount: true };
   }
+  // data uložená před zavedením přepínačů funkcí a skutečného odesílání zpráv
+  if (s.settings && !s.settings.features) s.settings.features = { clinicalNotes: true, cardPayments: true };
+  if (s.settings && !s.settings.messaging) s.settings.messaging = { deliver: false };
   // ukázková data z doby před kruhovým tréninkem: doplnit službu, pravidelné termíny a permanentku Skupiny 8
   if (s.demoSeededAt && s.services && !s.services.some((x) => x.id === 's_g_kruhovy')) {
     const svc = DEFAULT_SERVICES.find((x) => x.id === 's_g_kruhovy');

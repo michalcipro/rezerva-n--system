@@ -159,7 +159,17 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
 
   // 8) Údržba objemu dat (odeslané zprávy a audit)
   const MAX_MESSAGES = 2500;
-  if (d.messages.length > MAX_MESSAGES) d.messages.splice(0, d.messages.length - MAX_MESSAGES);
+  if (d.messages.length > MAX_MESSAGES) {
+    // nejstarší vyřízené zprávy; čekající na odeslání zůstávají
+    let excess = d.messages.length - MAX_MESSAGES;
+    d.messages = d.messages.filter((m) => {
+      if (excess > 0 && m.status !== 'queued') {
+        excess--;
+        return false;
+      }
+      return true;
+    });
+  }
   const keepAudit = addDays(now, -120);
   if (d.audit.length > 1500) d.audit = d.audit.filter((a) => a.at >= keepAudit).slice(-1500);
 

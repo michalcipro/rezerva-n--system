@@ -283,6 +283,8 @@ export function defaultSettings(): Settings {
       { minTopup: 5000, pct: 10 },
     ],
     payments: defaultPaymentSettings(),
+    features: { clinicalNotes: true, cardPayments: true },
+    messaging: { deliver: false },
     simulatedNow: null,
   };
 }

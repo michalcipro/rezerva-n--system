@@ -34,7 +34,7 @@ import type {
 import { checkBookingSlot } from './availability';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
-import { addManualMessage, bookingVars, queueTemplateMessage } from './messages';
+import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage } from './messages';
 import { evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { formatIban, isVsFree, nextVs, parseAccount, qrReady } from './qr';
 import { evaluateSegment, campaignPlainText } from './segments';
@@ -1518,7 +1518,7 @@ export function deliverCampaign(d: ClinicState, ctx: Ctx, campaign: Campaign): n
       subject: campaign.subject.replace(/\[jméno\]/g, c.firstName),
       body: campaignPlainText(campaign, { jméno: c.firstName, klinika: d.settings.clinicName }),
       at: ctx.now,
-      status: 'sent',
+      status: outgoingStatus(d),
       campaignId: campaign.id,
     });
     sent++;
@@ -1567,6 +1567,49 @@ export const sendManualMessage: Command<{ clientId: Id; channel: Channel; subjec
   audit(d, ctx, 'Zpráva klientovi', input.subject || input.channel, { clientId: c.id });
   return ok(msg.id, ['Zpráva odeslána (simulace).']);
 };
+
+/* ------------------------------------------------------------------ */
+/* Doručení zpráv (ostrý provoz – volá jen server)                     */
+/* ------------------------------------------------------------------ */
+
+export interface DeliveryResult {
+  messageId: Id;
+  ok: boolean;
+  error?: string;
+  /** Chyba, u které nemá smysl zkoušet znovu (neplatné číslo, odmítnutá adresa…). */
+  permanent?: boolean;
+}
+
+/** Po třech neúspěšných pokusech se zpráva označí jako neodeslaná. */
+export const MAX_DELIVERY_ATTEMPTS = 3;
+
+/** Zapíše výsledek odeslání zpráv, které server převzal z fronty. */
+export const recordDeliveries: Command<{ results: DeliveryResult[] }, { sent: number; failed: number }> = (d, input, ctx) => {
+  if (!isStaff(ctx)) return fail('Doručení zpráv zapisuje server.');
+  let sent = 0;
+  let failed = 0;
+  for (const r of input.results) {
+    const m = d.messages.find((x) => x.id === r.messageId);
+    if (!m || (m.status !== 'queued' && m.status !== 'failed')) continue;
+    m.attempts = (m.attempts ?? 0) + 1;
+    if (r.ok) {
+      m.status = 'sent';
+      m.sentAt = ctx.now;
+      m.error = undefined;
+      sent++;
+    } else {
+      m.error = r.error ?? 'Odeslání se nepodařilo.';
+      m.status = r.permanent || m.attempts >= MAX_DELIVERY_ATTEMPTS ? 'failed' : 'queued';
+      if (m.status === 'failed') failed++;
+    }
+  }
+  return ok({ sent, failed });
+};
+
+/** Zprávy čekající na odeslání (nejstarší první). */
+export function queuedMessages(s: ClinicState, limit = 50): ClinicState['messages'] {
+  return s.messages.filter((m) => m.status === 'queued').slice(0, limit);
+}
 
 /* ------------------------------------------------------------------ */
 /* Testovací hodiny                                                    */

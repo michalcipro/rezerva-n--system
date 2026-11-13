@@ -260,7 +260,7 @@ export function queueTemplateMessage(draft: ClinicState, input: QueueInput): Mes
       subject: channel === 'email' ? renderTemplate(tpl.subject, vars) : '',
       body: renderTemplate(body, vars),
       at: input.now,
-      status: skipReason ? 'skipped' : 'sent',
+      status: skipReason ? 'skipped' : outgoingStatus(draft),
       bookingId: input.bookingId,
       skipReason,
     };
@@ -282,10 +282,15 @@ export function addManualMessage(
     subject: input.subject,
     body: input.body,
     at: input.now,
-    status: 'sent',
+    status: outgoingStatus(draft),
   };
   draft.messages.push(msg);
   return msg;
+}
+
+/** V ostrém provozu zprávu odešle server (čeká ve frontě), v testovací verzi je rovnou „odeslaná“. */
+export function outgoingStatus(s: ClinicState): 'queued' | 'sent' {
+  return s.settings.messaging?.deliver ? 'queued' : 'sent';
 }
 
 export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
