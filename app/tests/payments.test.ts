@@ -85,7 +85,11 @@ describe('QR Platba – účet a formát', () => {
     const demo = produce(r.state, (d) => {
       d.settings.payments.demoAccount = true;
     });
-    expect(paymentSpayd(demo, { clientId, amount: 2000, vs: '26110001', label: 'Dobití kreditu' })).toContain('MSG:UKAZKA NEPLATIT TESTOVA DOBITI KREDITU');
+    expect(paymentSpayd(demo, { clientId, amount: 2000, vs: '26110001', label: 'Dobití kreditu' })).toContain('MSG:UKAZKA NEPLATIT TESTOVA KREDIT');
+    // název služby se do zprávy pro banku nedostane (údaje o zdraví)
+    const booking = paymentSpayd(r.state, { clientId, amount: 1190, vs: '26110002', label: 'Fyzioterapie 45 min Po 16. 11. 9:00' });
+    expect(booking).toContain('MSG:TESTOVA REZERVACE');
+    expect(booking).not.toContain('FYZIO');
   });
 
   it('bez platného účtu se QR platba nenabízí', () => {

@@ -128,7 +128,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     channels: ['email'],
     enabled: true,
     subject: 'Na permanentce [permanentka] vám zbývají [zbývá]',
-    body: 'Dobrý den, [jméno],\n\nna permanentce [permanentka] vám zbývají [zbývá] (platnost do [platnost_do]). Novou si můžete koupit na recepci nebo v aplikaci.\n\n[klinika]',
+    body: 'Dobrý den, [jméno],\n\nna permanentce [permanentka] vám zbývají [zbývá] (platnost do [platnost_do]).\n\n[klinika]',
     smsBody: '[klinika]: na permanentce zbývají [zbývá].',
   },
   {
@@ -145,7 +145,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
   {
     key: 'after_visit',
     name: 'Po návštěvě: poděkování',
-    description: '2 hodiny po proběhlém termínu.',
+    description: '2 hodiny po proběhlém termínu (jen se souhlasem s obchodními sděleními – žádost o hodnocení je obchodní sdělení).',
     channels: ['email'],
     enabled: true,
     subject: 'Děkujeme za návštěvu',
@@ -176,7 +176,8 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
 ];
 
 /** Šablony, které jsou obchodním sdělením – vyžadují souhlas s marketingem. */
-export const MARKETING_TEMPLATES: readonly TemplateKey[] = ['reactivation', 'birthday'];
+/** Šablony, které jsou obchodním sdělením (žádost o hodnocení, nabídky) – jen se souhlasem s marketingem. */
+export const MARKETING_TEMPLATES: readonly TemplateKey[] = ['reactivation', 'birthday', 'after_visit'];
 
 export type TemplateVars = Record<string, string>;
 

@@ -531,7 +531,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
           {qr && payment && <QrChoiceNote amount={payment.amount} dueAt={qrDueAt(clinic, slot.start, now)} />}
           <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
-            <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. bolest kolene po běhu" />
+            <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. budu potřebovat fakturu na firmu" />
           </Field>
         </>
       )}

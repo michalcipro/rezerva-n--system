@@ -160,10 +160,15 @@ export interface QrPaymentData {
   label: string;
 }
 
-/** Zpráva pro příjemce: příjmení klienta + co se platí (aby šla platba snadno dohledat na výpisu). */
+/**
+ * Zpráva pro příjemce: příjmení klienta a obecný druh platby. Název služby (např. fyzioterapie) do zprávy
+ * nedáváme – zpráva je vidět v bance plátce i kliniky a mohla by prozradit údaje o zdraví.
+ * Platba se páruje podle variabilního symbolu.
+ */
 export function paymentMessage(s: ClinicState, data: Pick<QrPaymentData, 'clientId' | 'label'>): string {
   const c = getClient(s, data.clientId);
-  return qrMessage(s.settings.payments, `${c ? c.lastName + ' ' : ''}${data.label}`);
+  const kind = /^permanentka/i.test(data.label) ? 'permanentka' : /kredit/i.test(data.label) ? 'kredit' : /poplatek/i.test(data.label) ? 'poplatek' : 'rezervace';
+  return qrMessage(s.settings.payments, `${c ? c.lastName + ' ' : ''}${kind}`);
 }
 
 /** Řetězec QR Platby pro výzvu (nebo pro platbu na recepci, která ještě nemá výzvu). */

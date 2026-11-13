@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "build": "tsc --noEmit && vite build && node scripts/build-artifact.mjs",
-    "build:prod": "tsc --noEmit && vite build --mode prod",
+    "build:prod": "tsc --noEmit && vite build --mode prod && node scripts/build-legal.mjs",
     "build:edge": "node scripts/build-edge.mjs",
     "preview": "vite preview"
   },
@@ -28,6 +28,7 @@
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.4",
     "esbuild": "0.21.5",
+    "marked": "18.1.1",
     "typescript": "5.6.3",
     "vite": "5.4.21",
     "vite-plugin-singlefile": "2.0.3",
