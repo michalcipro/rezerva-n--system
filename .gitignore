@@ -1,2 +1,5 @@
 # pracovní kopie pomocných agentů Claude Code
 .claude/worktrees/
+
+# vygenerovaný balík serveru pro Supabase Edge Function (npm run build:edge)
+supabase/functions/api/server.js

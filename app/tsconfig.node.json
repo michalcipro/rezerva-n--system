@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ]
+  },
+  "include": [
+    "server/dev-server.ts",
+    "server/env.d.ts",
+    "src/vite-env.d.ts",
+    "scripts/*.ts"
+  ],
+  "exclude": []
+}

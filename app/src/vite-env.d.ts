@@ -19,3 +19,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Písmo: v ostrém provozu z vlastního webu, v testovací verzi z odkazu v index.html (viz vite.config.ts). */
+declare module 'app-fonts';

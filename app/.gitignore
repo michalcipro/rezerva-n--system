@@ -2,3 +2,11 @@ node_modules
 dist
 *.log
 .vite
+
+# lokální databáze vývojového serveru
+.local
+# sestavení
+dist-prod
+
+# místní proměnné prostředí
+.env*.local

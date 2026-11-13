@@ -25,5 +25,9 @@
     "server",
     "tests",
     "vite.config.ts"
+  ],
+  "exclude": [
+    "server/dev-server.ts",
+    "scripts"
   ]
 }

@@ -1,0 +1,5 @@
+# Nastavení Supabase CLI pro nasazení funkce (projekt se vybírá parametrem --project-ref).
+# Ověření přihlášení dělá server sám (tokeny Supabase Auth), proto brána tokeny nekontroluje –
+# /api/cron a /api/unsubscribe se volají bez přihlášení (chrání je tajemství a podpis).
+[functions.api]
+verify_jwt = false
