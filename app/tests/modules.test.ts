@@ -262,3 +262,32 @@ describe('moduly provozovny', () => {
     expect(after.bookings.find((b) => b.start === '2026-11-16T07:30')?.followUpSentAt).toBeUndefined();
   });
 });
+
+describe('automatika: poděkování po návštěvě', () => {
+  it('odejde jednou 2 h po konci, i když docházka proběhla hned po termínu', () => {
+    const { s: base, clientId } = setup();
+    const booked = ok<Parameters<typeof createBooking>[1], string>(
+      base,
+      createBooking,
+      { clientId, serviceId: 's_fyzio30', therapistId: 't_mala', start: '2026-11-16T07:30', payment: { method: 'onsite' } },
+      staff('2026-11-10T10:00'),
+    );
+    const sys = (now: string): Ctx => ({ now, actor: { role: 'owner', name: 'Systém' } });
+    const followUps = (st: ClinicState): number => st.messages.filter((m) => m.kind === 'after_visit').length;
+    // minutu po konci: docházka, poděkování ještě ne
+    let s = ok(booked.s, runProcesses, {}, sys('2026-11-16T08:01')).s;
+    expect(s.bookings.find((b) => b.id === booked.value)?.status).toBe('completed');
+    expect(followUps(s)).toBe(0);
+    s = ok(s, runProcesses, {}, sys('2026-11-16T09:59')).s;
+    expect(followUps(s)).toBe(0);
+    // 2 h po konci odejde právě jedno
+    s = ok(s, runProcesses, {}, sys('2026-11-16T10:00')).s;
+    expect(followUps(s)).toBe(1);
+    s = ok(s, runProcesses, {}, sys('2026-11-16T10:01')).s;
+    expect(followUps(s)).toBe(1);
+    // starší termíny (víc než 24 h po konci) už ne
+    const late = ok(booked.s, runProcesses, {}, sys('2026-11-17T08:30')).s;
+    expect(followUps(late)).toBe(0);
+  });
+});
+

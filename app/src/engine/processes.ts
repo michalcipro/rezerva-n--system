@@ -42,11 +42,17 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
         b.payment.paidAt = b.end;
         b.payment.settledBy = method;
       }
-      // poděkování po návštěvě jen u čerstvě skončených termínů
-      if (marketingOn && !b.followUpSentAt && b.end > addHours(now, -24) && addHours(b.end, 2) <= now) {
-        queueTemplateMessage(d, { key: 'after_visit', clientId: b.clientId, now, bookingId: b.id, vars: bookingVars(d, b) });
-        b.followUpSentAt = now;
-      }
+    }
+  }
+
+  // 1b) Poděkování po návštěvě: jednou, 2–24 h po konci proběhlého termínu (docházka automaticky i ručně).
+  // Dřív se kontrolovalo jen v kroku 1 při označení docházky – ta proběhne minutu po konci, takže
+  // podmínka „2 h po konci“ nikdy neplatila a poděkování se neodesílalo.
+  if (marketingOn) {
+    for (const b of d.bookings) {
+      if (b.status !== 'completed' || b.followUpSentAt || b.end <= addHours(now, -24) || addHours(b.end, 2) > now) continue;
+      queueTemplateMessage(d, { key: 'after_visit', clientId: b.clientId, now, bookingId: b.id, vars: bookingVars(d, b) });
+      b.followUpSentAt = now;
     }
   }
 

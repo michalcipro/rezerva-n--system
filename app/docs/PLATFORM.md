@@ -35,9 +35,23 @@ a přihlásit se svým e-mailem). Jeho změny jsou v historii označené „podp
 - `https://<adresa platformy>/platforma` – konzole vlastníka platformy.
 
 ### Šablony oborů
-`fyzio` (klinika / terapeut), `masaze` (studio / masér), `fitness` (studio / trenér), `beauty` (salon / kosmetička),
-`prazdna` (provozovna / specialista, bez katalogu). Šablona připraví služby, ceník, permanentky, skupinové lekce,
-názvosloví a moduly; tým tvoří jen majitel. Vše se pak upraví v aplikaci.
+| Šablona | Názvosloví | Moduly | Katalog |
+|---|---|---|---|
+| `fyzio` | klinika / terapeut | vše | 15 služeb, 5 permanentek, 4 skupinové lekce týdně |
+| `masaze` | studio / masér | bez skupinových lekcí | 9 služeb, 3 permanentky; storno 24 h, potom 50 % |
+| `fitness` | studio / trenér | vše | 9 služeb (4 skupinové), 4 permanentky, 8 lekcí týdně |
+| `beauty` | salon / kosmetička | bez skupinových lekcí | 15 služeb, 3 permanentky; nedostavení 100 % |
+| `prazdna` | provozovna / specialista | bez marketingu | prázdný katalog |
+
+Šablona připraví služby, ceník, permanentky, skupinové lekce, storno podmínky, názvosloví, moduly a texty zpráv;
+tým tvoří jen majitel (poskytuje všechny služby). Vše se pak upraví v aplikaci.
+
+### Názvosloví a moduly
+- **Názvosloví** (Nastavení → Názvosloví): jak aplikace, portál a zprávy říkají provozovně (klinika, studio, salon,
+  centrum, provozovna, ordinace, praxe) a lidem, kteří služby poskytují (terapeut, fyzioterapeut, masér, trenér,
+  lektor, instruktor, specialista, kosmetička, kadeřník, kadeřnice) – ve všech pádech.
+- **Moduly** (Nastavení → Moduly): skupinové lekce, permanentky, kredit, marketing. Vypnutý modul zmizí z menu,
+  z obrazovek i z portálu a server odmítne jeho příkazy; data zůstanou a po zapnutí se vrátí.
 
 ### Licence
 | Stav | Kdy | Co se děje |
