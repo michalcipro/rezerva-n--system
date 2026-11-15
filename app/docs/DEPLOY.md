@@ -71,6 +71,7 @@ Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
    | `CRON_SECRET` | náhodný řetězec (aspoň 32 znaků) |
    | `ALLOWED_ORIGINS` | adresa aplikace a vlastní domény zákazníků, např. `https://app.vase-platforma.cz,https://rezervace.klinika.cz` |
    | `PUBLIC_API_URL` | `https://<ref>.supabase.co/functions/v1/api` |
+   | `PUBLIC_APP_URL` | adresa aplikace, např. `https://app.vase-platforma.cz` (odkaz v denním přehledu licencí) |
    | `BREVO_API_KEY` | API klíč z Brevo (`xkeysib-…`) – bez něj se zprávy jen řadí do fronty |
    | `MAIL_FROM` | odesílací adresa na ověřené doméně, např. `rezervace@klinika.cz` |
    | `MAIL_FROM_NAME` | jméno odesílatele (jinak se bere název kliniky z nastavení) |

@@ -48,6 +48,8 @@ názvosloví a moduly; tým tvoří jen majitel. Vše se pak upraví v aplikaci.
 | Pozastaveno | ručně v konzoli (neplacení, ukončení) | nikdo se nepřihlásí (kromě vás), automatika neběží |
 
 Prodloužení: konzole → Upravit → „+ měsíc“ / „+ rok“ (nebo datum) → Uložit. Doživotní licence nemá datum.
+Jednou denně vám (`PLATFORM_ADMIN_EMAILS`) přijde e-mail se seznamem provozoven, kterým licence končí do 14 dní
+nebo už skončila – podklad pro fakturu a prodloužení (adresu konzole v e-mailu určuje `PUBLIC_APP_URL`).
 
 ## Založení nového zákazníka (technicky)
 1. Konzole → **Nová provozovna**: název, adresa, obor, jméno a e-mail majitele, licence a platnost.

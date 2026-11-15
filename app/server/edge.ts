@@ -2,6 +2,7 @@ import { createApi, type CronContext } from './api';
 import { supabaseAuth } from './auth';
 import { decryptSecret } from './core/secrets';
 import { bankJob, deliveryJob } from './cron';
+import { licenseDigestMailer } from './digest';
 import { createBrevoMessenger } from './providers';
 import { createRestStore } from './store/rest';
 
@@ -15,6 +16,7 @@ import { createRestStore } from './store/rest';
  *   CRON_SECRET            tajemství pro /api/cron (volá ho plánovač v databázi)
  *   ALLOWED_ORIGINS        adresy aplikace a vlastní domény provozoven, oddělené čárkou
  *   PUBLIC_API_URL         veřejná adresa API (odkazy pro odhlášení z novinek)
+ *   PUBLIC_APP_URL         adresa aplikace (odkaz na konzoli v denním přehledu licencí)
  *   UNSUBSCRIBE_SECRET     podpis odkazů pro odhlášení (jinak se použije CRON_SECRET)
  *   BREVO_API_KEY, MAIL_FROM, MAIL_FROM_NAME, SMS_SENDER   odesílání e-mailů a SMS
  *   APP_ANON_KEY, APP_SERVICE_KEY  nové klíče Supabase (sb_publishable_…, sb_secret_…), pokud se nepoužívají starší
@@ -50,21 +52,13 @@ export function createEdgeHandler(env: Env): (req: Request) => Promise<Response>
   const unsubscribeSecret = env.UNSUBSCRIBE_SECRET || env.CRON_SECRET;
   const secretsKey = env.SECRETS_KEY || undefined;
   const cronJobs = [];
-  if (env.BREVO_API_KEY && env.MAIL_FROM) {
-    cronJobs.push(
-      deliveryJob({
-        messenger: createBrevoMessenger({
-          apiKey: env.BREVO_API_KEY,
-          senderEmail: env.MAIL_FROM,
-          senderName: env.MAIL_FROM_NAME ?? '',
-          smsSender: env.SMS_SENDER ?? '',
-        }),
-        publicApiUrl: env.PUBLIC_API_URL,
-        unsubscribeSecret,
-        log,
-      }),
-    );
-  }
+  const messenger =
+    env.BREVO_API_KEY && env.MAIL_FROM
+      ? createBrevoMessenger({ apiKey: env.BREVO_API_KEY, senderEmail: env.MAIL_FROM, senderName: env.MAIL_FROM_NAME ?? '', smsSender: env.SMS_SENDER ?? '' })
+      : null;
+  if (messenger) cronJobs.push(deliveryJob({ messenger, publicApiUrl: env.PUBLIC_API_URL, unsubscribeSecret, log }));
+  const admins = list(env.PLATFORM_ADMIN_EMAILS);
+  const licenseDigest = messenger && admins.length ? licenseDigestMailer(messenger, admins, env.PUBLIC_APP_URL) : undefined;
   // párování plateb: každá provozovna má vlastní účet a token (šifrovaně v databázi)
   const tokenFor = async ({ clinicId }: CronContext): Promise<string | null> => {
     const secrets = await store.getClinicSecrets(clinicId);
@@ -87,10 +81,11 @@ export function createEdgeHandler(env: Env): (req: Request) => Promise<Response>
     cronSecret: env.CRON_SECRET,
     allowedOrigins: list(env.ALLOWED_ORIGINS).map((o) => o.replace(/\/$/, '')),
     defaultClinicId: env.CLINIC_ID || undefined,
-    platformAdmins: list(env.PLATFORM_ADMIN_EMAILS),
+    platformAdmins: admins,
     secretsKey,
     unsubscribeSecret,
     cronJobs,
+    licenseDigest,
     log,
   });
 }

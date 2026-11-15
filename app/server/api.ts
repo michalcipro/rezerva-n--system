@@ -53,6 +53,16 @@ import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateSt
  *   POST /api/dev/login                  přihlášení bez e-mailu – jen lokální vývoj
  */
 
+export interface LicenseDigestItem {
+  name: string;
+  slug: string;
+  plan: LicensePlan;
+  validUntil: string | null;
+  state: LicenseView['state'];
+  daysLeft: number | null;
+  owners: { email: string; name: string }[];
+}
+
 export interface CronContext {
   clinicId: string;
   tenant: ClinicInfo;
@@ -87,6 +97,8 @@ export interface ApiDeps {
   unsubscribeSecret?: string;
   /** Akce po úspěšném příkazu. */
   afterCommand?: Record<string, (ctx: { clinicId: string; input: unknown; store: StateStore }) => Promise<void>>;
+  /** Jednou denně: provozovny, kterým licence končí nebo skončila (e-mail vlastníkovi platformy). */
+  licenseDigest?: (items: LicenseDigestItem[]) => Promise<void>;
   log?: (message: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -828,7 +840,24 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       report.push(item);
     }
     await store.maintenance().catch((e: unknown) => log('Údržba databáze selhala', { error: String(e) }));
-    return { ok: true, at: now(), clinics: report };
+    const digest = await sendLicenseDigest().catch((e: unknown) => {
+      log('Přehled licencí se nepodařilo odeslat', { error: String(e) });
+      return 'chyba';
+    });
+    return { ok: true, at: now(), clinics: report, licenseDigest: digest };
+  }
+
+  /** Jednou denně přehled licencí, které končí nebo skončily (zámek v databázi = nejvýš jeden e-mail za den). */
+  async function sendLicenseDigest(): Promise<string> {
+    if (!deps.licenseDigest) return 'vypnuto';
+    const items: LicenseDigestItem[] = (await store.platformClinics())
+      .map((c) => ({ c, lv: licenseOf(c) }))
+      .filter(({ lv }) => lv.state === 'expiring' || lv.state === 'grace' || lv.state === 'readonly')
+      .map(({ c, lv }) => ({ name: c.name, slug: c.slug, plan: c.license.plan, validUntil: c.license.validUntil, state: lv.state, daysLeft: lv.daysLeft, owners: c.owners }));
+    if (!items.length) return 'nic ke kontrole';
+    if (!(await store.acquireLock(`license-digest-${today()}`, crypto.randomUUID(), 26 * 3600))) return 'dnes už odesláno';
+    await deps.licenseDigest(items);
+    return `odesláno (${items.length})`;
   }
 
   function page(req: Request, status: number, title: string, body: string): Response {

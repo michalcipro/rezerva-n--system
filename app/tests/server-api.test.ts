@@ -4,7 +4,8 @@ import type { CommandResponse, PlatformTenant, PublicTenant, SessionInfo, StateP
 import type { ClinicState } from '../src/domain/types';
 import { availableSlots } from '../src/engine/availability';
 import { devAuth } from '../server/auth';
-import { createApi } from '../server/api';
+import { createApi, type LicenseDigestItem } from '../server/api';
+import { licenseDigestText } from '../server/digest';
 import { chunksToState } from '../server/core/state';
 import { decryptSecret } from '../server/core/secrets';
 import { MIGRATIONS } from '../server/store/migrations';
@@ -23,6 +24,7 @@ let db: PGlite;
 const tokens: Record<string, string> = {};
 let n = 0;
 let tenantA: PlatformTenant;
+const digests: LicenseDigestItem[][] = [];
 
 async function call<T = unknown>(
   method: string,
@@ -76,6 +78,9 @@ beforeAll(async () => {
     platformAdmins: ['platforma@example.cz'],
     secretsKey: SECRETS_KEY,
     allowedOrigins: ['https://rezervace.example.cz'],
+    licenseDigest: async (items) => {
+      digests.push(items);
+    },
     log: () => undefined,
   });
   await login('platforma', 'platforma@example.cz');
@@ -332,6 +337,24 @@ describe('API platformy', () => {
     expect(await decryptSecret(SECRETS_KEY, raw.rows[0].value)).toBe(token);
     const cleared = await call<{ key: string }[]>('PUT', `/platform/tenants/${tenantA.id}/secrets`, { as: 'platforma', tenant: null, body: { fioToken: null } });
     expect(cleared.body).toEqual([]);
+  });
+
+  it('vlastník platformy dostane jednou denně přehled končících licencí', async () => {
+    const list = await call<PlatformTenant[]>('GET', '/platform/tenants', { as: 'platforma', tenant: null });
+    const b = list.body.find((t) => t.slug === 'studio-b')!;
+    await call('PATCH', `/platform/tenants/${b.id}`, { as: 'platforma', tenant: null, body: { plan: 'monthly', validUntil: '2026-11-24' } });
+    const before = digests.length;
+    const first = await call<{ licenseDigest: string }>('POST', '/cron', { headers: { 'x-cron-secret': CRON }, tenant: null });
+    expect(first.body.licenseDigest).toBe('odesláno (1)');
+    expect(digests.length).toBe(before + 1);
+    expect(digests.at(-1)![0]).toMatchObject({ slug: 'studio-b', state: 'expiring', daysLeft: 7 });
+    const second = await call<{ licenseDigest: string }>('POST', '/cron', { headers: { 'x-cron-secret': CRON }, tenant: null });
+    expect(second.body.licenseDigest).toBe('dnes už odesláno');
+    const mail = licenseDigestText(digests.at(-1)!, 'https://app.example.cz');
+    expect(mail.subject).toBe('Licence ke kontrole: 1 provozovna');
+    expect(mail.text).toContain('Studio B (/studio-b): Měsíční licence do 24. 11. 2026 – končí – zbývá 7 d.');
+    expect(mail.text).toContain('https://app.example.cz/platforma');
+    await call('PATCH', `/platform/tenants/${b.id}`, { as: 'platforma', tenant: null, body: { plan: 'lifetime', validUntil: null } });
   });
 
   it('automatika běží jen s tajným klíčem a pro všechny provozovny', async () => {
