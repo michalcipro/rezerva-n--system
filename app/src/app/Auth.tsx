@@ -4,7 +4,7 @@ import { ApiError } from '../api/client';
 import { DEV_LOGIN, PLATFORM_NAME, SUPABASE_URL } from '../api/config';
 import { useStore } from '../store/hooks';
 import { logout, registerClient } from '../store/server';
-import { Button, Checkbox, Field, Icon, Input } from '../ui';
+import { Button, Callout, Checkbox, Field, Icon, Input } from '../ui';
 import { LegalLink } from './Legal';
 import './auth.css';
 
@@ -42,6 +42,7 @@ const DEV_USERS: { email: string; label: string }[] = [
 
 export function LoginScreen(): JSX.Element {
   const platform = useStore((s) => s.platform);
+  const licenseState = useStore((s) => s.tenant?.license.state);
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -126,6 +127,13 @@ export function LoginScreen(): JSX.Element {
                 ? 'Správa provozoven a licencí. Přihlaste se e-mailem vlastníka platformy – pošleme vám jednorázový kód.'
                 : 'Zadejte svůj e-mail. Pošleme vám jednorázový kód – žádné heslo si nemusíte pamatovat.'}
             </p>
+            {!platform && (licenseState === 'blocked' || licenseState === 'readonly') && (
+              <Callout tone="warning" icon="info">
+                {licenseState === 'blocked'
+                  ? 'Online rezervace jsou dočasně nedostupné. Kontaktujte prosím provozovnu.'
+                  : 'Nové online rezervace teď nejdou. Přihlásit se můžete kvůli svým termínům, nebo kontaktujte provozovnu.'}
+              </Callout>
+            )}
             <Field label="E-mail" error={error ?? undefined}>
               <Input
                 type="email"

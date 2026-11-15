@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { downloadFile } from '../../app/download';
+import { downloadFile, downloadNotice } from '../../app/download';
 import type { ClinicState } from '../../domain/types';
 import { toCsv } from '../../engine/importer';
 import { clientName, getClient, getService, getTherapist, therapistName } from '../../engine/selectors';
@@ -100,7 +100,10 @@ export function ExportSection(): JSX.Element {
   const save = async (filename: string, data: string, mime: string): Promise<void> => {
     const r = await downloadFile(filename, data, mime);
     if (r === 'saved') toast(`Staženo: ${filename}`, { tone: 'success' });
-    else if (r !== 'declined') toast('Soubor se nepodařilo stáhnout.', { tone: 'danger' });
+    else {
+      const notice = downloadNotice(r);
+      if (notice) toast(notice, { tone: 'warning' });
+    }
   };
 
   const exportJson = async (): Promise<void> => {
