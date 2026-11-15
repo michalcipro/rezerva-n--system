@@ -32,6 +32,11 @@ import type {
   Therapist,
   TimeOff,
   WaitlistEntry,
+  BrandingSettings,
+  LegalSettings,
+  ModuleSettings,
+  NounForms,
+  TermsSettings,
 } from '../domain/types';
 import { checkBookingSlot } from './availability';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
@@ -1531,20 +1536,63 @@ export const removeTimeOff: Command<{ id: Id }> = (d, input, ctx) => {
   return ok(undefined);
 };
 
-type SettingsPatch = Partial<Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'payments'>> & {
+type SettingsPatch = Partial<
+  Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'messaging' | 'terms' | 'modules' | 'branding' | 'legal' | 'policyHistory'>
+> & {
   payments?: Partial<Omit<PaymentSettings, 'iban' | 'demoAccount'>>;
   bookingRules?: Partial<Settings['bookingRules']>;
   policy?: Partial<Omit<Settings['policy'], 'excuses'>> & { excuses?: Partial<Settings['policy']['excuses']> };
   waitlist?: Partial<Settings['waitlist']>;
   reminders?: Partial<Settings['reminders']>;
+  features?: Partial<Settings['features']>;
+  messaging?: Partial<Settings['messaging']>;
+  terms?: Partial<TermsSettings>;
+  modules?: Partial<ModuleSettings>;
+  branding?: Partial<BrandingSettings>;
+  legal?: Partial<Pick<LegalSettings, 'terms' | 'privacy'>>;
 };
+
+const ACCENT_RE = /^#[0-9a-f]{6}$/i;
+const LOGO_RE = /^data:image\/(png|svg\+xml|webp|jpeg);base64,[A-Za-z0-9+/=]+$/;
+/** Logo v nastavení (data URL) – do cca 200 kB obrázku. */
+export const MAX_LOGO_LENGTH = 280_000;
+export const MAX_LEGAL_LENGTH = 120_000;
+
+function validNoun(n: unknown): n is NounForms {
+  const forms = (x: unknown): boolean => Array.isArray(x) && x.length === 6 && x.every((f) => typeof f === 'string' && f.trim().length > 0 && f.length <= 40);
+  const v = n as NounForms | undefined;
+  return !!v && forms(v.sg) && forms(v.pl) && ['m', 'i', 'f', 'n'].includes(v.gender);
+}
 
 export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
   const denied = requireStaff(ctx);
   if (denied && Object.keys(patch).some((k) => k !== 'simulatedNow')) return fail(denied);
   const s = d.settings;
-  const { bookingRules, policy, waitlist, reminders, payments, ...rest } = patch;
+  const { bookingRules, policy, waitlist, reminders, payments, features, messaging, terms, modules, branding, legal, ...rest } = patch;
   Object.assign(s, rest);
+  if (features) s.features = { ...s.features, ...features };
+  if (messaging) s.messaging = { ...s.messaging, ...messaging };
+  if (modules) {
+    const next = { ...s.modules, ...modules };
+    if (Object.values(next).some((v) => typeof v !== 'boolean')) return fail('Neplatné nastavení modulů.');
+    s.modules = next;
+  }
+  if (terms) {
+    const next = { ...s.terms, ...terms };
+    if (!validNoun(next.business) || !validNoun(next.staff)) return fail('Názvosloví musí mít vyplněné všechny tvary (nejvýše 40 znaků).');
+    s.terms = { business: { ...next.business, sg: [...next.business.sg], pl: [...next.business.pl] }, staff: { ...next.staff, sg: [...next.staff.sg], pl: [...next.staff.pl] } };
+  }
+  if (branding) {
+    const next = { ...s.branding, ...branding };
+    if (next.accent !== null && !ACCENT_RE.test(next.accent)) return fail('Barva musí být ve tvaru #RRGGBB.');
+    if (next.logo !== null && (next.logo.length > MAX_LOGO_LENGTH || !LOGO_RE.test(next.logo))) return fail('Logo musí být obrázek PNG, SVG, WebP nebo JPEG do 200 kB.');
+    s.branding = next;
+  }
+  if (legal) {
+    const next = { ...s.legal, ...legal };
+    if (next.terms.length > MAX_LEGAL_LENGTH || next.privacy.length > MAX_LEGAL_LENGTH) return fail('Text je příliš dlouhý.');
+    s.legal = { terms: next.terms, privacy: next.privacy, updatedAt: ctx.now };
+  }
   if (payments) {
     const next: PaymentSettings = { ...s.payments, ...payments };
     if (payments.accountNumber !== undefined) {

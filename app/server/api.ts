@@ -289,10 +289,21 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (name === 'sellPackage' && input.paidBy === 'online') return true;
     if (name === 'topUpCredit' && input.method === 'online') return true;
     if (name === 'updateSettings') {
-      const features = (input.patch as { features?: { cardPayments?: unknown } } | undefined)?.features;
+      const patch = input as { features?: { cardPayments?: unknown }; patch?: { features?: { cardPayments?: unknown } } };
+      const features = patch.features ?? patch.patch?.features;
       if (features?.cardPayments === true) return true;
     }
     return false;
+  }
+
+  /** Nastavení, která v ostrém provozu nedávají smysl (simulace odesílání, testovací hodiny). */
+  function violatesServerPolicy(name: string, input: Record<string, unknown>): string | null {
+    if (name !== 'updateSettings') return null;
+    const messaging = input.messaging as { deliver?: unknown } | undefined;
+    if (messaging && messaging.deliver === false) return 'V ostrém provozu se zprávy vždy skutečně odesílají – jednotlivé zprávy vypnete v Komunikace → Šablony.';
+    if (input.simulatedNow !== undefined && input.simulatedNow !== null) return 'Testovací hodiny jsou jen v testovací verzi.';
+    if (input.policyHistory !== undefined) return 'Historii storno podmínek nelze měnit.';
+    return null;
   }
 
   function newCommandId(prefix: string): string {
@@ -427,6 +438,8 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (invalid) throw new HttpError(400, invalid);
     const input = body.input as Record<string, unknown>;
     if (violatesPaymentPolicy(name, input)) throw new HttpError(400, 'Platba kartou online zatím není k dispozici. Zvolte prosím QR platbu nebo platbu na místě.');
+    const policyError = violatesServerPolicy(name, input);
+    if (policyError) throw new HttpError(400, policyError);
 
     if (body.retry) {
       const appliedAt = await store.commandApplied(r.clinicId, body.commandId);

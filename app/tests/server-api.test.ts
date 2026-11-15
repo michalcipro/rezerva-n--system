@@ -192,6 +192,13 @@ describe('API', () => {
     expect(delta.body.chunks.map((c) => c.key).sort()).toEqual(r.body.changes!.map((c) => c.key).sort());
   });
 
+  it('ostrý provoz nedovolí zapnout simulované platby kartou ani vypnout odesílání zpráv', async () => {
+    expect((await cmd('owner', 'updateSettings', { features: { cardPayments: true } })).status).toBe(400);
+    expect((await cmd('owner', 'updateSettings', { messaging: { deliver: false } })).status).toBe(400);
+    const ok = await cmd('owner', 'updateSettings', { modules: { marketing: false }, branding: { accent: '#7c3aed' } });
+    expect(ok.body.ok).toBe(true);
+  });
+
   it('automatika běží jen s tajným klíčem', async () => {
     expect((await call('POST', '/cron')).status).toBe(401);
     const r = await call<{ ok: boolean; clinics: { processes: unknown }[] }>('POST', '/cron', { headers: { 'x-cron-secret': CRON } });
