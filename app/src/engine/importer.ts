@@ -23,6 +23,7 @@ import type {
   PackageTemplate,
 } from '../domain/types';
 import { pushAudit } from './auditLog';
+import { SMS_ENABLED } from './channels';
 import { fail, ok } from './commands';
 import { countLabel, formatDate, formatMoney } from './format';
 import { isAnonymized } from './gdpr';
@@ -388,6 +389,11 @@ const EMAIL_ALIASES = ['email', 'mail', 'emailovaadresa', 'emailadresa', 'emaila
 const PHONE_ALIASES = ['telefon', 'tel', 'telefonnicislo', 'cislotelefonu', 'mobil', 'mobilnitelefon', 'mobilnicislo', 'phone', 'phonenumber', 'mobile', 'telefonklienta'];
 const NAME_ALIASES = ['jmenoaprijmeni', 'celejmeno', 'klient', 'zakaznik', 'jmenoklienta', 'fullname', 'name', 'clientname', 'customer'];
 
+/** Souhlas se SMS – s vypnutými SMS (engine/channels.ts) není v mapování: sloupec se přijme a ignoruje („Nepoužijeme“). */
+const SMS_COLUMN: readonly ColumnSpec<ClientField>[] = SMS_ENABLED
+  ? [{ field: 'sms', label: 'Souhlas SMS', aliases: ['souhlassms', 'smssouhlas', 'souhlasssms', 'souhlassesms', 'sms', 'smsconsent'], hint: 'ano / ne. Prázdné = bez souhlasu.' }]
+  : [];
+
 export const IMPORT_COLUMNS: { [K in ImportKind]: readonly ColumnSpec<FieldOf<K>>[] } = {
   clients: [
     { field: 'firstName', label: 'Jméno', aliases: ['jmeno', 'krestnijmeno', 'firstname', 'givenname', 'first'], requirement: 'povinné', hint: 'Křestní jméno.' },
@@ -402,7 +408,7 @@ export const IMPORT_COLUMNS: { [K in ImportKind]: readonly ColumnSpec<FieldOf<K>
       aliases: ['souhlasemailmarketing', 'souhlasemail', 'souhlasmarketing', 'souhlasmarketingemail', 'souhlasnewsletter', 'souhlasobchodnisdeleni', 'souhlasseobchodnimisdelenimi', 'obchodnisdeleni', 'marketing', 'newsletter', 'marketingconsent', 'emailconsent', 'emailmarketing'],
       hint: 'ano / ne, případně datum udělení. Prázdné = bez souhlasu.',
     },
-    { field: 'sms', label: 'Souhlas SMS', aliases: ['souhlassms', 'smssouhlas', 'souhlasssms', 'souhlassesms', 'sms', 'smsconsent'], hint: 'ano / ne. Prázdné = bez souhlasu.' },
+    ...SMS_COLUMN,
     {
       field: 'health',
       label: 'Souhlas zdravotní dokumentace',
@@ -712,6 +718,9 @@ const CONSENT_CHANGE_LABEL: Record<ImportedConsent, string> = {
   health: 'souhlas zdravotní dokumentace',
 };
 
+/** Souhlasy, které import přebírá ze souboru – souhlas se SMS jen se zapnutými SMS (jinak nový nevzniká). */
+const IMPORTED_CONSENTS: readonly ImportedConsent[] = SMS_ENABLED ? ['marketingEmail', 'sms', 'health'] : ['marketingEmail', 'health'];
+
 interface ClientUpdatePlan {
   email?: string;
   phone?: string;
@@ -743,7 +752,7 @@ function planUpdate(existing: Client, data: ClientDraft): ClientUpdatePlan {
     plan.internalNote = existing.internalNote.trim() ? `${existing.internalNote.trim()}\n${data.note}` : data.note;
     plan.labels.push('poznámka');
   }
-  for (const key of ['marketingEmail', 'sms', 'health'] as const) {
+  for (const key of IMPORTED_CONSENTS) {
     if (key === 'marketingEmail' && !data.email && !existing.email) continue;
     if (data.consents[key] && !existing.consents[key]) {
       plan.grant.push(key);
@@ -758,7 +767,8 @@ function planUpdate(existing: Client, data: ClientDraft): ClientUpdatePlan {
  * - povinné: jméno a příjmení, e-mail nebo telefon; neplatný e-mail = chyba;
  * - klient už v systému: stejný e-mail, nebo stejný telefon a jméno → `onDuplicate` (přeskočit / doplnit údaje);
  * - stejný klient v souboru víckrát: platí první řádek, další se přeskočí;
- * - souhlas s obchodními sděleními a SMS jen tam, kde soubor uvádí „ano“ (nebo datum udělení).
+ * - souhlas s obchodními sděleními jen tam, kde soubor uvádí „ano“ (nebo datum udělení);
+ *   souhlas se SMS se s vypnutými SMS nečte (sloupec i hodnota z jiného zdroje se ignorují).
  */
 export function checkClientRows(s: ClinicState, rows: readonly ClientImportRow[], onDuplicate: 'skip' | 'update', now: LocalDateTime): ClientRowCheck[] {
   const today = dateOf(now);
@@ -808,7 +818,7 @@ export function checkClientRows(s: ClinicState, rows: readonly ClientImportRow[]
       else birthDate = d;
     }
     const consents: ClientDraft['consents'] = { marketingEmail: null, sms: null, health: null };
-    for (const key of ['marketingEmail', 'sms', 'health'] as const) {
+    for (const key of IMPORTED_CONSENTS) {
       const value = r[key];
       if (value === undefined || value === '') continue;
       const yes = parseYesNo(value);
@@ -1148,7 +1158,7 @@ export interface ImportClientsInput {
 
 /**
  * Import klientů (jen majitelka a recepce). Každý nový klient dostane souhlas se zpracováním
- * údajů se zdrojem „import ze stávajícího systému“; obchodní sdělení a SMS jen podle souboru.
+ * údajů se zdrojem „import ze stávajícího systému“; obchodní sdělení (a se zapnutými SMS souhlas se SMS) jen podle souboru.
  * Nic se neodesílá. Řádky s chybou se přeskočí a vrátí v `failed`.
  */
 export const importClients: Command<ImportClientsInput, ImportResult> = (d, input, ctx) => {
@@ -1313,10 +1323,12 @@ export const IMPORT_TEMPLATE_FILENAME: Record<ImportKind, string> = {
 export function importTemplateCsv(kind: ImportKind, s?: ClinicState): string {
   let rows: string[][];
   if (kind === 'clients') {
+    // sloupec se souhlasem SMS jen se zapnutými SMS
+    const sms = (value: string): string[] => (SMS_ENABLED ? [value] : []);
     rows = [
-      ['Jméno', 'Příjmení', 'E-mail', 'Telefon', 'Datum narození', 'Souhlas e-mail/marketing', 'Souhlas SMS', 'Štítky', 'Poznámka', 'Klientem od'],
-      ['Jana', 'Nováková', 'jana.novakova@example.cz', '+420 777 123 456', '15. 3. 1985', 'ano', 'ano', 'záda, běh', 'Preferuje ranní termíny', '2. 5. 2023'],
-      ['Petr', 'Svoboda', 'petr.svoboda@example.cz', '603 987 654', '1980-11-02', 'ne', 'ano', '', '', ''],
+      ['Jméno', 'Příjmení', 'E-mail', 'Telefon', 'Datum narození', 'Souhlas e-mail/marketing', ...sms('Souhlas SMS'), 'Štítky', 'Poznámka', 'Klientem od'],
+      ['Jana', 'Nováková', 'jana.novakova@example.cz', '+420 777 123 456', '15. 3. 1985', 'ano', ...sms('ano'), 'záda, běh', 'Preferuje ranní termíny', '2. 5. 2023'],
+      ['Petr', 'Svoboda', 'petr.svoboda@example.cz', '603 987 654', '1980-11-02', 'ne', ...sms('ano'), '', '', ''],
     ];
   } else if (kind === 'packages') {
     const names = (s?.packageTemplates ?? [])

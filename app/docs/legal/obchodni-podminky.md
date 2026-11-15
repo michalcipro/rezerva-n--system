@@ -22,7 +22,7 @@ Verze [VERZE] · účinné od [DATUM ÚČINNOSTI]
 | Nedostavení bez omluvy | [100 %] ceny; u permanentky propadá vstup |
 | Omluvenka (nemoc, nečekaná překážka) | bez poplatku nejpozději [2 hodiny] před začátkem; s permanentkou podle permanentky ([2] u desetivstupové, [1] u pětivstupové), bez permanentky [1] za [6 měsíců]; za předplacený termín náhradní termín do [14 dnů] |
 | Termín zrušíme my | vždy bez poplatku; peníze nebo vstup vrátíme v plné výši |
-| Připomínky | e-mailem, případně SMS, zhruba [24 hodin] předem – jsou součástí služby, za dodržení termínu ale odpovídáte vy |
+| Připomínky | e-mailem zhruba [24 hodin] předem – jsou součástí služby, za dodržení termínu ale odpovídáte vy |
 | 14denní odstoupení od smlouvy | u rezervace konkrétního termínu se neuplatní; **[VARIANTA N]** u permanentky a kreditu, které koupíte online, ano; **[VARIANTA Z]** u zdravotních služeb a permanentek na ně ne (článek 14) |
 
 ---
@@ -84,7 +84,7 @@ Verze [VERZE] · účinné od [DATUM ÚČINNOSTI]
 3. zkontrolujete shrnutí – službu, datum a čas, cenu, způsob platby a storno podmínky právě tohoto termínu; údaje můžete ještě změnit,
 4. potvrdíte souhlas se storno podmínkami a rezervaci odešlete tlačítkem „[Závazně rezervovat s povinností platby]“.
 
-3.3 Smlouva o poskytnutí služby je uzavřena, jakmile systém rezervaci potvrdí. Potvrzení uvidíte na obrazovce a pošleme vám ho e-mailem. Rezervaci na recepci nebo po telefonu vám potvrdíme e-mailem [nebo SMS] včetně storno podmínek. Rezervace je uložena ve vašem účtu i s podmínkami, které pro ni platí. Smlouvu uzavíráme v češtině.
+3.3 Smlouva o poskytnutí služby je uzavřena, jakmile systém rezervaci potvrdí. Potvrzení uvidíte na obrazovce a pošleme vám ho e-mailem. Rezervaci na recepci nebo po telefonu vám potvrdíme e-mailem včetně storno podmínek. Rezervace je uložena ve vašem účtu i s podmínkami, které pro ni platí. Smlouvu uzavíráme v češtině.
 
 3.4 Online lze rezervovat nejpozději [2 hodiny] před začátkem a nejvýše [60 dní] dopředu. Najednou můžete mít nejvýše [6] nadcházejících rezervací. Některé služby jsou určeny jen novým Klientům (např. [vstupní vyšetření / první konzultace]) nebo je lze rezervovat jen přes recepci. Jiné termíny vám rádi domluvíme na recepci.
 
@@ -284,7 +284,7 @@ Kolik omluvenek vám zbývá, uvidíte u každého termínu v aplikaci.
 
 10.4 Na plně obsazenou lekci se můžete zapsat na čekací listinu (článek 11).
 
-10.5 Lekci můžeme zrušit, např. při nemoci lektora [nebo když se přihlásí méně než [X] účastníků]. Dáme vám vědět co nejdříve e-mailem [a SMS] a vstup nebo platbu vrátíme v plné výši (článek 12).
+10.5 Lekci můžeme zrušit, např. při nemoci lektora [nebo když se přihlásí méně než [X] účastníků]. Dáme vám vědět co nejdříve e-mailem a vstup nebo platbu vrátíme v plné výši (článek 12).
 
 10.6 Přijďte prosím včas. [VOLITELNÉ: Z bezpečnostních důvodů může lektor odmítnout účast Klienta, který přijde déle než [10 minut] po začátku lekce; vstup se v takovém případě počítá jako vyčerpaný.]
 
@@ -292,7 +292,7 @@ Kolik omluvenek vám zbývá, uvidíte u každého termínu v aplikaci.
 
 11.1 Pokud je termín nebo lekce obsazená, můžete se zapsat na čekací listinu – na konkrétní lekci, nebo na službu v určitém dni či týdnu. Zápis je zdarma a nezávazný a kdykoli ho zrušíte.
 
-11.2 Když se místo uvolní, pošleme nabídku e-mailem [a SMS] až [3] čekajícím najednou, v pořadí, v jakém se zapsali. Nabídka platí [2 hodiny], nejpozději však do [15 minut] před začátkem termínu. Termín získá ten, kdo ho v aplikaci potvrdí první; ostatním nabídka zanikne.
+11.2 Když se místo uvolní, pošleme nabídku e-mailem až [3] čekajícím najednou, v pořadí, v jakém se zapsali. Nabídka platí [2 hodiny], nejpozději však do [15 minut] před začátkem termínu. Termín získá ten, kdo ho v aplikaci potvrdí první; ostatním nabídka zanikne.
 
 11.3 Potvrzením nabídky vzniká závazná rezervace podle těchto podmínek. Začíná-li termín za méně než [24 hodin] (u lekce za méně než [6 hodin]), bezplatné zrušení už neplatí – uvidíte to před potvrzením.
 
@@ -300,7 +300,7 @@ Kolik omluvenek vám zbývá, uvidíte u každého termínu v aplikaci.
 
 ## Článek 12 – Zrušení nebo změna termínu z naší strany
 
-12.1 Termín můžeme zrušit nebo přesunout jen z vážného důvodu (např. nemoc Pracovníka, technická porucha, uzavření provozovny, vyšší moc). Dáme vám vědět co nejdříve e-mailem, SMS nebo telefonicky.
+12.1 Termín můžeme zrušit nebo přesunout jen z vážného důvodu (např. nemoc Pracovníka, technická porucha, uzavření provozovny, vyšší moc). Dáme vám vědět co nejdříve e-mailem nebo telefonicky.
 
 12.2 V takovém případě nic neplatíte:
 
@@ -318,7 +318,7 @@ Rádi vám nabídneme jiný termín.
 
 ## Článek 13 – Připomínky a další zprávy
 
-13.1 Součástí služby jsou **servisní zprávy**: potvrzení rezervace, přesunu a zrušení, připomínka termínu (zhruba [24 hodin] předem), nabídky z čekací listiny, upozornění na nevyčerpanou náhradu a na končící permanentku, platební údaje a potvrzení plateb. Posíláme je e-mailem; SMS jen tehdy, když jste si SMS zvolili v účtu a uvedli telefon.
+13.1 Součástí služby jsou **servisní zprávy**: potvrzení rezervace, přesunu a zrušení, připomínka termínu (zhruba [24 hodin] předem), nabídky z čekací listiny, upozornění na nevyčerpanou náhradu a na končící permanentku, platební údaje a potvrzení plateb. Posíláme je e-mailem.
 
 13.2 Připomínky jsou služba navíc. Za dodržení termínu odpovídáte vy: pokud zpráva nedorazí (např. kvůli chybnému kontaktu nebo výpadku), rezervace i storno podmínky platí dál. Své termíny vždy najdete v aplikaci.
 

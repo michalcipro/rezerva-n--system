@@ -172,7 +172,7 @@ e) [VOLITELNÉ: Při prodeji obchodního závodu nebo jeho části, k níž Lice
 
 ## Článek 5 – Služby Poskytovatele
 
-5.1 **Provoz.** Poskytovatel zajišťuje provoz Platformy na infrastruktuře svých dodavatelů s uložením dat v Evropské unii (databáze a přihlašování: Supabase, region Frankfurt; doručování webové aplikace: Cloudflare; e-maily a SMS: Brevo), její správu, monitoring, zabezpečení a zálohování podle článku 13 a Přílohy 3. Dodavatele, kteří zpracovávají osobní údaje, mění Poskytovatel postupem podle Smlouvy o zpracování.
+5.1 **Provoz.** Poskytovatel zajišťuje provoz Platformy na infrastruktuře svých dodavatelů s uložením dat v Evropské unii (databáze a přihlašování: Supabase, region Frankfurt; doručování webové aplikace: Cloudflare; e-maily: Brevo), její správu, monitoring, zabezpečení a zálohování podle článku 13 a Přílohy 3. Dodavatele, kteří zpracovávají osobní údaje, mění Poskytovatel postupem podle Smlouvy o zpracování.
 
 5.2 **Aktualizace.** Poskytovatel Platformu průběžně udržuje a vyvíjí. Aktualizace nasazuje pro všechny zákazníky současně a jsou součástí Služeb [VARIANTA B: po dobu, po kterou má Zákazník zaplacené nebo zahrnuté Služby]. Poskytovatel smí měnit vzhled a funkce Platformy, pokud se tím podstatně nezhorší funkce, které jsou podle Přílohy 1 součástí Tarifu Zákazníka. Takovou funkci smí odebrat nebo podstatně omezit, jen:
 
@@ -184,7 +184,7 @@ a oznámí to Zákazníkovi v textové podobě nejméně [30] dní předem, je-l
 
 5.3 **Podpora** se poskytuje Uživatelům Zákazníka kanály a v dobách reakce podle Přílohy 3. Klientům Zákazníka Poskytovatel podporu neposkytuje; Klienti se obracejí na Zákazníka.
 
-5.4 **Zprávy Klientům.** Platforma odesílá e-maily a SMS podle nastavení Zákazníka. E-maily jsou v Tarifu zahrnuty do objemu podle Přílohy 1; SMS se účtují podle skutečného počtu odeslaných zpráv (jejich částí) podle Přílohy 1. Zprávy odcházejí jménem Zákazníka [z jeho domény, kterou Zákazník ověří podle pokynů Poskytovatele (záznamy SPF, DKIM a DMARC) / z domény Platformy s adresou pro odpovědi Zákazníka]. SMS lze odesílat jen pod schváleným odesílatelem (Sender ID); jeho registraci zajistí Poskytovatel za Zákazníka a poplatky operátorů jsou průběžnými náklady podle Přílohy 1. Za obsah zpráv a za soulad obchodních sdělení s právními předpisy odpovídá Zákazník. Poskytovatel neodpovídá za doručení zpráv v rozsahu, v jakém závisí na operátorech a poskytovatelích e-mailových schránek příjemců.
+5.4 **Zprávy Klientům.** Platforma odesílá Klientům zprávy e-mailem podle nastavení Zákazníka; SMS Platforma neodesílá. E-maily jsou v Tarifu zahrnuty do objemu podle Přílohy 1. Zprávy odcházejí jménem Zákazníka [z jeho domény, kterou Zákazník ověří podle pokynů Poskytovatele (záznamy SPF, DKIM a DMARC) / z domény Platformy s adresou pro odpovědi Zákazníka]. Za obsah zpráv a za soulad obchodních sdělení s právními předpisy odpovídá Zákazník. Poskytovatel neodpovídá za doručení zpráv v rozsahu, v jakém závisí na poskytovatelích e-mailových schránek příjemců.
 
 5.5 **Párování plateb [VOLITELNÉ].** Pokud to Tarif zahrnuje a Zákazník předá Poskytovateli přístupový token ke svému bankovnímu účtu u Fio banky, a.s. (jen s oprávněním ke sledování účtu, bez možnosti zadávat platby), Platforma stahuje výpisy z účtu Zákazníka a páruje přijaté platby s platebními výzvami. Smlouvu o účtu má Zákazník s bankou sám; banka není dodavatelem Poskytovatele. Poskytovatel neprovádí platby, nespravuje peníze Zákazníka ani Klientů a neposkytuje platební služby. Zákazník odpovídá za platnost tokenu – obnovuje ho nejpozději do konce jeho platnosti (nejdéle [180] dní) – a může ho kdykoli zneplatnit.
 
@@ -194,13 +194,13 @@ a oznámí to Zákazníkovi v textové podobě nejméně [30] dní předem, je-l
 
 > **K ověření právníkem:** párování plateb přes rozhraní banky – zda nejde o službu informování o platebním účtu podle zákona č. 370/2017 Sb., o platebním styku (viz Smlouva o zpracování, poznámka k článku 7).
 
-> **Pro Nexum Care:** Token k bance a odesílatelé zpráv jsou dnes jedna společná tajná proměnná serveru (`FIO_TOKEN`, `SMS_SENDER`, `MAIL_FROM` – `app/docs/DEPLOY.md`). Dokud je Platforma neumí ukládat zvlášť pro každou Provozovnu, potřebuje zákazník s vlastním tokenem nebo odesílatelem vlastní nasazení.
+> **Pro Nexum Care:** Token k bance a odesílatel e-mailů jsou dnes jedna společná tajná proměnná serveru (`FIO_TOKEN`, `MAIL_FROM` – `app/docs/DEPLOY.md`). Dokud je Platforma neumí ukládat zvlášť pro každou Provozovnu, potřebuje zákazník s vlastním tokenem nebo odesílatelem vlastní nasazení.
 
 ## Článek 6 – Zřízení, onboarding a Úpravy na zakázku
 
 6.1 Poskytovatel do [10] Pracovních dnů od podpisu Smlouvy [a zaplacení faktury za onboarding] zřídí pro každou Provozovnu prostředí v Platformě a provede onboarding v rozsahu Přílohy 1, zejména: nastavení podle šablony oboru, vzhled (název, logo, barva), adresu Platformy [vlastní doména Zákazníka / adresa ve tvaru [DOMÉNA PLATFORMY]/[OZNAČENÍ PROVOZOVNY]], založení Uživatele s rolí majitel, základní nastavení služeb, týmu a pravidel, import dat ze stávající evidence ve formátu podle pokynů Poskytovatele a zaškolení Uživatelů v rozsahu [N] hodin.
 
-6.2 Zákazník poskytne včas součinnost: podklady (služby, ceník, tým, rozvrh, storno pravidla, logo), data k importu, nastavení DNS své domény, ověření odesílací domény, údaje k registraci odesílatele SMS a případně token k bance. Lhůty Poskytovatele se prodlužují o dobu prodlení Zákazníka se součinností.
+6.2 Zákazník poskytne včas součinnost: podklady (služby, ceník, tým, rozvrh, storno pravidla, logo), data k importu, nastavení DNS své domény, ověření odesílací domény a případně token k bance. Lhůty Poskytovatele se prodlužují o dobu prodlení Zákazníka se součinností.
 
 6.3 Spuštění oznámí Poskytovatel Zákazníkovi e-mailem. Zákazník do [5] Pracovních dnů ověří nastavení a oznámí vady; jinak se onboarding považuje za dokončený. Drobné vady, které nebrání užívání, nebrání ani dokončení onboardingu; Poskytovatel je odstraní v rámci podpory.
 
@@ -212,7 +212,7 @@ a oznámí to Zákazníkovi v textové podobě nejméně [30] dní předem, je-l
 
 ## Článek 7 – Zkušební období [VOLITELNÉ]
 
-7.1 Prvních [30] dní od zřízení prostředí (dále „Zkušební období“) může Zákazník Platformu bezplatně vyzkoušet v rozsahu Tarifu [s omezením: SMS se neodesílají / nejvýše [N] Klientů].
+7.1 Prvních [30] dní od zřízení prostředí (dále „Zkušební období“) může Zákazník Platformu bezplatně vyzkoušet v rozsahu Tarifu [s omezením: nejvýše [N] Klientů].
 
 7.2 Ve Zkušebním období se neuplatní cílová dostupnost a doby reakce podle Přílohy 3.
 
@@ -276,7 +276,7 @@ c) Fakturu za Poplatek za provoz vystaví Poskytovatel nejpozději [30] dní př
 
 d) Rozšíření Tarifu (další Provozovna, Pracovníci, moduly) se účtuje [jednorázovým doplatkem licenčního poplatku a zvýšením Poplatku za provoz podle Přílohy 1 / měsíčním poplatkem podle Přílohy 1].
 
-9.4 **Doplňkové služby a průběžné náklady.** Poplatek za onboarding fakturuje Poskytovatel po podpisu Smlouvy. Úpravy na zakázku a další práce podle hodinové sazby fakturuje [měsíčně zpětně podle výkazu práce / po akceptaci]. Průběžné náklady (SMS, poplatky za odesílatele SMS, e-maily nad objem Tarifu, [vlastní doména]) fakturuje [měsíčně zpětně podle skutečného počtu / formou předplaceného kreditu] podle Přílohy 1.
+9.4 **Doplňkové služby a průběžné náklady.** Poplatek za onboarding fakturuje Poskytovatel po podpisu Smlouvy. Úpravy na zakázku a další práce podle hodinové sazby fakturuje [měsíčně zpětně podle výkazu práce / po akceptaci]. Průběžné náklady (e-maily nad objem Tarifu, [vlastní doména]) fakturuje [měsíčně zpětně podle skutečného počtu / formou předplaceného kreditu] podle Přílohy 1.
 
 9.5 Faktury jsou daňovými doklady. Poskytovatel je zasílá elektronicky na fakturační e-mail Zákazníka; Zákazník s elektronickou fakturací souhlasí. **Splatnost faktur je 14 dní ode dne vystavení.** Platí se převodem na účet Poskytovatele uvedený na faktuře s uvedeným variabilním symbolem. Dnem úhrady je den připsání částky na účet Poskytovatele.
 
@@ -294,7 +294,7 @@ d) Rozšíření Tarifu (další Provozovna, Pracovníci, moduly) se účtuje [j
 
 10.2 **Jiné změny.** Jiné změny cen nebo podmínek Služeb (Přílohy 1 a 3) smí Poskytovatel provést jen v přiměřeném rozsahu a jen z důvodu změny nákladů na provoz (zejména cen dodavatelů infrastruktury a zpráv), změny právních předpisů, změny rozsahu nebo technického řešení Platformy nebo z bezpečnostních důvodů. Změnu oznámí Zákazníkovi v textové podobě nejméně [60] dní před její účinností.
 
-10.3 **[VARIANTA B]** Licenční poplatek se po zaplacení nemění. Poplatek za provoz může Poskytovatel měnit postupem podle článků 10.1 a 10.2; jeho zvýšení však v jednom kalendářním roce nepřesáhne [míru inflace podle článku 10.1 zvýšenou o [5] procentních bodů / [10] %]. To neplatí pro průběžné náklady podle Přílohy 1 (např. cenu SMS), které se mění podle cen dodavatelů.
+10.3 **[VARIANTA B]** Licenční poplatek se po zaplacení nemění. Poplatek za provoz může Poskytovatel měnit postupem podle článků 10.1 a 10.2; jeho zvýšení však v jednom kalendářním roce nepřesáhne [míru inflace podle článku 10.1 zvýšenou o [5] procentních bodů / [10] %]. To neplatí pro průběžné náklady podle Přílohy 1 (např. cenu e-mailů nad objem Tarifu), které se mění podle cen dodavatelů.
 
 10.4 **Právo změnu odmítnout.** Se změnou podle článku 10.2 nebo 10.3 ani s omezením funkce podle článku 5.2 nemusí Zákazník souhlasit. Může je odmítnout a Smlouvu [VARIANTA B: Služby] z tohoto důvodu vypovědět oznámením v textové podobě doručeným před účinností změny. Výpověď je účinná dnem předcházejícím účinnosti změny, nebo pozdějším dnem, který Zákazník ve výpovědi určí, nejpozději však uplynutím [3] měsíců od oznámení změny; do účinnosti výpovědi platí pro Zákazníka dosavadní podmínky. Výpověď z tohoto důvodu je bez sankce a Poskytovatel vrátí poměrnou část předem zaplaceného poplatku za období po skončení Smlouvy. Neodmítne-li Zákazník změnu do její účinnosti, platí, že ji přijal.
 
@@ -388,7 +388,7 @@ a) nastavením nebo Obsahem Zákazníka (např. ceny, storno pravidla, texty zpr
 
 b) výpadkem připojení k internetu nebo zařízení na straně Zákazníka, Uživatelů nebo Klientů;
 
-c) nedoručením zpráv z důvodů na straně operátorů, poskytovatelů e-mailových schránek nebo kvůli chybným kontaktům;
+c) nedoručením zpráv z důvodů na straně poskytovatelů e-mailových schránek nebo kvůli chybným kontaktům;
 
 d) službami třetích osob, které si Zákazník sjednal sám (banka, doména, webové stránky), nebo zneplatněním či neobnovením tokenu k bankovnímu účtu;
 
@@ -604,8 +604,6 @@ Stav k [DATUM]. Doporučené ceny a jejich zdůvodnění jsou v interním podkla
 
 | Položka | Cena |
 |---|---|
-| SMS v České republice | [X Kč] za každou část zprávy (bez diakritiky 160 znaků, s diakritikou 70 znaků) |
-| Odesílatel SMS (Sender ID) | registrace [X Kč], dále [X Kč měsíčně] podle poplatků operátorů |
 | E-maily nad objem Tarifu | [X Kč] za každých započatých 1 000 e-mailů |
 | Vlastní doména | [v ceně onboardingu]; registraci a obnovu domény platí Zákazník svému registrátorovi |
 | Párování plateb (Fio) | [v ceně Tarifu / X Kč měsíčně] |
@@ -639,7 +637,7 @@ Smlouva o zpracování osobních údajů podle čl. 28 GDPR podle vzoru [`smlouv
 - vyšší moc (článek 16 Smlouvy);
 - Režim jen pro čtení a Pozastavení podle článku 11 Smlouvy;
 - výpadky na straně Zákazníka, Uživatelů a Klientů (zařízení, připojení, nastavení sítě) a služeb třetích osob sjednaných Zákazníkem (banka, doména, DNS);
-- doručování e-mailů a SMS operátory a poskytovateli schránek;
+- doručování e-mailů poskytovateli schránek;
 - [rozsáhlý výpadek dodavatele infrastruktury (Supabase, Cloudflare, Brevo), kterému Poskytovatel nemohl zabránit – K ověření];
 - Zkušební období.
 

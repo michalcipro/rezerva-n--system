@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Actor, ClinicState } from '../src/domain/types';
+import { SMS_OFF_REASON } from '../src/engine/channels';
 import { createBooking, createClient, saveCampaign, sendCampaign } from '../src/engine/commands';
 import { DEMO_ACCOUNT } from '../src/engine/defaults';
 import { createApi, productionBaseState } from '../server/api';
@@ -83,6 +84,12 @@ async function run<I, R>(cmd: (d: ClinicState, i: I, c: { now: string; actor: Ac
   return r.value as R;
 }
 
+/** SMS čekající ve frontě, jak ji zanechala starší verze (dnešní engine SMS nezařazuje). */
+function queueLegacySms(d: ClinicState, input: { clientId: string }): { ok: true; value: undefined; notices: string[] } {
+  d.messages.push({ id: 'm_starsi_sms', clientId: input.clientId, channel: 'sms', kind: 'reminder', subject: '', body: 'Klinika Test: připomínáme termín.', at: NOW, status: 'queued' });
+  return { ok: true, value: undefined, notices: [] };
+}
+
 async function client(email: string, sms = true): Promise<string> {
   return run<unknown, string>(
     createClient as never,
@@ -140,6 +147,23 @@ describe('automatika: odeslání zpráv', () => {
     await cron(api([deliveryJob({ messenger: fakeMessenger(() => ({ ok: false, permanent: true, error: 'Neplatná adresa' })) })]));
     msgs = sendable((await new ClinicEngine(store).current(clinicId))!.state);
     expect(msgs.every((m) => m.status === 'failed' && m.error === 'Neplatná adresa')).toBe(true);
+  });
+
+  it('SMS, která zůstala ve frontě ze starších dat, se neodešle a označí se důvodem; e-maily odejdou', async () => {
+    const id = await client('eva@example.cz');
+    await run(createBooking as never, { clientId: id, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-19T09:00', payment: { method: 'onsite' } }, 'book000006');
+    await run(queueLegacySms as never, { clientId: id }, 'legacysms01');
+    const messenger = fakeMessenger();
+    const report = await cron(api([deliveryJob({ messenger })]));
+    expect(messenger.sent.sms).toHaveLength(0);
+    expect(messenger.sent.emails.length).toBeGreaterThan(0);
+    expect((report.clinics as Record<string, unknown>[])[0].messages).toMatchObject({ failed: 0, skipped: 1 });
+    const msgs = (await new ClinicEngine(store).current(clinicId))!.state.messages;
+    const sms = msgs.find((m) => m.id === 'm_starsi_sms');
+    expect(sms).toMatchObject({ status: 'skipped', skipReason: SMS_OFF_REASON });
+    expect(sms?.attempts).toBeUndefined();
+    expect(msgs.filter((m) => m.status === 'queued')).toHaveLength(0);
+    expect(msgs.filter((m) => m.channel === 'sms')).toHaveLength(1);
   });
 
   it('novinky mají odkaz na odhlášení, který funguje jen s platným podpisem', async () => {

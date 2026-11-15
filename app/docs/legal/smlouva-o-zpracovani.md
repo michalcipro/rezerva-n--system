@@ -57,7 +57,7 @@ a) provozu, hostingu a správě Platformy (databáze, přihlašování uživatel
 
 b) evidenci Klientů, rezervací, docházky, čekací listiny, omluvenek a náhradních termínů a – podle modulů, které Správce zapne – skupinových lekcí, permanentek, kreditu, plateb a poplatků, a to podle nastavení, které provede Správce;
 
-c) odesílání servisních zpráv a – na pokyn Správce – obchodních sdělení e-mailem a SMS;
+c) odesílání servisních zpráv a – na pokyn Správce – obchodních sdělení e-mailem;
 
 d) vytváření platebních údajů pro QR platby a – je-li to zapnuto – párování plateb s výpisy z bankovního účtu Správce;
 
@@ -137,7 +137,7 @@ c) písemné pokyny oprávněných osob Správce uvedených v Příloze 2, zasla
 
 6.1 Zpracovatel přijímá a udržuje s ohledem na stav techniky, náklady, povahu, rozsah, kontext a účely zpracování i na rizika pro práva subjektů údajů (včetně možných údajů o zdraví) tato technická a organizační opatření (čl. 32 GDPR):
 
-a) **Hosting v EU.** Databáze, přihlašování uživatelů a zálohy jsou v datovém centru v EU (Supabase, region Frankfurt – eu-central-1). Webová aplikace je statická a sama osobní údaje neobsahuje; doručuje ji síť Cloudflare. E-maily a SMS odesílá Brevo s hostingem v EU.
+a) **Hosting v EU.** Databáze, přihlašování uživatelů a zálohy jsou v datovém centru v EU (Supabase, region Frankfurt – eu-central-1). Webová aplikace je statická a sama osobní údaje neobsahuje; doručuje ji síť Cloudflare. E-maily odesílá Brevo s hostingem v EU.
 
 b) **Šifrování.** Veškerá komunikace mezi prohlížečem, serverovým rozhraním a poskytovateli probíhá šifrovaně (HTTPS, TLS 1.2 a vyšší). Data v databázi a zálohy jsou šifrována v klidu (AES-256 na úrovni poskytovatele). Tajné klíče (např. klíče k odesílání zpráv, k API banky a k automatickým úlohám) jsou uloženy pouze jako šifrované tajné proměnné serveru, nikdy v kódu webové aplikace ani v repozitáři.
 
@@ -201,7 +201,7 @@ n) **Pravidelné hodnocení** účinnosti opatření nejméně [jednou ročně] 
 
 ## Článek 8 – Předávání osobních údajů do třetích zemí
 
-8.1 Zpracovatel předává osobní údaje mimo Evropský hospodářský prostor jen v souladu s kapitolou V GDPR. Data Správce jsou uložena v EU. K přístupu ze třetích zemí může docházet u dalších zpracovatelů uvedených v Příloze 1 (vzdálená technická podpora a provoz, technické údaje v celosvětové síti, doručování SMS). Použité záruky uvádí Příloha 1: standardní smluvní doložky podle prováděcího rozhodnutí Komise (EU) 2021/914, případně rozhodnutí o odpovídající ochraně podle prováděcího rozhodnutí Komise (EU) 2023/1795 (EU–US Data Privacy Framework) pro certifikované příjemce v USA.
+8.1 Zpracovatel předává osobní údaje mimo Evropský hospodářský prostor jen v souladu s kapitolou V GDPR. Data Správce jsou uložena v EU. K přístupu ze třetích zemí může docházet u dalších zpracovatelů uvedených v Příloze 1 (vzdálená technická podpora a provoz, technické údaje v celosvětové síti). Použité záruky uvádí Příloha 1: standardní smluvní doložky podle prováděcího rozhodnutí Komise (EU) 2021/914, případně rozhodnutí o odpovídající ochraně podle prováděcího rozhodnutí Komise (EU) 2023/1795 (EU–US Data Privacy Framework) pro certifikované příjemce v USA.
 
 8.2 Zpracovatel sleduje platnost těchto záruk a bez zbytečného odkladu informuje Správce o změně, která by je mohla zpochybnit (např. o zrušení rozhodnutí o odpovídající ochraně).
 
@@ -321,7 +321,7 @@ Stav k [DATUM]. Údaje o poskytovatelích odpovídají jejich veřejným podmín
 |---|---|---|---|---|---|
 | **Supabase Pte. Ltd.**, Singapur (smluvní strana), technickou podporu a provoz zajišťuje **Supabase, Inc.**, USA | databáze PostgreSQL, přihlašování uživatelů (Auth), serverová funkce rozhraní, automatické zálohy | všechny kategorie podle článku 3 | EU – AWS eu-central-1 (Frankfurt, Německo); databáze, Auth i zálohy v regionu | vzdálený přístup podpory a provozu ze Singapuru a USA; údaje o účtu, žádosti o podporu a provozní telemetrie mohou být zpracovány mimo region; standardní smluvní doložky (moduly 2 a 3) a posouzení dopadu předání podle DPA Supabase | DPA: https://supabase.com/legal/customer-resources/data-processing-addendum · další zpracovatelé Supabase (stav 12. 10. 2026): https://supabase.com/legal/subprocessor-list/October-12-2026.pdf |
 | **Cloudflare, Inc.**, USA | hosting statické webové aplikace (Cloudflare Pages), síť pro doručování obsahu (CDN), DNS, ochrana proti útokům | IP adresy a technické údaje o požadavcích (webová aplikace sama osobní údaje neobsahuje) | celosvětová síť; provozní metadata v datových centrech v USA a EU | EU–US Data Privacy Framework (certifikace Cloudflare) a standardní smluvní doložky (moduly 2 a 3) v DPA Cloudflare | DPA: https://www.cloudflare.com/cloudflare-customer-dpa/ · https://www.cloudflare.com/trust-hub/gdpr/ |
-| **Brevo SAS**, Francie | odesílání transakčních e-mailů a SMS [a e-mailových kampaní] | jméno, e-mail, telefon, obsah zpráv, stav doručení | EU (hosting ve Francii a Belgii) | SMS doručují telekomunikační partneři Brevo, u některých probíhá zpracování i mimo EU; standardní smluvní doložky, popř. EU–US Data Privacy Framework | podmínky včetně DPA: https://www.brevo.com/legal/termsofuse/ · umístění dat: https://help.brevo.com/hc/en-us/articles/360001005510-Data-storage-location |
+| **Brevo SAS**, Francie | odesílání transakčních e-mailů [a e-mailových kampaní] | jméno, e-mail, obsah zpráv, stav doručení | EU (hosting ve Francii a Belgii) | případně u dalších zpracovatelů Brevo podle DPA Brevo; standardní smluvní doložky, popř. EU–US Data Privacy Framework | podmínky včetně DPA: https://www.brevo.com/legal/termsofuse/ · umístění dat: https://help.brevo.com/hc/en-us/articles/360001005510-Data-storage-location |
 
 Fio banka, a.s. v seznamu není záměrně – viz Poznámka k článku 7.
 

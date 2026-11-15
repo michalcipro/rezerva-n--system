@@ -69,7 +69,7 @@ Exporty: `ClientsScreen()`, `ClientDetailScreen({ clientId })`.
    jméno, útrata). Tabulka: jméno + štítky, kontakt, aktivní permanentka (název + „4/10 volné"), kredit,
    poslední / příští návštěva, upozornění (dluh, zablokované online rezervace, nedostavení). Stránkování po 50.
    Tlačítko „Nový klient" (dialog: jméno, příjmení, e-mail, telefon, datum narození, štítky, souhlasy –
-   GDPR povinný, zdravotní dokumentace, obchodní sdělení e-mailem, SMS; interní poznámka) → `createClient`.
+   GDPR povinný, zdravotní dokumentace, obchodní sdělení e-mailem; interní poznámka) → `createClient`.
 2. **Detail klienta** (podle předlohy V1-Klient): drobečková navigace, hlavička (avatar, jméno, „Klient od …
    · N návštěv · poslední …", kontakt, štítky – úprava), akce: Nová rezervace (`NewBookingDialog` z kalendáře
    s `clientId`), Napsat zprávu (dialog → `sendManualMessage`), Prodat permanentku, Dobít kredit, menu (upravit
@@ -83,7 +83,7 @@ Exporty: `ClientsScreen()`, `ClientDetailScreen({ clientId })`.
      posledních 5 návštěv, klinická poznámka, souhlasy), **Rezervace** (celá historie s filtry stavů, klik → `BookingDrawer`),
      **Permanentky a kredit** (všechny permanentky včetně prošlých, kompletní pohyby kreditu, platby),
      **Dokumentace** (klinické poznámky – přidat; s ikonou zámku „vidí jen terapeuti"), **Komunikace**
-     (odeslané zprávy klientovi – e-mail/SMS, stav, důvod neodeslání), **Souhlasy** (přepínače s datem udělení
+     (odeslané zprávy klientovi – e-mail, stav, důvod neodeslání), **Souhlasy** (přepínače s datem udělení
      → `setConsent`; GDPR nelze odebrat), **Historie změn** (audit klienta).
    - Role terapeut: nevidí finance (kredit, platby, útrata) – zobraz jen rezervace, dokumentaci a souhlasy.
 
@@ -156,11 +156,11 @@ Taby: **Kampaně**, **Automatické zprávy**, **Odeslané**.
    seznam (souhlas – vždy, odkaz na odhlášení, předmět vyplněn, obsah vyplněn), Odeslat teď / Naplánovat
    (datum a čas) → `sendCampaign` / `scheduleCampaign`; potvrzovací dialog s počtem příjemců. Upozornění,
    že jde o simulaci (e-maily se reálně neodesílají; v ostrém provozu napojení na e-mailovou službu).
-2. **Automatické zprávy**: seznam šablon (`templates`) s přepínačem zapnuto, kanály (e-mail/SMS), kdy se
-   posílá; editor předmětu, textu e-mailu a SMS s vložením proměnných (`TEMPLATE_VARIABLES`) a náhledem s
+2. **Automatické zprávy**: seznam šablon (`templates`) s přepínačem zapnuto, kanál (e-mail), kdy se
+   posílá; editor předmětu a textu e-mailu s vložením proměnných (`TEMPLATE_VARIABLES`) a náhledem s
    ukázkovými hodnotami → `updateTemplate`. Odkaz na nastavení připomínek.
 3. **Odeslané**: tabulka zpráv (čas, klient, kanál, typ, předmět, stav odesláno / neodesláno + důvod),
-   filtry (kanál, typ, jen neodeslané, hledání), detail zprávy v `Drawer`. Novější nahoře, stránkování.
+   filtry (typ, jen neodeslané, hledání), detail zprávy v `Drawer`. Novější nahoře, stránkování.
 
 ---
 
@@ -189,7 +189,7 @@ na pozadí `--bg`). Předlohy V1-Rezervace a V1-Omluvenka. Klient = `session.cli
    (doporučeno) / Zrušit zdarma / Zrušit s poplatkem / první pozdní storno zdarma; důvod – čipy Nemoc, Práce,
    Rodina, Jiné + zpráva; potvrzení), **Přesunout** (průvodce výběru času), po omluvence nabídka „Vybrat
    náhradní termín".
-4. **Účet**: osobní údaje (úprava `updateClient`), souhlasy (marketing e-mail, SMS – přepínače `setConsent`),
+4. **Účet**: osobní údaje (úprava `updateClient`), souhlasy (zdravotní dokumentace, marketing e-mail – přepínače `setConsent`),
    permanentky (aktivní i prošlé), koupit permanentku online (simulace platby → `sellPackage` paidBy 'online'),
    kredit a jeho pohyby, dobít kredit online (simulace → `topUpCredit` method 'online', bonus podle pravidel),
    zprávy od kliniky (inbox: zprávy klienta z `messages`), storno podmínky kliniky (text z nastavení).

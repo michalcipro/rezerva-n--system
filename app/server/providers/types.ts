@@ -1,5 +1,6 @@
 /**
  * Společná rozhraní poskytovatelů ostrého provozu (e-mail, SMS, bankovní výpis).
+ * SMS platforma nepoužívá (SMS_ENABLED v src/engine/channels.ts); `sendSms` zůstává pro případné pozdější zapnutí.
  *
  * Moduly ve složce `server/providers` používají jen standardní webová API (`fetch`, `URL`, `Response`…),
  * takže běží stejně v Node (vývoj, testy) i v Deno (Supabase Edge Function).

@@ -27,6 +27,7 @@ import type {
   WaitlistOffer,
 } from '../domain/types';
 import { pushAudit } from './auditLog';
+import { SMS_ENABLED } from './channels';
 import { fail, offerFreedSlot, ok } from './commands';
 import { countLabel, formatDayShort, formatMoney, formatTime } from './format';
 import { templateName } from './messages';
@@ -257,7 +258,8 @@ export function clientDataExport(s: ClinicState, clientId: Id, opts: ClientDataE
       'Naposledy přání k narozeninám': orNull(c.birthdaySentAt),
       Anonymizováno: anon,
     },
-    Souhlasy: (Object.keys(CONSENT_LABEL) as (keyof ClientConsents)[]).map((key) => {
+    // souhlas se SMS jen jako historie: s vypnutými SMS ho export uvádí, jen když ho klient dřív udělil
+    Souhlasy: (Object.keys(CONSENT_LABEL) as (keyof ClientConsents)[]).filter((key) => key !== 'sms' || SMS_ENABLED || !!c.consents.sms).map((key) => {
       const rec = c.consents[key];
       return { Souhlas: CONSENT_LABEL[key], Stav: rec ? 'udělen' : 'neudělen', 'Udělen dne': rec?.at ?? null, Zdroj: rec?.source ?? null };
     }),

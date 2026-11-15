@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Booking, ClinicState, Id, LocalDate, LocalDateTime, MakeupRight, Service } from '../domain/types';
 import { TherapistAvatar, ToneDot } from '../components/domain';
 import { checkBookingSlot, type Slot } from '../engine/availability';
+import { SMS_ENABLED } from '../engine/channels';
 import { createBooking, joinWaitlist, leaveWaitlist, rescheduleBooking } from '../engine/commands';
 import {
   countLabel,
@@ -555,7 +556,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           description={
             client.email
               ? `Potvrzení pošleme na ${client.email}.`
-              : client.phone
+              : SMS_ENABLED && client.phone
                 ? `Potvrzení pošleme SMS na ${client.phone}.`
                 : undefined
           }
@@ -1139,8 +1140,8 @@ function NoSlots({
           }
         >
           {watch.dateFrom === watch.dateTo
-            ? `Když se uvolní termín na ${formatDayShort(watch.dateFrom)}, pošleme vám nabídku e-mailem nebo SMS.`
-            : `Když se uvolní termín mezi ${formatDayShort(watch.dateFrom)} a ${formatDayShort(watch.dateTo)}, pošleme vám nabídku e-mailem nebo SMS.`}
+            ? `Když se uvolní termín na ${formatDayShort(watch.dateFrom)}, pošleme vám nabídku e-mailem.`
+            : `Když se uvolní termín mezi ${formatDayShort(watch.dateFrom)} a ${formatDayShort(watch.dateTo)}, pošleme vám nabídku e-mailem.`}
         </Callout>
       )}
       <WatchSheet open={watchOpen} onClose={() => setWatchOpen(false)} service={service} therapistId={query.therapistId} date={date} lastDate={flow.lastDate} />
@@ -1385,7 +1386,7 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
   }
   const t = getTherapist(clinic, b.therapistId);
   const emailed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'email');
-  const smsed = clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'sms');
+  const smsed = SMS_ENABLED && clinic.messages.some((m) => m.bookingId === b.id && m.status === 'sent' && m.channel === 'sms');
   // QR platba předem: výzva vznikla s rezervací (u přesunu ji ukazuje detail termínu)
   const qrRequest = !rescheduledFrom && (b.payment.method === 'qr' || paidByQr(b)) ? latestRequestFor(clinic, b.id, 'booking') : undefined;
   const pay = bookingPaymentInfo(clinic, b, now);

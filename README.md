@@ -26,7 +26,7 @@ Co umí:
 - **Klientský portál** (mobil): rezervace po 15 minutách, zrušení / omluva s jasnými podmínkami, náhrady,
   přijetí nabídky z čekací listiny, nákup permanentky a dobití kreditu (simulace platby).
 - **Statistiky**: obsazenost, tržby, storna, nedostavení, noví klienti, rebooking, heatmapa, závazky z permanentek.
-- **Komunikace**: automatické e-maily a SMS (potvrzení, připomínka, omluvenka…), newslettery se segmentací
+- **Komunikace**: s klienty jen e-mailem – automatické e-maily (potvrzení, připomínka, omluvenka…), newslettery se segmentací
   a kontrolou souhlasů (odesílání je v testovací verzi simulované).
 - **Testovací režim**: přepínání rolí (majitelka, recepce, terapeut, klient) a posun času pro testování lhůt.
 - **Vstupy a platby**: přehled vstupů u všech zaměstnanců – z permanentky, z kreditu, nebo jednorázově,

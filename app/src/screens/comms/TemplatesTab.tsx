@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Channel, MessageTemplate, TemplateKey } from '../../domain/types';
+import { activeChannels, SMS_ENABLED } from '../../engine/channels';
 import { updateTemplate } from '../../engine/commands';
 import { countLabel, formatNumber } from '../../engine/format';
 import { DEFAULT_TEMPLATES, MARKETING_TEMPLATES, renderTemplate, templateDescription, templateName } from '../../engine/messages';
@@ -35,6 +36,17 @@ const sameDraft = (a: TemplateDraft, b: TemplateDraft): boolean =>
   a.channels.every((c) => b.channels.includes(c));
 
 type FieldName = 'subject' | 'body' | 'smsBody';
+
+/** Texty šablony: se SMS jako panel záložek E-mail / SMS, jen s e-mailem rovnou bez záložek. */
+function ChannelPanel({ tabs, idPrefix, id, children }: { tabs: boolean; idPrefix: string; id: Channel; children: ReactNode }): JSX.Element {
+  return tabs ? (
+    <TabPanel idPrefix={idPrefix} id={id} className="com-tedit__panel">
+      {children}
+    </TabPanel>
+  ) : (
+    <div className="com-tedit__panel">{children}</div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Seznam šablon                                                       */
@@ -115,7 +127,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const session = useSession();
   const value: TemplateDraft = draft ?? pickDraft(tpl);
   const dirty = !!draft && !sameDraft(draft, tpl);
-  const [channel, setChannel] = useState<Channel>(tpl.channels[0] ?? 'email');
+  const [channel, setChannel] = useState<Channel>(activeChannels(tpl.channels)[0] ?? 'email');
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const smsRef = useRef<HTMLTextAreaElement>(null);
@@ -265,26 +277,30 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
           <fieldset className="com-tedit__channels">
             <legend className="field__label">Kanály</legend>
             <Checkbox label="E-mail" checked={value.channels.includes('email')} onChange={(on) => toggleChannel('email', on)} />
-            <Checkbox
-              label="SMS"
-              description={`Jen klientům se souhlasem se SMS (${formatNumber(smsConsent)} z ${formatNumber(clinic.clients.length)})`}
-              checked={value.channels.includes('sms')}
-              onChange={(on) => toggleChannel('sms', on)}
-            />
+            {SMS_ENABLED && (
+              <Checkbox
+                label="SMS"
+                description={`Jen klientům se souhlasem se SMS (${formatNumber(smsConsent)} z ${formatNumber(clinic.clients.length)})`}
+                checked={value.channels.includes('sms')}
+                onChange={(on) => toggleChannel('sms', on)}
+              />
+            )}
           </fieldset>
 
-          <Tabs
-            idPrefix={`com-tch-${tpl.key}`}
-            bordered
-            aria-label="Text zprávy podle kanálu"
-            value={channel}
-            onChange={setChannel}
-            items={[
-              { id: 'email', label: value.channels.includes('email') ? 'E-mail' : 'E-mail (vypnuto)' },
-              { id: 'sms', label: value.channels.includes('sms') ? 'SMS' : 'SMS (vypnuto)' },
-            ]}
-          />
-          <TabPanel idPrefix={`com-tch-${tpl.key}`} id={channel} className="com-tedit__panel">
+          {SMS_ENABLED && (
+            <Tabs
+              idPrefix={`com-tch-${tpl.key}`}
+              bordered
+              aria-label="Text zprávy podle kanálu"
+              value={channel}
+              onChange={setChannel}
+              items={[
+                { id: 'email', label: value.channels.includes('email') ? 'E-mail' : 'E-mail (vypnuto)' },
+                { id: 'sms', label: value.channels.includes('sms') ? 'SMS' : 'SMS (vypnuto)' },
+              ]}
+            />
+          )}
+          <ChannelPanel tabs={SMS_ENABLED} idPrefix={`com-tch-${tpl.key}`} id={channel}>
             {channel === 'email' ? (
               <>
                 <Field label="Předmět">
@@ -329,7 +345,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                 />
               </Field>
             )}
-          </TabPanel>
+          </ChannelPanel>
 
           <div className="com-vars">
             <span className="com-vars__label" id={`com-vars-${tpl.key}`}>

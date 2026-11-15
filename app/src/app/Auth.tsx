@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { AuthError, devLogin, requestCode, verifyCode } from '../api/auth';
 import { ApiError } from '../api/client';
 import { DEV_LOGIN, PLATFORM_NAME, SUPABASE_URL } from '../api/config';
+import { SMS_ENABLED } from '../engine/channels';
 import { useStore } from '../store/hooks';
 import { logout, registerClient } from '../store/server';
 import { Button, Callout, Checkbox, Field, Icon, Input } from '../ui';
@@ -261,7 +262,7 @@ export function RegisterScreen(): JSX.Element {
             <Field label="Příjmení">
               <Input autoComplete="family-name" value={form.lastName} onValueChange={(v) => setForm({ ...form, lastName: v })} />
             </Field>
-            <Field label="Telefon" optional hint="Pro SMS připomínky a domluvu změn termínu.">
+            <Field label="Telefon" optional hint="Pro domluvu změn termínu.">
               <Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onValueChange={(v) => setForm({ ...form, phone: v })} placeholder="777 123 456" />
             </Field>
             <Field label="Datum narození" optional>
@@ -290,12 +291,14 @@ export function RegisterScreen(): JSX.Element {
               label="Souhlasím se zpracováním údajů o mém zdravotním stavu pro účely terapie."
               description="Nepovinné. Terapeutovi pomůže znát vaše obtíže předem; souhlas můžete kdykoli odvolat v účtu."
             />
-            <Checkbox
-              checked={consents.sms}
-              onChange={(v) => setConsents({ ...consents, sms: v })}
-              label="Chci dostávat SMS připomínky termínů."
-              description="Nepovinné. Připomínky e-mailem chodí vždy."
-            />
+            {SMS_ENABLED && (
+              <Checkbox
+                checked={consents.sms}
+                onChange={(v) => setConsents({ ...consents, sms: v })}
+                label="Chci dostávat SMS připomínky termínů."
+                description="Nepovinné. Připomínky e-mailem chodí vždy."
+              />
+            )}
             <Checkbox
               checked={consents.marketingEmail}
               onChange={(v) => setConsents({ ...consents, marketingEmail: v })}

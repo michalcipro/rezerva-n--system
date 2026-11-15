@@ -17,7 +17,7 @@ Zákazník – Provozovna (podnikatel, B2B; správce osobních údajů svých kl
    ▼
 Klient (zpravidla spotřebitel)
 
-Další zpracovatelé Nexum Care: Supabase (databáze a přihlášení, EU – Frankfurt), Cloudflare (web), Brevo (e-maily, SMS).
+Další zpracovatelé Nexum Care: Supabase (databáze a přihlášení, EU – Frankfurt), Cloudflare (web), Brevo (e-maily).
 Banka provozovny (Fio banka) je samostatný správce, ne zpracovatel.
 ```
 
@@ -226,7 +226,7 @@ Zjištěno při porovnání návrhů s kódem (commit 6d3d6d6). Seřazeno podle 
 
 18. **Licence a omezení služby** podle článku 11 licenční smlouvy: upozornění majiteli v ochranné lhůtě; přesně definovat, co blokuje režim jen pro čtení (doporučení: klienti mohou zrušit existující rezervaci a připomínky i potvrzení dál odcházejí – jinak provozovna poruší své VOP); co vidí klient při pozastavení (neutrální text s kontaktem na provozovnu, bez důvodu); Platnost licence s datem i u plánu `lifetime`; export v režimu jen pro čtení i při pozastavení.
 19. **Úplný export provozovny** pro přechod k jinému poskytovateli (Data Act; licenční smlouva čl. 18): JSON a CSV všech dat provozovny s popisem struktury, dostupný i v režimu jen pro čtení a v exportní lhůtě po skončení smlouvy. Dnes existuje export po klientech (karta klienta) a přehledy (např. CSV vstupů).
-20. **Více provozoven na jednom nasazení:** `POST /api/admin/bootstrap` zakládá jen první provozovnu (další volání vrátí 409), registrace klienta se váže k výchozí provozovně, `FIO_TOKEN`, `SMS_SENDER` a `MAIL_FROM` jsou společné proměnné serveru. Do vyřešení potřebuje každý zákazník samostatné nasazení (dopad na náklady – `../business/cenik-a-licence.md`).
+20. **Více provozoven na jednom nasazení:** `POST /api/admin/bootstrap` zakládá jen první provozovnu (další volání vrátí 409), registrace klienta se váže k výchozí provozovně, `FIO_TOKEN` a `MAIL_FROM` jsou společné proměnné serveru. Do vyřešení potřebuje každý zákazník samostatné nasazení (dopad na náklady – `../business/cenik-a-licence.md`).
 21. **Právní texty provozovny** (`settings.legal`) zobrazit klientům na adrese provozovny se stejnou kontrolou konceptu jako `app/scripts/build-legal.mjs`. Kontrola dnes hledá „PRACOVNÍ NÁVRH“, „K ověření právníkem“, „Pro kliniku:“ a zástupné texty psané velkými písmeny – doplnit „Pro Provozovnu:“, „Pro Nexum Care:“ a značky variant s malými písmeny. Značky [VARIANTA Z], [VARIANTA N] a [MODUL …] kontrola zachytí už dnes.
 22. **Šablony oborů** (`presets.ts`) mají zatím stejný katalog jako fyzioterapie (kromě prázdné provozovny) a `bootstrap` šablonu nepoužívá. Po doplnění šablon nastavit `withdrawalAllowed = false` jen u permanentek na zdravotní služby.
 23. **Odstoupení u permanentek:** `withdrawalInfo` počítá jako vyčerpané i propadlé vstupy (pozdní zrušení, nedostavení) – podle posouzení advokáta (VOP čl. 14, § 1834 OZ) případně změnit.
@@ -238,7 +238,7 @@ Zjištěno při porovnání návrhů s kódem (commit 6d3d6d6). Seřazeno podle 
 |---|---|
 | 18. Licence a omezení | **Hotovo:** upozornění majiteli 14 dní před koncem a v 14denní ochranné lhůtě; potom jen čtení – nové rezervace a změny ne, klient ale smí zrušit rezervaci, odvolat souhlas a odstoupit od smlouvy a automatické zprávy (potvrzení zrušení, připomínky) dál odcházejí. Při pozastavení vidí klient neutrální text „Online rezervace jsou dočasně nedostupné. Kontaktujte prosím provozovnu.“, tým se nepřihlásí, **majitel data dál prohlíží a exportuje**. U plánu `lifetime` se zadává datum konce zaplaceného provozu a podpory (konzole: „Provoz a podpora zaplaceny do“, výchozí +1 rok); bez data je provoz neomezený (např. vlastní hosting). |
 | 19. Úplný export | **Hotovo:** Nastavení → Export dat (jen majitel) – všechna data provozovny v JSON s popisem struktury a CSV klientů, rezervací, plateb, permanentek a kreditu. Funguje i v režimu jen pro čtení a při pozastavení / ukončení (do výmazu). Veřejný popis formátu pro čl. 18.1 lze převzít z pole `popis` v exportu. |
-| 20. Více provozoven | **Hotovo:** jedna instalace, provozovny zakládá vlastník platformy v konzoli `/platforma`; data, přístupy a klienti oddělené; token Fio každé provozovny šifrovaně v databázi; e-maily z jedné adresy platformy se jménem provozovny jako odesílatele a odpovědí na e-mail provozovny. Společný zůstává odesílatel SMS (`SMS_SENDER`). Viz `../PLATFORM.md`. |
+| 20. Více provozoven | **Hotovo:** jedna instalace, provozovny zakládá vlastník platformy v konzoli `/platforma`; data, přístupy a klienti oddělené; token Fio každé provozovny šifrovaně v databázi; e-maily z jedné adresy platformy se jménem provozovny jako odesílatele a odpovědí na e-mail provozovny. SMS se nepoužívají (s klienty jen e-mailem), odesílatel SMS (`SMS_SENDER`) se nenastavuje. Viz `../PLATFORM.md`. |
 | 21. Právní texty provozovny | **Hotovo:** Nastavení → Právní texty; klienti je vidí při registraci, přihlášení a v účtu. Uložit nejde text s poznámkami konceptu („PRACOVNÍ NÁVRH“, „K ověření právníkem“, „Pro kliniku:“, „Pro Provozovnu:“, „Pro Nexum Care:“) ani s nevyplněnými údaji ([VARIANTA …], [MODUL …], [NÁZEV …]); odkazy jako [ÚOOÚ](https://uoou.gov.cz) nevadí. Dokud provozovna text nemá, zobrazí se obecná stránka platformy. |
 | 22. Šablony oborů | **Hotovo:** fyzio, masáže, fitness, kosmetika a prázdná provozovna – služby, ceník, permanentky, skupinové lekce, storno podmínky, názvosloví a moduly; konzole je používá při zakládání provozovny. Odstoupení je vypnuté jen u permanentek na fyzioterapii (zdravotní služby, § 1840 OZ); u masáží a kosmetiky ho posoudit s advokátem. |
 | 23. Odstoupení u permanentek | Otevřené – rozhodnutí advokáta. |
@@ -286,7 +286,7 @@ Zjištěno při porovnání návrhů s kódem (commit 6d3d6d6). Seřazeno podle 
 - [ ] Právní základy podle účelů, zejména čl. 9 odst. 2 písm. h) GDPR pro rezervace zdravotních služeb a odvozené zdravotní údaje (SDEU C-184/20, C-21/23); u varianty N nahodilé zdravotní údaje v poznámkách a zdravotní dotazníky na základě výslovného souhlasu.
 - [ ] Doby uchování a jejich odůvodnění.
 - [ ] Pověřenec (čl. 37 GDPR, recitál 91) a dobrovolné posouzení vlivu (DPIA); záznamy o činnostech zpracování provozovny (čl. 30).
-- [ ] Předávání mimo EU: Supabase Pte. Ltd. (Singapur) a Supabase, Inc. (USA) na standardních smluvních doložkách; Cloudflare (Data Privacy Framework, odvolání C-703/25 P); SMS partneři Brevo.
+- [ ] Předávání mimo EU: Supabase Pte. Ltd. (Singapur) a Supabase, Inc. (USA) na standardních smluvních doložkách; Cloudflare (Data Privacy Framework, odvolání C-703/25 P).
 - [ ] Automatické pozastavení online rezervací a čl. 22 GDPR.
 - [ ] Cookies a místní úložiště v ostrém nasazení (§ 89 odst. 3 zákona č. 127/2005 Sb.) – ověřit skutečný stav.
 

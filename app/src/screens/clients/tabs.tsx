@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Booking, Client, ClientConsents, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
+import { SMS_ENABLED } from '../../engine/channels';
 import { addClinicalNote, setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatDateTimeShort, formatDayShort, formatMoney, formatTime } from '../../engine/format';
 import { modulesOf } from '../../engine/modules';
@@ -537,8 +538,13 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite?: () => 
   const { page, setPage, pageItems, pageCount } = usePaged(list, 20, filter + client.id);
   const options: { value: MsgFilter; label: string }[] = [
     { value: 'all', label: `Vše (${all.length})` },
-    { value: 'email', label: 'E-mail' },
-    { value: 'sms', label: 'SMS' },
+    // filtr podle kanálu jen se SMS – s e-mailem jako jediným kanálem by nic neodlišil
+    ...(SMS_ENABLED
+      ? [
+          { value: 'email' as const, label: 'E-mail' },
+          { value: 'sms' as const, label: 'SMS' },
+        ]
+      : []),
     ...(counts.queued || filter === 'queued' ? [{ value: 'queued' as const, label: `Čeká na odeslání (${counts.queued})` }] : []),
     { value: 'unsent', label: `Neodeslané (${counts.unsent})` },
   ];

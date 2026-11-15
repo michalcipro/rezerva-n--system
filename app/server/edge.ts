@@ -18,7 +18,9 @@ import { createRestStore } from './store/rest';
  *   PUBLIC_API_URL         veřejná adresa API (odkazy pro odhlášení z novinek)
  *   PUBLIC_APP_URL         adresa aplikace (odkaz na konzoli v denním přehledu licencí)
  *   UNSUBSCRIBE_SECRET     podpis odkazů pro odhlášení (jinak se použije CRON_SECRET)
- *   BREVO_API_KEY, MAIL_FROM, MAIL_FROM_NAME, SMS_SENDER   odesílání e-mailů a SMS
+ *   BREVO_API_KEY, MAIL_FROM, MAIL_FROM_NAME   odesílání e-mailů
+ *   SMS_SENDER             nepoužívá se – platforma SMS neposílá (SMS_ENABLED v src/engine/channels.ts);
+ *                          zůstává jen pro případné pozdější zapnutí SMS
  *   APP_ANON_KEY, APP_SERVICE_KEY  nové klíče Supabase (sb_publishable_…, sb_secret_…), pokud se nepoužívají starší
  *   CLINIC_ID              provozovna pro adresu bez /<slug> (jinak jen když je na platformě jediná)
  *   FIO_TOKEN              jen pro instalaci s jedinou provozovnou – jinak se token zadává v konzoli platformy
@@ -52,6 +54,7 @@ export function createEdgeHandler(env: Env): (req: Request) => Promise<Response>
   const unsubscribeSecret = env.UNSUBSCRIBE_SECRET || env.CRON_SECRET;
   const secretsKey = env.SECRETS_KEY || undefined;
   const cronJobs = [];
+  // smsSender (SMS_SENDER) se nepoužívá, dokud jsou SMS vypnuté – automatika SMS neodesílá
   const messenger =
     env.BREVO_API_KEY && env.MAIL_FROM
       ? createBrevoMessenger({ apiKey: env.BREVO_API_KEY, senderEmail: env.MAIL_FROM, senderName: env.MAIL_FROM_NAME ?? '', smsSender: env.SMS_SENDER ?? '' })

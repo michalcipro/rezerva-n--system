@@ -397,7 +397,7 @@ function ConsentNote(): JSX.Element {
   return (
     <Callout tone="info" title="Souhlasy klientů" icon="shieldCheck">
       Každému importovanému klientovi zapíšeme souhlas se zpracováním údajů pro rezervace se zdrojem „import ze stávajícího systému“. Souhlas
-      s obchodními sděleními a SMS jen tam, kde soubor uvádí „ano“ (nebo datum udělení). Obchodní sdělení smíte posílat, jen když souhlas umíte
+      s obchodními sděleními jen tam, kde soubor uvádí „ano“ (nebo datum udělení). Obchodní sdělení smíte posílat, jen když souhlas umíte
       doložit – kdy a jak ho klient dal. Pokud ho ve stávajícím systému zaznamenaný nemáte, nechte sloupec prázdný.
     </Callout>
   );

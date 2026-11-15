@@ -5,7 +5,7 @@ a jak se zakládají a spravují provozovny zákazníků, je v [PLATFORM.md](PLA
 v [PRODUCTION.md](PRODUCTION.md). Tady jsou kroky v účtech poskytovatelů (Supabase, Cloudflare, Brevo),
 které za vás nikdo jiný udělat nemůže.
 
-Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
+Odhad času: 2–3 hodiny (bez čekání na DNS).
 
 **Nikdy neposílejte klíče e-mailem ani do chatu.** Tajné hodnoty se zadávají jen do nastavení služeb
 (Supabase → Edge Functions → Secrets, Cloudflare → Environment variables) nebo do bezpečného formuláře.
@@ -18,7 +18,7 @@ Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
 |---|---|---|
 | Supabase (region **EU – Frankfurt**) | databáze, přihlášení, server | Pro plán 25 USD/měs. – zálohy a žádné uspávání projektu |
 | Cloudflare Pages | web aplikace | zdarma |
-| Brevo | e-maily (a SMS) | e-maily zdarma do 300/den, SMS předplacené kredity |
+| Brevo | e-maily | zdarma do 300/den |
 | Fio banka (nepovinné) | automatické párování QR plateb | zdarma |
 | Doména | např. `rezervace.klinika.cz` | u stávajícího registrátora |
 
@@ -75,7 +75,7 @@ Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
    | `BREVO_API_KEY` | API klíč z Brevo (`xkeysib-…`) – bez něj se zprávy jen řadí do fronty |
    | `MAIL_FROM` | odesílací adresa na ověřené doméně, např. `rezervace@klinika.cz` |
    | `MAIL_FROM_NAME` | jméno odesílatele (jinak se bere název kliniky z nastavení) |
-   | `SMS_SENDER` | schválený odesílatel SMS (max. 11 znaků) – bez něj SMS neodcházejí |
+   | `SMS_SENDER` | **nepoužívá se** – s klienty se komunikuje jen e-mailem, SMS jsou vypnuté (`SMS_ENABLED` v `src/engine/channels.ts`); nezadávejte |
 
    Náhodný řetězec vytvoříte např. příkazem `openssl rand -hex 32`. Pokud projekt používá nové klíče
    (`sb_publishable_…`, `sb_secret_…`) a starší klíče jsou vypnuté, přidejte i `APP_ANON_KEY` a `APP_SERVICE_KEY`.
@@ -118,7 +118,7 @@ $$);
 Kontrola: Integrations → Cron → Jobs ukazuje běhy; odpovědi jsou v tabulce `net._http_response`.
 Automatika: docházka po termínu, připomínky, propadání náhrad a nabídek z čekací listiny, odeslání zpráv, párování plateb.
 
-## 6. Brevo – e-maily a SMS
+## 6. Brevo – e-maily
 
 1. Účet na brevo.com (na firmu, která systém provozuje – viz smlouva o zpracování).
 2. Senders, Domains & Dedicated IPs → **Domains** → přidat doménu kliniky → u registrátora domény nastavte
@@ -128,9 +128,8 @@ Automatika: docházka po termínu, připomínky, propadání náhrad a nabídek 
    SMTP key (`xsmtpsib-…`) patří do SMTP nastavení Supabase (krok 2.3).
 4. Security → **Authorised IPs** → blokování neznámých IP vypněte (Edge Functions nemají pevnou IP adresu;
    jinak Brevo po 30 dnech začne vracet chybu 401).
-5. SMS (nepovinné): dobít kredity a zaregistrovat **odesílatele (Sender ID)** pro Českou republiku –
-   operátoři SMS od neregistrovaných odesílatelů blokují. Dokud není schválený, nechte SMS šablony
-   v aplikaci vypnuté (Komunikace → Šablony).
+5. SMS se nepoužívají – s klienty se komunikuje jen e-mailem. SMS kredit ani odesílatele SMS (Sender ID)
+   v Brevo nezřizujte.
 
 ## 7. Fio banka – automatické párování QR plateb (nepovinné)
 
@@ -183,7 +182,7 @@ Brevo a Cloudflare (DPA jsou součástí podmínek – stáhnout a uložit). Se 
 - [ ] Služby a ceník, tým a pracovní doba, permanentky a skupinové lekce podle skutečnosti.
 - [ ] Tým a směny → Přístupy do systému: přidat recepci a terapeuty (přihlašují se svým e-mailem).
 - [ ] Import klientů, permanentek a kreditů ze stávající evidence (Nastavení → Import dat).
-- [ ] Komunikace → Šablony: projít texty, SMS nechat vypnuté do schválení odesílatele.
+- [ ] Komunikace → Šablony: projít texty e-mailů.
 - [ ] Zkušební rezervace, zrušení, QR platba (malá částka), připomínka – ověřit, že e-maily chodí.
 
 **Fáze 2 – klientský portál**

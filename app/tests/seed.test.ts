@@ -27,5 +27,8 @@ describe('ukázková data', () => {
     expect(u.free).toBe(4);
     expect(u.reserved).toBe(2);
     expect(clientCredit(s, martin.id)).toBe(1455);
+    // s klienty se komunikuje jen e-mailem: ukázková data bez SMS zpráv i bez souhlasů se SMS
+    expect(s.messages.some((m) => m.channel === 'sms')).toBe(false);
+    expect(s.clients.some((c) => c.consents.sms)).toBe(false);
   });
 });

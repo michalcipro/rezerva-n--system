@@ -8,7 +8,7 @@
 1. **Hlavní model je předplatné** (varianta A) ve třech tarifech podle počtu Pracovníků a modulů: **Start 690 Kč**, **Standard 1 390 Kč**, **Profi 2 690 Kč** měsíčně bez DPH. Při roční platbě předem 12 měsíců za cenu 10.
 2. **Doživotní licence** (varianta B) jen jako doplňková nabídka: **jednorázově 30× měsíční cena tarifu + roční poplatek za provoz a podporu 4× měsíční cena** (zhruba třetina ročního předplatného). Nikdy bez ročního poplatku – náklady na provoz běží, dokud zákazník Platformu používá.
 3. **Onboarding se platí zvlášť** (4 900 Kč základní, 9 900 Kč rozšířený) a úpravy na zakázku hodinovou sazbou (1 490 Kč/h).
-4. **Průběžné náklady se přeúčtovávají:** SMS podle počtu, poplatky za odesílatele SMS, e-maily nad limit.
+4. **Průběžné náklady se přeúčtovávají:** e-maily nad limit. SMS Platforma neposílá – s klienty se komunikuje jen e-mailem.
 5. **Zkušební verze 30 dní zdarma** – nejlépe na ukázkových datech; skutečná data klientů až po podpisu smlouvy o zpracování.
 6. **Slevy jen časově omezené a písemně**; doživotní licenci nezlevňujte pod 24× měsíční cenu.
 7. **Export dat je vždy zdarma** (vyžaduje nařízení (EU) 2023/2854, od 12. 1. 2027 bez jakýchkoli poplatků za přechod) – nepočítejte s ním jako s příjmem.
@@ -22,14 +22,12 @@
 | Supabase (databáze, přihlášení, server, zálohy) | tarif Pro 25 USD měsíčně za organizaci; další projekty platí výpočetní instanci | bezplatný tarif nemá zálohy a uspává projekt – pro ostrý provoz nestačí (`app/docs/DEPLOY.md`) |
 | Cloudflare Pages (web aplikace) | zdarma | ověřit limit vlastních domén v jednom projektu – u desítek zákazníků s vlastní doménou může být potřeba placené řešení pro vlastní hostitelská jména |
 | Brevo – e-maily | zdarma do 300 e-mailů denně; placené tarify od jednotek až desítek USD měsíčně podle objemu | jedna provozovna s ~300 rezervacemi měsíčně pošle zhruba 600–1 000 servisních e-mailů měsíčně (potvrzení, připomínky, platby) |
-| SMS v ČR | nákupní cena u bran zhruba 0,41–1,30 Kč bez DPH za SMS; u Brevo ověřit | zpráva s diakritikou má jen 70 znaků na část, bez diakritiky 160 – účtuje se každá část |
-| Odesílatel SMS (Sender ID) | u některých bran registrace 350–550 Kč a 100–550 Kč měsíčně bez DPH | schválení operátory trvá zhruba 2 týdny |
 | Monitoring dostupnosti | bezplatný tarif (např. kontrola `/api/health` každých 5 minut) | podklad pro SLA (Příloha 3 licenční smlouvy) |
 | Podpora, onboarding, aktualizace | **čas majitele / vývojáře – největší náklad** | počítejte i s úpravami kvůli změnám zákonů (např. tlačítko pro odstoupení od 1. 1. 2027) |
 
 > **Všichni zákazníci běží na jednom sdíleném nasazení:** provozovny zakládáte v konzoli `/platforma`, token Fio má každá provozovna vlastní (šifrovaně) a e-maily odcházejí z jedné ověřené adresy platformy se jménem provozovny. Náklady na infrastrukturu jsou proto v řádu desítek korun za zákazníka měsíčně. Samostatný projekt Supabase počítejte jen u zákazníka, který chce vlastní hosting (stejný kód s jedinou provozovnou – viz `../PLATFORM.md`).
 
-Ceny dodavatelů: `app/docs/DEPLOY.md` (Supabase, Cloudflare, Brevo) a `research_notes/Rezervační systém pro fyzioterapii/komunikace_integrace.md` (SMS brány a odesílatelé, data z října 2026). Všechny údaje ověřte na aktuálních cenících.
+Ceny dodavatelů: `app/docs/DEPLOY.md` (Supabase, Cloudflare, Brevo). Všechny údaje ověřte na aktuálních cenících.
 
 ### 2.2 Trh (ceny konkurence z rešerše 14. 10. 2026, bez záruky aktuálnosti)
 
@@ -40,7 +38,6 @@ Ceny dodavatelů: `app/docs/DEPLOY.md` (Supabase, Cloudflare, Brevo) a `research
 | MyFox | 229 / 359 / 899 Kč (vč. DPH); další pracovník 150 Kč bez DPH | cena podle počtu pracovníků je na trhu běžná |
 | Fyzion | 587 / 757 / 1 012 Kč za fyzioterapeuta (bez DPH) | fyzioterapeuti jsou zvyklí platit za každého terapeuta |
 | Noona, Bookio | zhruba 200–500 Kč, resp. 0–62 € | levné obecné systémy |
-| SMS u konkurence | 1,0–1,5 Kč za SMS | strop pro naši prodejní cenu SMS |
 
 Zdroj: `research_notes/Rezervační systém pro fyzioterapii/cesky_trh.md`.
 
@@ -120,7 +117,7 @@ Proč takto:
 | Služba | Návrh ceny bez DPH | Co obsahuje |
 |---|---|---|
 | Onboarding základní | 4 900 Kč | zřízení prostředí, šablona oboru, vzhled (logo, barva), adresa `/<označení>`, služby a tým (do 20 služeb a 6 Pracovníků), storno pravidla podle obchodních podmínek, 1 hodina školení online, předání vzorových právních textů |
-| Onboarding rozšířený | 9 900 Kč | základní + import klientů, permanentek a kreditu z CSV/Excelu, vlastní doména, ověření odesílací domény e-mailů, registrace odesílatele SMS, nastavení párování Fio, 2× školení |
+| Onboarding rozšířený | 9 900 Kč | základní + import klientů, permanentek a kreditu z CSV/Excelu, vlastní doména, ověření odesílací domény e-mailů, nastavení párování Fio, 2× školení |
 | Import dat nad rozsah | 1 490 Kč/h | čištění dat, nestandardní formáty, více zdrojů |
 | Úpravy na zakázku | 1 490 Kč/h | podle specifikace a odhadu (Příloha 4 licenční smlouvy) |
 | Školení a konzultace nad rozsah | 990 Kč/h | noví pracovníci, opakované školení |
@@ -133,18 +130,16 @@ Proč takto:
 
 | Položka | Návrh prodejní ceny bez DPH | Poznámka |
 |---|---|---|
-| SMS (každá část zprávy) | 1,50–1,90 Kč | nákupní cenu u Brevo ověřit; šablony SMS raději bez diakritiky (160 znaků místo 70) |
-| Odesílatel SMS (Sender ID) | registrace 990 Kč jednorázově + poplatky operátorů 1:1 | bez schváleného odesílatele SMS neodcházejí |
 | E-maily nad objem tarifu | 50 Kč za každých započatých 1 000 e-mailů | týká se hlavně kampaní |
 | Vlastní doména | nastavení v onboardingu | doménu si zákazník platí sám u svého registrátora |
 | Párování plateb Fio | v tarifu Standard a Profi zdarma; nastavení 990 Kč v tarifu Start | token platí nejdéle 180 dní – obnovu hlídá zákazník, Nexum Care připomíná |
 
-SMS je nejlepší účtovat **měsíčně zpětně podle skutečného počtu** (Platforma zná stav doručení každé zprávy), nebo jako předplacený kredit SMS u menších zákazníků.
+E-maily nad objem tarifu účtujte **měsíčně zpětně podle skutečného počtu** (Platforma zná stav doručení každé zprávy). SMS se nepřeúčtovávají – Platforma je neposílá, s klienty se komunikuje jen e-mailem.
 
 ## 7. Zkušební verze
 
 - **30 dní zdarma** (konkurence 14–30 dní).
-- **Cesta A – zkouška bez smlouvy** (doporučená pro nové zájemce): prostředí s ukázkovými daty, bez SMS, bez skutečných klientů. Na konci nabídka smlouvy; bez ní se prostředí smaže.
+- **Cesta A – zkouška bez smlouvy** (doporučená pro nové zájemce): prostředí s ukázkovými daty, bez skutečných klientů. Na konci nabídka smlouvy; bez ní se prostředí smaže.
 - **Cesta B – zkušební období ve smlouvě** (článek 7 licenční smlouvy): pro zájemce, kteří chtějí zkoušet na skutečném provozu. Smlouva i smlouva o zpracování se podepisují předem; bez výpovědi Smlouva po 30 dnech pokračuje placeným tarifem. Před koncem zkoušky zákazníkovi připomeňte, kdy končí (článek 7.4).
 - V Platformě odpovídá zkoušce plán `trial` s Platností licence do konce zkoušky.
 
@@ -228,7 +223,7 @@ Platforma vynucuje licenci technicky: plán (zkušební / měsíční / roční 
 
 ## Zdroje
 
-- Ceny konkurence a SMS: `research_notes/Rezervační systém pro fyzioterapii/cesky_trh.md` (data z 14. 10. 2026), `research_notes/Rezervační systém pro fyzioterapii/komunikace_integrace.md`.
+- Ceny konkurence: `research_notes/Rezervační systém pro fyzioterapii/cesky_trh.md` (data z 14. 10. 2026).
 - Náklady na infrastrukturu a nasazení: `app/docs/DEPLOY.md`, `app/docs/PRODUCTION.md`.
 - Smluvní rámec: `app/docs/legal/licencni-smlouva.md` (zejména články 3.5, 9–11, 17–19 a Přílohy 1 a 3), `app/docs/legal/smlouva-o-zpracovani.md`.
 - Data Act – přechod mezi poskytovateli bez poplatků od 12. 1. 2027: https://www.pinsentmasons.com/out-law/guides/switching-porting-rules-eu-data-act

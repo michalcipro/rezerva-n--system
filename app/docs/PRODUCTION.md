@@ -14,7 +14,7 @@ engine (`src/engine/*`) jako aplikace.
 | Databáze a přihlášení | Supabase, region EU (Frankfurt) |
 | Server | jedna Supabase Edge Function `api` (stejný kód běží lokálně v Node pro vývoj a testy) |
 | Web | statický build (Cloudflare Pages) |
-| E-maily a SMS | Brevo (EU), jeden účet pro obojí |
+| Zprávy klientům | jen e-maily přes Brevo (EU); SMS se nepoužívají (kód vypnutý přepínačem `SMS_ENABLED` v `src/engine/channels.ts`) |
 | Platby | na místě, QR Platba (ruční potvrzení, volitelně automatické párování přes Fio API); karta online vypnutá |
 | Klinické poznámky | v ostrém provozu vypnuté (`settings.features.clinicalNotes = false`) |
 | Spuštění | 1) recepce a terapeuti, 2) klientský portál |
@@ -51,13 +51,15 @@ prohlížeč (klient)    ── jen vlastní data + anonymní obsazenost ─┤
   náhrad a nabídek, odeslání zpráv z fronty, párování QR plateb z Fio.
 - **Zprávy:** v ostrém provozu (`settings.messaging.deliver = true`) vznikají ve stavu `queued`,
   server je odešle přes Brevo a zapíše výsledek (`recordDeliveries`: `sent` / opakování / `failed`).
+  SMS, která zůstala ve frontě ze starších dat, se neodešle – server ji označí jako neodeslanou (`skipped`)
+  s důvodem „SMS se nepoužívají“.
 
 ## Struktura kódu
 
 ```
 app/src/engine/        pravidla (sdílená prohlížečem i serverem)
 app/server/            API, úložiště, ověření přihlášení, automatika, poskytovatelé (Brevo, Fio)
-app/server/providers/  odesílání e-mailů a SMS, bankovní výpisy
+app/server/providers/  odesílání e-mailů (kód pro SMS zůstává, nepoužívá se), bankovní výpisy
 supabase/migrations/   SQL schéma a ochrana řádků
 supabase/functions/api Edge Function (tenký obal nad app/server, sestavuje se esbuildem)
 ```
@@ -73,7 +75,7 @@ supabase/functions/api Edge Function (tenký obal nad app/server, sestavuje se e
 
 Proměnné webu: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (veřejné), `VITE_BACKEND=server` je v `.env.prod`.
 Proměnné serveru (Supabase → Edge Functions → Secrets): `PLATFORM_ADMIN_EMAILS`, `SECRETS_KEY`, `CRON_SECRET`,
-`ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`
+`ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME` (`SMS_SENDER` se nepoužívá)
 – popis v [DEPLOY.md](DEPLOY.md).
 
 ## API
