@@ -83,6 +83,7 @@ Proměnné serveru (Supabase → Edge Functions → Secrets): `PLATFORM_ADMIN_EM
 | Trasa | Kdo | Co dělá |
 |---|---|---|
 | `GET /api/session` | přihlášený | role (personál / klient); klienta s ověřeným e-mailem propojí s kartou v kartotéce |
+| `GET /api/ares?ico=` | personál | údaje firmy z ARES pro fakturační údaje (název, sídlo, DIČ, právní forma, zápis v rejstříku); krátká cache, české chyby |
 | `POST /api/register` | nový klient | založí kartu klienta (souhlasy) a propojí ji s přihlášením |
 | `GET /api/state`, `GET /api/changes?since=` | personál, klient | stav po částech (personál) / vlastní pohled (klient), dočítání změn |
 | `POST /api/command` | podle role | příkaz enginu; kontrola role, tvaru vstupu, opakované odeslání se neprovede dvakrát |

@@ -13,6 +13,11 @@ export type AccountAction = 'topup' | 'buy' | 'platby';
 
 export interface PortalContextValue {
   client: Client;
+  /**
+   * Klient si smí sám rezervovat a přesouvat termíny: online rezervace jsou spuštěné a jeho účet
+   * není zablokovaný (po opakovaném nedostavení). Zrušit termín může vždy.
+   */
+  canBook: boolean;
   /** Přechod na jinou obrazovku portálu (posune nahoru). */
   go: (route: PortalRoute) => void;
   /** Otevře účet na dané podstránce, případně s akcí. */

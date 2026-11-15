@@ -114,10 +114,10 @@ export function NewClientDialog({
           </Field>
         </div>
         <div className="st-form__row">
-          <Field label="E-mail" error={show(errors.email ?? errors.contact)}>
+          <Field label="E-mail" error={show(errors.email ?? errors.contact)} hint={form.email.trim() ? undefined : 'Bez e-mailu klient nedostane potvrzení ani připomínky.'}>
             <Input type="email" value={form.email} autoComplete="email" inputMode="email" onValueChange={(v) => set('email', v)} />
           </Field>
-          <Field label="Telefon" hint="Stačí e-mail, nebo telefon.">
+          <Field label="Telefon" hint="Stačí e-mail, nebo telefon – zprávy ale chodí jen e-mailem.">
             <Input type="tel" value={form.phone} autoComplete="tel" inputMode="tel" onValueChange={(v) => set('phone', v)} />
           </Field>
         </div>

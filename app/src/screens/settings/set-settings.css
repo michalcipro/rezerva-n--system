@@ -716,3 +716,35 @@ textarea.set-legal__text {
   gap: var(--space-2);
 }
 .set-module__label .icon { color: var(--text-muted); }
+
+/* Fakturační údaje provozovny */
+.set-biz__form { align-self: flex-start; max-width: 100%; }
+.set-biz__ico {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+}
+.set-biz__ico > .field { flex: 0 1 320px; min-width: 0; }
+/* tlačítko v řadě se vstupem (pod popiskem pole) */
+.set-biz__ico > .btn { margin-top: calc(var(--leading-sm) + var(--space-1)); }
+.set-biz__examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: calc(-1 * var(--space-1));
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+.set-biz__examples-title { font-weight: var(--weight-medium); color: var(--text-secondary); }
+.set-biz__examples .set-bullets { list-style: disc; }
+.set-biz__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}

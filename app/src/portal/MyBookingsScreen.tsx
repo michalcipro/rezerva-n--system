@@ -28,7 +28,7 @@ export function MyBookingsScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const { client, go } = usePortal();
+  const { client, canBook, go } = usePortal();
   const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
   const [limit, setLimit] = useState(HISTORY_PAGE);
 
@@ -48,7 +48,7 @@ export function MyBookingsScreen(): JSX.Element {
     <Screen
       title="Moje termíny"
       right={
-        !client.blocked ? (
+        canBook ? (
           <Button size="sm" variant="ghost" icon="plus" className="por-top__action" onClick={() => go({ name: 'rezervace' })}>
             Nový
           </Button>
@@ -90,7 +90,7 @@ export function MyBookingsScreen(): JSX.Element {
               title="Nemáte žádný naplánovaný termín"
               text="Vyberte si službu a čas, který vám vyhovuje – potvrzení přijde e-mailem."
               action={
-                !client.blocked ? (
+                canBook ? (
                   <Button variant="primary" icon="calendarPlus" onClick={() => go({ name: 'rezervace' })}>
                     Rezervovat termín
                   </Button>

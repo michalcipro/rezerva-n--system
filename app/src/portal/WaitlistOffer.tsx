@@ -18,7 +18,7 @@ export function OfferCard({ entry }: { entry: WaitlistEntry }): JSX.Element | nu
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const { client } = usePortal();
+  const { client, canBook } = usePortal();
   const [accepting, setAccepting] = useState(false);
   const [declining, setDeclining] = useState(false);
   const offer = entry.offer;
@@ -60,8 +60,10 @@ export function OfferCard({ entry }: { entry: WaitlistEntry }): JSX.Element | nu
       <p className="por-offer__note">
         Nabídku dostalo víc čekajících – termín získá, kdo potvrdí první. Platí do {formatTime(offer.expiresAt)}.
       </p>
-      {client.blocked ? (
-        <p className="por-offer__note">Online rezervace máte pozastavené – termín vám může potvrdit recepce.</p>
+      {!canBook ? (
+        <p className="por-offer__note">
+          {client.blocked ? 'Online rezervace máte pozastavené' : 'Online rezervace jsou teď pozastavené'} – termín vám může potvrdit recepce.
+        </p>
       ) : (
         <div className="por-offer__actions">
           <Button variant="secondary" size="lg" onClick={() => setDeclining(true)}>

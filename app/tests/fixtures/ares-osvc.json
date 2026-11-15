@@ -1,0 +1,34 @@
+{
+  "ico": "87654326",
+  "obchodniJmeno": "Jana Testová",
+  "sidlo": {
+    "kodStatu": "CZ",
+    "nazevStatu": "Česká republika",
+    "nazevKraje": "Hlavní město Praha",
+    "nazevObce": "Praha",
+    "nazevMestskehoObvodu": "Praha 4",
+    "nazevMestskeCastiObvodu": "Praha 4",
+    "nazevCastiObce": "Michle",
+    "nazevUlice": "Testovací",
+    "cisloDomovni": 778,
+    "cisloOrientacni": 3,
+    "cisloOrientacniPismeno": "a",
+    "psc": 14000,
+    "textovaAdresa": "Testovací 778/3a, Michle, 14000 Praha 4",
+    "standardizaceAdresy": true,
+    "typCisloDomu": 1
+  },
+  "pravniForma": "101",
+  "financniUrad": "004",
+  "datumVzniku": "2019-01-15",
+  "datumAktualizace": "2026-09-30",
+  "icoId": "87654326",
+  "seznamRegistraci": {
+    "stavZdrojeVr": "NEEXISTUJICI",
+    "stavZdrojeRes": "AKTIVNI",
+    "stavZdrojeRzp": "AKTIVNI",
+    "stavZdrojeNrpzs": "NEEXISTUJICI",
+    "stavZdrojeDph": "NEEXISTUJICI"
+  },
+  "primarniZdroj": "rzp"
+}

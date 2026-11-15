@@ -32,6 +32,7 @@ import { stateToChunkJson } from './core/state';
 import { pragueNow } from './core/time';
 import { verifyUnsubscribe } from './core/unsubscribe';
 import { validateInput } from './core/validate';
+import { createAresClient, type AresClient } from './providers/ares';
 import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateStore } from './store/types';
 
 /**
@@ -43,6 +44,7 @@ import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateSt
  *   GET  /api/tenant                     veřejné údaje provozovny (název, vzhled, názvosloví) – bez přihlášení
  *   GET  /api/legal?doc=terms|privacy    obchodní podmínky / zásady ochrany údajů provozovny – bez přihlášení
  *   GET  /api/session                    kdo je přihlášený (personál / klient / registrace / vlastník platformy)
+ *   GET  /api/ares?ico=12345678          údaje podnikatele z ARES pro fakturační údaje (personál provozovny)
  *   POST /api/register                   registrace klienta po prvním přihlášení
  *   GET  /api/state, /api/changes        stav provozovny (personál po částech, klient svůj pohled)
  *   POST /api/command                    příkaz enginu (role, tvar vstupu, licence)
@@ -99,6 +101,8 @@ export interface ApiDeps {
   afterCommand?: Record<string, (ctx: { clinicId: string; input: unknown; store: StateStore }) => Promise<void>>;
   /** Jednou denně: provozovny, kterým licence končí nebo skončila (e-mail vlastníkovi platformy). */
   licenseDigest?: (items: LicenseDigestItem[]) => Promise<void>;
+  /** Dotazy do ARES (testy podstrčí vlastní fetch přes createAresClient). */
+  ares?: AresClient;
   log?: (message: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -177,6 +181,8 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   const requestLimiter = new RateLimiter(600, 60_000);
   const openLimiter = new RateLimiter(20, 60_000);
   const publicLimiter = new RateLimiter(120, 60_000);
+  const aresLimiter = new RateLimiter(30, 60_000);
+  const ares = deps.ares ?? createAresClient({ log });
   const registering = new Set<string>();
   const tenantCache = new Map<string, { t: ClinicInfo | null; until: number }>();
   const TENANT_TTL_MS = 30_000;
@@ -448,6 +454,19 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       updatedAt: state.settings.legal.updatedAt,
     };
     return json(req, 200, body as unknown as Json);
+  }
+
+  /** Údaje podnikatele z ARES – doplní formulář fakturačních údajů (ukládá je až majitel příkazem updateSettings). */
+  async function aresLookup(req: Request, url: URL): Promise<Response> {
+    const user = await authenticate(req);
+    const t = await requireTenant(req, url);
+    const r = await resolve(user, t);
+    if (r.kind !== 'staff') throw new HttpError(403, 'Údaje z ARES načítá jen personál provozovny.', 'forbidden');
+    ensureLicense(t, r, 'ares');
+    if (!aresLimiter.allow('u:' + user.id, Date.now())) throw new HttpError(429, 'Příliš mnoho dotazů do ARES. Zkuste to prosím za chvíli.', 'rate_limited');
+    const result = await ares.lookup(url.searchParams.get('ico') ?? '');
+    if (!result.ok) throw new HttpError(result.status, result.error, result.status === 404 ? 'not_found' : result.status === 400 ? 'bad_request' : 'server_error');
+    return json(req, 200, result.company as unknown as Json);
   }
 
   /* ---------------------------- přihlášení a data ---------------------------- */
@@ -927,6 +946,8 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
           return await getLegal(req, url);
         case 'GET /session':
           return await getSession(req, url);
+        case 'GET /ares':
+          return await aresLookup(req, url);
         case 'POST /register':
           return await register(req, url);
         case 'GET /state':
@@ -957,11 +978,15 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   };
 }
 
-/** Ostrý provoz: bez simulovaných plateb kartou a klinických poznámek, zprávy se skutečně odesílají. */
+/**
+ * Ostrý provoz: bez simulovaných plateb kartou a klinických poznámek, zprávy se skutečně odesílají.
+ * Online rezervace začínají nespuštěné – majitel je spustí po kontrolním seznamu na Přehledu.
+ */
 function productionOverrides(s: ClinicState, name: string): ClinicState {
   s.settings.clinicName = name;
   s.settings.senderName = name;
   s.settings.senderEmail = '';
+  s.settings.bookingRules.onlineOpen = false;
   s.settings.features = { clinicalNotes: false, cardPayments: false };
   s.settings.messaging = { deliver: true };
   s.settings.payments = { ...s.settings.payments, recipientName: name.slice(0, 35), accountNumber: '', iban: '', demoAccount: false };

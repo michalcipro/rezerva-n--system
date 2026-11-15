@@ -62,6 +62,7 @@ import {
 } from '../../ui';
 import { BookingDrawer, NewBookingDialog } from '../calendar';
 import { HourlyChart, LegendItem } from './charts';
+import { LaunchCard } from './LaunchCard';
 import { hourlyOccupancy, pct } from './model';
 import { NewClientDialog } from './NewClientDialog';
 import {
@@ -635,6 +636,8 @@ export function DashboardScreen(): JSX.Element {
           </>
         }
       />
+
+      <LaunchCard />
 
       <div className="st-kpis st-kpis--day" aria-label="Souhrn dne">
         <KpiTile label="Rezervace dnes" value={formatNumber(day.bookings)}>

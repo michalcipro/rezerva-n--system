@@ -20,7 +20,8 @@ export type AdminRoute =
   | { name: 'tym' }
   | { name: 'komunikace' }
   | { name: 'statistiky' }
-  | { name: 'nastaveni' };
+  /** `section` = sekce Nastavení, na kterou se má obrazovka posunout (např. „business“). */
+  | { name: 'nastaveni'; section?: string };
 
 export type PortalRoute =
   | { name: 'domu' }

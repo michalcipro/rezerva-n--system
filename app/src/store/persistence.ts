@@ -1,4 +1,5 @@
 import type { ClinicState, TermsSettings } from '../domain/types';
+import { emptyBusinessProfile } from '../engine/business';
 import { DEFAULT_MODULES, DEFAULT_SERVICES, DEFAULT_TERMS, DEMO_ACCOUNT, SCHEMA_VERSION, defaultGroupTemplates, defaultPaymentSettings } from '../engine/defaults';
 import { DEFAULT_TEMPLATES } from '../engine/messages';
 import { isoWeekKey, monthKey } from '../engine/time';
@@ -153,6 +154,9 @@ export function normalizeState(s: ClinicState): ClinicState {
   if (s.settings && !s.settings.modules) s.settings.modules = { ...DEFAULT_MODULES };
   if (s.settings && !s.settings.branding) s.settings.branding = { accent: null, logo: null };
   if (s.settings && !s.settings.legal) s.settings.legal = { terms: '', privacy: '', updatedAt: null };
+  // data z doby před fakturačními údaji a spouštěním online rezervací: prázdné údaje, rezervace běží dál
+  if (s.settings && !s.settings.business) s.settings.business = emptyBusinessProfile();
+  if (s.settings?.bookingRules && typeof s.settings.bookingRules.onlineOpen !== 'boolean') s.settings.bookingRules.onlineOpen = true;
   // ukázková data z doby před kruhovým tréninkem: doplnit službu, pravidelné termíny a permanentku Skupiny 8
   if (s.demoSeededAt && s.services && !s.services.some((x) => x.id === 's_g_kruhovy')) {
     const svc = DEFAULT_SERVICES.find((x) => x.id === 's_g_kruhovy');

@@ -302,7 +302,7 @@ function QuickClientForm({
         <Field label="Příjmení" error={tried && !lastName.trim() ? 'Vyplňte příjmení.' : undefined}>
           <Input value={lastName} onValueChange={setLastName} autoComplete="off" />
         </Field>
-        <Field label="E-mail" error={tried && missingContact ? 'Vyplňte e-mail nebo telefon.' : undefined}>
+        <Field label="E-mail" error={tried && missingContact ? 'Vyplňte e-mail nebo telefon.' : undefined} hint={email.trim() ? undefined : 'Bez e-mailu klient nedostane potvrzení ani připomínky.'}>
           <Input type="email" value={email} onValueChange={setEmail} autoComplete="off" inputMode="email" />
         </Field>
         <Field label="Telefon">

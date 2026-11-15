@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ClientConsents, ClientPackage, Id, LedgerEntry, Message } from '../domain/types';
 import { ClientAvatar } from '../components/domain';
+import { businessContact, businessIdentity, phoneHref, webHref, webLabel } from '../engine/business';
 import { SMS_ENABLED } from '../engine/channels';
 import { createPaymentRequest, creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient, withdrawalInfo, withdrawFromPackage } from '../engine/commands';
 import {
@@ -84,6 +85,8 @@ function AccountRoot(): JSX.Element {
   const words = useTerms();
   const { client, setAccountView, accountAction, clearAccountAction } = usePortal();
   const today = dateOf(now);
+  // identifikace podnikatele (firma, sídlo, IČO, zápis v rejstříku) – jako v patičce e-mailů
+  const identity = businessIdentity(clinic.settings.business);
   // z domovské obrazovky „Zobrazit QR“ → rovnou na čekající platby
   const [focusPayments] = useState(accountAction === 'platby');
   useEffect(() => {
@@ -185,6 +188,8 @@ function AccountRoot(): JSX.Element {
         </div>
       </div>
 
+      <ContactSection />
+
       {SERVER_MODE && (
         <Button variant="secondary" size="lg" full icon="logout" onClick={() => void logout()}>
           Odhlásit se
@@ -193,10 +198,52 @@ function AccountRoot(): JSX.Element {
 
       <p className="por-foot">
         {clinic.settings.clinicName} · {clinic.settings.clinicTagline}
-        <br />
-        <a href={`mailto:${clinic.settings.senderEmail}`}>{clinic.settings.senderEmail}</a>
+        {identity.map((line) => (
+          <span key={line} className="por-block">
+            {line}
+          </span>
+        ))}
       </p>
     </Screen>
+  );
+}
+
+/** Kontakt provozovny: adresa (provozovna, jinak sídlo), telefon, e-mail a web z fakturačních údajů. */
+function ContactSection(): JSX.Element | null {
+  const clinic = useClinic();
+  const words = useTerms();
+  const contact = businessContact(clinic.settings);
+  if (!contact.address && !contact.phone && !contact.email && !contact.web) return null;
+  return (
+    <section className="por-stack por-stack--tight" aria-labelledby="por-contact-title">
+      <SectionTitle id="por-contact-title">Kontakt na {words.business.acc}</SectionTitle>
+      <div className="por-card por-card--list">
+        {contact.address && (
+          <div className="por-contact">
+            <Icon name="pin" size={16} className="por-contact__icon" />
+            <span className="por-contact__text">{contact.address}</span>
+          </div>
+        )}
+        {contact.phone && (
+          <a className="por-contact" href={phoneHref(contact.phone)}>
+            <Icon name="phone" size={16} className="por-contact__icon" />
+            <span className="por-contact__text tnum">{contact.phone}</span>
+          </a>
+        )}
+        {contact.email && (
+          <a className="por-contact" href={`mailto:${contact.email}`}>
+            <Icon name="mail" size={16} className="por-contact__icon" />
+            <span className="por-contact__text">{contact.email}</span>
+          </a>
+        )}
+        {contact.web && (
+          <a className="por-contact" href={webHref(contact.web)} target="_blank" rel="noopener noreferrer">
+            <Icon name="globe" size={16} className="por-contact__icon" />
+            <span className="por-contact__text">{webLabel(contact.web)}</span>
+          </a>
+        )}
+      </div>
+    </section>
   );
 }
 

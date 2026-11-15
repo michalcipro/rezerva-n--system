@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Actor, ClinicState } from '../src/domain/types';
 import { SMS_OFF_REASON } from '../src/engine/channels';
-import { createBooking, createClient, saveCampaign, sendCampaign } from '../src/engine/commands';
+import { createBooking, createClient, saveCampaign, sendCampaign, updateSettings } from '../src/engine/commands';
 import { DEMO_ACCOUNT } from '../src/engine/defaults';
 import { createApi, productionBaseState } from '../server/api';
 import { devAuth } from '../server/auth';
@@ -123,6 +123,29 @@ describe('automatika: odeslání zpráv', () => {
     const after = (await new ClinicEngine(store).current(clinicId))!.state.messages;
     expect(after.filter((m) => m.status === 'queued')).toHaveLength(0);
     expect(after.find((m) => m.id === queued[0].id)).toMatchObject({ status: 'sent', sentAt: NOW, attempts: 1 });
+  });
+
+  it('patička automatických e-mailů nese identifikaci provozovny (firma, sídlo, IČO, zápis v rejstříku)', async () => {
+    const owner: Actor = { role: 'owner', name: 'Majitelka' };
+    const business = {
+      legalName: 'Klinika Test s.r.o.',
+      legalForm: 'company',
+      ico: '12345679',
+      registeredAddress: { street: 'Ukázková 299/12', city: 'Brno', zip: '60200' },
+      registryNote: 'Společnost zapsaná v obchodním rejstříku vedeném Krajským soudem v Brně, oddíl C, vložka 12345',
+    };
+    // fakturační údaje mění jen majitel
+    expect((await engine.execute(clinicId, updateSettings as never, { business }, { actor: reception, now: NOW, commandId: 'biz0000001' })).ok).toBe(false);
+    expect((await engine.execute(clinicId, updateSettings as never, { business }, { actor: owner, now: NOW, commandId: 'biz0000002' })).ok).toBe(true);
+    const id = await client('eva@example.cz');
+    await run(createBooking as never, { clientId: id, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-19T09:00', payment: { method: 'onsite' } }, 'book000009');
+    const messenger = fakeMessenger();
+    await cron(api([deliveryJob({ messenger })]));
+    const mail = messenger.sent.emails[0];
+    const identity = 'Klinika Test s.r.o., Ukázková 299/12, 602 00 Brno, IČO 12345679';
+    expect(mail.text).toContain(`\n\n${identity}\nSpolečnost zapsaná v obchodním rejstříku vedeném Krajským soudem v Brně, oddíl C, vložka 12345`);
+    expect(mail.html).toContain(identity);
+    expect(mail.text).not.toContain('Odhlásit odběr'); // odkaz na odhlášení jen u novinek
   });
 
   it('chyba účtu u poskytovatele (401) nechá zprávy ve frontě', async () => {

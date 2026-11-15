@@ -1,6 +1,7 @@
 import { SERVER_MODE } from '../api/config';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Client, ClinicState, Id } from '../domain/types';
+import { onlineOpen } from '../engine/launch';
 import { getClient } from '../engine/selectors';
 import { useClinic } from '../store/hooks';
 import { navigatePortal, setSession, useSession, type PortalRoute } from '../store/session';
@@ -9,7 +10,7 @@ import { AccountScreen } from './AccountScreen';
 import { BookingDetailScreen } from './BookingDetailScreen';
 import { BookingWizard } from './BookingWizard';
 import { PortalContext, type AccountAction, type AccountView, type PortalContextValue } from './context';
-import { BlockedNotice, ClinicBrand, HomeScreen } from './HomeScreen';
+import { BlockedNotice, ClinicBrand, HomeScreen, PreparingNotice } from './HomeScreen';
 import { MyBookingsScreen } from './MyBookingsScreen';
 import { Screen } from './parts';
 import './portal.css';
@@ -99,6 +100,8 @@ export function ClientPortal(): JSX.Element {
 
 function PortalApp({ client }: { client: Client }): JSX.Element {
   const session = useSession();
+  const open = onlineOpen(useClinic());
+  const canBook = open && !client.blocked;
   const route = session.portalRoute;
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigated = useRef(false);
@@ -149,6 +152,7 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
   const ctx = useMemo<PortalContextValue>(
     () => ({
       client,
+      canBook,
       go,
       openAccount,
       accountView,
@@ -158,15 +162,15 @@ function PortalApp({ client }: { client: Client }): JSX.Element {
       scrollToTop,
       hasNavigated: () => navigated.current,
     }),
-    [client, go, openAccount, accountView, setAccountView, accountAction, scrollToTop],
+    [client, canBook, go, openAccount, accountView, setAccountView, accountAction, scrollToTop],
   );
 
   let screen: JSX.Element;
   switch (route.name) {
     case 'rezervace':
-      screen = client.blocked ? (
+      screen = !canBook ? (
         <Screen title="Rezervace">
-          <BlockedNotice />
+          {open ? <BlockedNotice /> : <PreparingNotice />}
           <Button variant="secondary" size="lg" full onClick={() => go({ name: 'moje' })}>
             Moje termíny
           </Button>

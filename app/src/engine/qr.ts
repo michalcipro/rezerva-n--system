@@ -171,10 +171,15 @@ export function paymentMessage(s: ClinicState, data: Pick<QrPaymentData, 'client
   return qrMessage(s.settings.payments, `${c ? c.lastName + ' ' : ''}${kind}`);
 }
 
+/** Jméno příjemce v QR Platbě: vyplněné v Nastavení → Platby, jinak obchodní firma z fakturačních údajů, jinak odesílatel e-mailů. */
+export function qrRecipient(s: Pick<ClinicState, 'settings'>): string {
+  return s.settings.payments.recipientName.trim() || s.settings.business?.legalName.trim() || s.settings.senderName;
+}
+
 /** Řetězec QR Platby pro výzvu (nebo pro platbu na recepci, která ještě nemá výzvu). */
 export function paymentSpayd(s: ClinicState, data: QrPaymentData): string {
   const p = s.settings.payments;
-  return buildSpayd({ iban: p.iban, amount: data.amount, vs: data.vs, message: paymentMessage(s, data), recipient: p.recipientName || s.settings.senderName });
+  return buildSpayd({ iban: p.iban, amount: data.amount, vs: data.vs, message: paymentMessage(s, data), recipient: qrRecipient(s) });
 }
 
 /* ------------------------------------------------------------------ */

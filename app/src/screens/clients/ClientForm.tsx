@@ -66,7 +66,7 @@ function ContactFields({
         <Field label="Příjmení" error={errors.lastName}>
           <Input value={draft.lastName} onValueChange={(v) => set({ lastName: v })} autoComplete="family-name" required />
         </Field>
-        <Field label="E-mail" error={errors.email} optional={!!draft.phone.trim()}>
+        <Field label="E-mail" error={errors.email} optional={!!draft.phone.trim()} hint={draft.email.trim() ? undefined : 'Bez e-mailu klient nedostane potvrzení ani připomínky.'}>
           <Input type="email" inputMode="email" value={draft.email} onValueChange={(v) => set({ email: v })} autoComplete="email" prefixIcon="mail" />
         </Field>
         <Field label="Telefon" error={errors.phone} optional={!!draft.email.trim()}>

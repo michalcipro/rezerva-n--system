@@ -494,7 +494,8 @@ function ownerStaff(o: PresetOptions, spec: PresetCatalog['owner']): Therapist {
 
 /**
  * Výchozí stav nové provozovny podle oboru. Tým tvoří jen majitel (další lidi přidá v Tým a směny),
- * ukázkoví terapeuti ani klienti v něm nejsou. Server potom doplní nastavení ostrého provozu.
+ * ukázkoví terapeuti ani klienti v něm nejsou. Online rezervace začínají nespuštěné (launch.ts).
+ * Server potom doplní nastavení ostrého provozu.
  */
 export function createPresetState(id: PresetId, o: PresetOptions): ClinicState {
   const s = createBaseState(o.today);
@@ -506,6 +507,10 @@ export function createPresetState(id: PresetId, o: PresetOptions): ClinicState {
   s.settings.clinicTagline = c.tagline;
   s.settings.senderName = name;
   if (ownerEmail) s.settings.senderEmail = ownerEmail;
+  // fakturační údaje doplní majitel (nebo načte z ARES); kontakt a faktury zatím na jeho e-mail
+  if (ownerEmail) s.settings.business = { ...s.settings.business, email: ownerEmail, invoiceEmail: ownerEmail };
+  // online rezervace se spustí až po kontrolním seznamu na Přehledu
+  s.settings.bookingRules.onlineOpen = false;
   s.settings.payments.recipientName = name.slice(0, 35);
   s.settings.preset = id;
   s.settings.terms = clone(PRESET_TERMS[id]);
