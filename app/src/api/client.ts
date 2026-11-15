@@ -1,5 +1,6 @@
 import { accessToken, forgetAuth } from './auth';
 import { API_URL } from './config';
+import { tenantHeaders } from './tenant';
 import type { ApiError as ApiErrorBody } from './protocol';
 
 /** Chyba volání API: status 0 = bez spojení se serverem. */
@@ -17,14 +18,14 @@ export class ApiError extends Error {
 }
 
 /** Volání API s přihlašovacím tokenem; chyby převádí na ApiError s českou hláškou. */
-export async function api<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   const token = await accessToken();
   if (!token) throw new ApiError(401, 'Přihlaste se prosím.', 'unauthorized');
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: { Authorization: `Bearer ${token}`, ...tenantHeaders(), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

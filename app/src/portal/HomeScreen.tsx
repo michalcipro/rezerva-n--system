@@ -49,12 +49,17 @@ import { OfferCard } from './WaitlistOffer';
 
 export function ClinicBrand(): JSX.Element {
   const clinic = useClinic();
+  const logo = clinic.settings.branding?.logo;
   return (
     <div className="por-brand">
-      <span className="wordmark wordmark--sm">
-        {clinic.settings.clinicName}
-        <span className="wordmark__dot">.</span>
-      </span>
+      {logo ? (
+        <img src={logo} alt={clinic.settings.clinicName} className="por-brand__logo" />
+      ) : (
+        <span className="wordmark wordmark--sm">
+          {clinic.settings.clinicName}
+          <span className="wordmark__dot">.</span>
+        </span>
+      )}
       <span className="por-brand__tag">{clinic.settings.clinicTagline}</span>
     </div>
   );

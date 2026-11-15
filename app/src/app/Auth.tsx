@@ -1,10 +1,11 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { AuthError, devLogin, requestCode, verifyCode } from '../api/auth';
 import { ApiError } from '../api/client';
-import { DEV_LOGIN, PRIVACY_URL, SUPABASE_URL, TERMS_URL } from '../api/config';
+import { DEV_LOGIN, PLATFORM_NAME, SUPABASE_URL } from '../api/config';
 import { useStore } from '../store/hooks';
 import { logout, registerClient } from '../store/server';
 import { Button, Checkbox, Field, Icon, Input } from '../ui';
+import { LegalLink } from './Legal';
 import './auth.css';
 
 /** Přihlašovací a registrační obrazovky ostrého provozu. */
@@ -17,16 +18,21 @@ function message(e: unknown): string {
   return 'Něco se nepovedlo. Zkuste to prosím znovu.';
 }
 
-function Brand({ name }: { name?: string }): JSX.Element {
+/** Logo nebo název provozovny podle adresy; na /platforma název platformy. */
+function Brand(): JSX.Element {
+  const tenant = useStore((s) => s.tenant);
+  const platform = useStore((s) => s.platform);
+  const name = platform ? PLATFORM_NAME : tenant?.name || '';
   return (
     <div className="auth__brand">
-      <span className="auth__wordmark">{name || 'pohyb'}</span>
-      <span className="auth__tagline">online rezervace</span>
+      {tenant?.branding.logo && !platform ? <img src={tenant.branding.logo} alt={name} className="auth__logo" /> : <span className="auth__wordmark">{name}</span>}
+      <span className="auth__tagline">{platform ? 'správa platformy' : 'online rezervace'}</span>
     </div>
   );
 }
 
 const DEV_USERS: { email: string; label: string }[] = [
+  { email: 'platforma@pohyb.local', label: 'Vlastník platformy' },
   { email: 'majitelka@pohyb.local', label: 'Majitelka' },
   { email: 'recepce@pohyb.local', label: 'Recepce' },
   { email: 'terapeut@pohyb.local', label: 'Terapeut' },
@@ -35,6 +41,7 @@ const DEV_USERS: { email: string; label: string }[] = [
 ];
 
 export function LoginScreen(): JSX.Element {
+  const platform = useStore((s) => s.platform);
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -114,7 +121,11 @@ export function LoginScreen(): JSX.Element {
             <h1 id={titleId} className="auth__title">
               Přihlášení
             </h1>
-            <p className="auth__lead">Zadejte svůj e-mail. Pošleme vám jednorázový kód – žádné heslo si nemusíte pamatovat.</p>
+            <p className="auth__lead">
+              {platform
+                ? 'Správa provozoven a licencí. Přihlaste se e-mailem vlastníka platformy – pošleme vám jednorázový kód.'
+                : 'Zadejte svůj e-mail. Pošleme vám jednorázový kód – žádné heslo si nemusíte pamatovat.'}
+            </p>
             <Field label="E-mail" error={error ?? undefined}>
               <Input
                 type="email"
@@ -181,13 +192,9 @@ export function LoginScreen(): JSX.Element {
         )}
       </section>
       <p className="auth__footer">
-        <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
-          Ochrana osobních údajů
-        </a>
+        <LegalLink doc="privacy">Ochrana osobních údajů</LegalLink>
         <span aria-hidden="true"> · </span>
-        <a href={TERMS_URL} target="_blank" rel="noreferrer">
-          Obchodní podmínky
-        </a>
+        <LegalLink doc="terms">Obchodní podmínky</LegalLink>
       </p>
     </main>
   );
@@ -230,7 +237,7 @@ export function RegisterScreen(): JSX.Element {
   return (
     <main className="auth">
       <section className="auth__card auth__card--wide" aria-labelledby={titleId}>
-        <Brand name={session?.clinicName} />
+        <Brand />
         <form className="auth__form" onSubmit={(e) => void submit(e)} noValidate>
           <h1 id={titleId} className="auth__title">
             Dokončení registrace
@@ -261,13 +268,9 @@ export function RegisterScreen(): JSX.Element {
               label={
                 <>
                   Souhlasím s{' '}
-                  <a href={TERMS_URL} target="_blank" rel="noreferrer">
-                    obchodními podmínkami
-                  </a>{' '}
+                  <LegalLink doc="terms">obchodními podmínkami</LegalLink>{' '}
                   a beru na vědomí{' '}
-                  <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
-                    zásady ochrany osobních údajů
-                  </a>
+                  <LegalLink doc="privacy">zásady ochrany osobních údajů</LegalLink>
                   .
                 </>
               }

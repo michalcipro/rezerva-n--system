@@ -1,5 +1,7 @@
 import { produce } from 'immer';
+import { applyBranding } from '../app/branding';
 import { forgetAuth, getAuth, signOut, subscribeAuth } from '../api/auth';
+import { isPlatformRoute, loadPublicTenant, TenantNotFound } from '../api/tenant';
 import { api, ApiError } from '../api/client';
 import type { ChunkData, CommandResponse, RegisterRequest, SessionInfo, StatePayload } from '../api/protocol';
 import type { Actor, ClinicState, Command, CommandResult, LocalDateTime } from '../domain/types';
@@ -195,10 +197,29 @@ function startPolling(): void {
   }, POLL_MS);
 }
 
-/** Načte přihlášeného uživatele a data kliniky. */
+/** Provozovna podle adresy (vzhled přihlašovací stránky) nebo správa platformy. */
+async function loadTenant(): Promise<boolean> {
+  if (isPlatformRoute()) {
+    setStore({ platform: true, tenant: null });
+    return true;
+  }
+  if (getStoreState().tenant) return true;
+  try {
+    const tenant = await loadPublicTenant();
+    setStore({ tenant });
+    applyBranding(tenant.branding, tenant.name);
+    return true;
+  } catch (e) {
+    setStore({ status: 'error', error: errorText(e), notFound: e instanceof TenantNotFound });
+    return false;
+  }
+}
+
+/** Načte provozovnu, přihlášeného uživatele a data. */
 export async function initServerStore(): Promise<void> {
   installListeners();
   setStore({ storage: 'server' });
+  if (!(await loadTenant())) return;
   if (!getAuth()) {
     signedOutState();
     return;
@@ -206,6 +227,10 @@ export async function initServerStore(): Promise<void> {
   setStore({ status: 'loading', error: null });
   try {
     const session = await api<SessionInfo>('GET', '/session');
+    if (getStoreState().platform) {
+      setStore({ session, status: session.platformAdmin ? 'platform' : 'error', error: session.platformAdmin ? null : 'Správa platformy je jen pro jejího vlastníka.' });
+      return;
+    }
     setServerIdentity(identityOf(session));
     if (session.needsRegistration) {
       setStore({ status: 'register', session });

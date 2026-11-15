@@ -1,10 +1,10 @@
-import type { SessionInfo } from '../api/protocol';
+import type { PublicTenant, SessionInfo } from '../api/protocol';
 import type { ClinicState } from '../domain/types';
 import type { StorageKind } from './persistence';
 
 /** Globální stav aplikace (data kliniky + stav načítání a ukládání). */
 
-export type StoreStatus = 'loading' | 'empty' | 'ready' | 'error' | 'signed-out' | 'register';
+export type StoreStatus = 'loading' | 'empty' | 'ready' | 'error' | 'signed-out' | 'register' | 'platform';
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 
 export interface StoreState {
@@ -20,6 +20,12 @@ export interface StoreState {
   session: SessionInfo | null;
   /** Ostrý provoz: počet akcí, které ještě nepotvrdil server. */
   pending: number;
+  /** Ostrý provoz: provozovna podle adresy (veřejné údaje – název, vzhled, názvosloví). */
+  tenant: PublicTenant | null;
+  /** Ostrý provoz: adresa správy platformy (/platforma). */
+  platform: boolean;
+  /** Ostrý provoz: na adrese není žádná provozovna. */
+  notFound: boolean;
 }
 
 let state: StoreState = {
@@ -32,6 +38,9 @@ let state: StoreState = {
   remoteAt: null,
   session: null,
   pending: 0,
+  tenant: null,
+  platform: false,
+  notFound: false,
 };
 const listeners = new Set<() => void>();
 

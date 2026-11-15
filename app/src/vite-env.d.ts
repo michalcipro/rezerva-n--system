@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   readonly VITE_PRIVACY_URL?: string;
   /** Odkaz na obchodní podmínky. */
   readonly VITE_TERMS_URL?: string;
+  /** Název platformy (správa platformy). */
+  readonly VITE_PLATFORM_NAME?: string;
 }
 
 interface ImportMeta {

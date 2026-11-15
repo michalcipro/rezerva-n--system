@@ -5,6 +5,7 @@
  *   npm run dev:server     API na http://localhost:8787
  *   npm run dev:live       aplikace na http://localhost:5173 (požadavky /api přesměruje sem)
  *
+ * Ukázková provozovna běží na /pohyb, správa platformy na /platforma (platforma@pohyb.local).
  * Přihlášení: majitelka@pohyb.local, recepce@pohyb.local, terapeut@pohyb.local, martin.dvorak@example.com
  * (klient z ukázkových dat), libovolný jiný e-mail = nový klient.
  * DEV_DB=memory spustí databázi jen v paměti (každé spuštění čistá data).
@@ -56,7 +57,16 @@ async function main(): Promise<void> {
     state.settings.payments = { ...state.settings.payments, qrEnabled: true, ...DEMO_ACCOUNT, demoAccount: true };
     const chunks = [...stateToChunkJson(state)].map(([key, data]) => ({ key, data: JSON.parse(data) as unknown }));
     const owner = await auth.ensureUser('majitelka@pohyb.local');
-    const clinicId = await store.createClinic(state.settings.clinicName, owner, 'Tereza Malá', chunks, 'majitelka@pohyb.local');
+    const clinicId = await store.platformCreateClinic({
+      name: 'Ukázková klinika pohyb',
+      slug: 'pohyb',
+      ownerId: owner,
+      ownerName: 'Tereza Malá',
+      ownerEmail: 'majitelka@pohyb.local',
+      chunks,
+      plan: 'lifetime',
+      validUntil: null,
+    });
     await store.upsertMember(clinicId, owner, 'owner', 't_mala', 'Tereza Malá', 'majitelka@pohyb.local');
     await store.upsertMember(clinicId, await auth.ensureUser('recepce@pohyb.local'), 'reception', null, 'Recepce', 'recepce@pohyb.local');
     await store.upsertMember(clinicId, await auth.ensureUser('terapeut@pohyb.local'), 'therapist', 't_kos', 'Marek Kos', 'terapeut@pohyb.local');
@@ -67,6 +77,9 @@ async function main(): Promise<void> {
     auth,
     devAuth: auth,
     cronSecret: CRON_SECRET,
+    // vlastník platformy (konzole na /platforma) a klíč pro šifrování tajných údajů provozoven
+    platformAdmins: ['platforma@pohyb.local'],
+    secretsKey: 'dev-secrets-key-only-for-localhost-0001',
     unsubscribeSecret: 'dev-unsubscribe-secret',
     cronJobs: [deliveryJob({ messenger: createConsoleMessenger((line) => console.log(line)), publicApiUrl: `http://localhost:${PORT}/api`, unsubscribeSecret: 'dev-unsubscribe-secret' })],
     log: (message, detail) => console.log(message, detail ?? ''),

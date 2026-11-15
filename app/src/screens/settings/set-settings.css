@@ -612,3 +612,87 @@
   }
   .set-anchors__link { min-height: 32px; padding: 0 var(--space-2); font-size: var(--text-sm); }
 }
+
+/* Vzhled a právní texty provozovny */
+.set-brand,
+.set-legal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.set-brand__color,
+.set-brand__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.set-brand__swatch {
+  width: 40px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+.set-brand__hex {
+  width: 140px;
+}
+.set-brand__preview {
+  max-height: 40px;
+  max-width: 200px;
+  object-fit: contain;
+  padding: 4px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+.set-brand__none {
+  font-weight: var(--weight-bold);
+  color: var(--text-muted);
+}
+.set-brand__sample {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.set-brand__sample-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--sample);
+  font-weight: var(--weight-semibold);
+}
+.set-brand__sample-link {
+  color: var(--sample);
+  text-decoration: underline;
+}
+.set-brand__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.set-legal__bar {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.set-legal__text textarea,
+textarea.set-legal__text {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+}
+.set-legal__preview {
+  max-height: 480px;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}

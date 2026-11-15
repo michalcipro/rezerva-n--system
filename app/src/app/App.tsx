@@ -5,7 +5,9 @@ import { useStore } from '../store/hooks';
 import { useSession } from '../store/session';
 import { initStore, runSystemProcesses } from '../store/store';
 import { logout } from '../store/server';
+import { PlatformConsole } from '../platform/PlatformConsole';
 import { AdminApp } from './AdminApp';
+import { applyBranding } from './branding';
 import { LoginScreen, RegisterScreen } from './Auth';
 import { ClientApp } from './ClientApp';
 import { Onboarding } from './Onboarding';
@@ -22,9 +24,17 @@ export function App(): JSX.Element {
   const status = useStore((s) => s.status);
   const busy = useStore((s) => s.busy);
   const error = useStore((s) => s.error);
+  const notFound = useStore((s) => s.notFound);
   const simulatedNow = useStore((s) => s.clinic?.settings.simulatedNow ?? null);
   const session = useSession();
   useThemeAttribute(session.theme);
+  // vzhled provozovny (ostrý provoz): barva, název v záložce, ikona – i po změně v nastavení
+  const branding = useStore((s) => s.clinic?.settings.branding ?? null);
+  const clinicName = useStore((s) => s.clinic?.settings.clinicName ?? '');
+  useEffect(() => {
+    // testovací verze bez vlastního vzhledu zůstává beze změny
+    if (clinicName && (SERVER_MODE || branding?.accent || branding?.logo)) applyBranding(branding, clinicName);
+  }, [branding, clinicName]);
 
   useEffect(() => {
     void initStore();
@@ -46,6 +56,8 @@ export function App(): JSX.Element {
         <p className="app-center__text">Načítám data kliniky…</p>
       </div>
     );
+  } else if (status === 'platform') {
+    body = <PlatformConsole />;
   } else if (status === 'signed-out') {
     body = <LoginScreen />;
   } else if (status === 'register') {
@@ -53,9 +65,9 @@ export function App(): JSX.Element {
   } else if (status === 'error') {
     body = (
       <div className="app-center" role="alert">
-        <p className="app-center__title">Data se nepodařilo načíst</p>
+        <p className="app-center__title">{notFound ? 'Provozovna nenalezena' : 'Data se nepodařilo načíst'}</p>
         <p className="app-center__text">{error ?? 'Obnovte prosím stránku.'}</p>
-        {SERVER_MODE && (
+        {SERVER_MODE && !notFound && (
           <div className="app-center__actions">
             <Button variant="primary" onClick={() => location.reload()}>
               Zkusit znovu

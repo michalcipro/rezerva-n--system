@@ -1,3 +1,4 @@
+import { BrandingSection, LegalTextsSection } from './BrandingLegal';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
@@ -51,7 +52,7 @@ import './set-settings.css';
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
 /** Kotvy v levém sloupci: sekce konceptu + Import dat (má vlastní tlačítko, do konceptu nepatří). */
-type AnchorId = SectionId | 'import';
+type AnchorId = SectionId | 'import' | 'branding' | 'legal';
 
 const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'booking', label: 'Rezervace online', icon: 'calendarPlus' },
@@ -62,6 +63,8 @@ const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'payments', label: 'Platby', icon: 'card' },
   { id: 'features', label: 'Funkce', icon: 'sliders' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
+  { id: 'branding', label: 'Vzhled', icon: 'sun' },
+  { id: 'legal', label: 'Právní texty', icon: 'file' },
   { id: 'import', label: 'Import dat', icon: 'upload' },
 ];
 
@@ -279,6 +282,14 @@ export function SettingsScreen(): JSX.Element {
           <Section id="clinic" title="Klinika" subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
             <ClinicSection draft={draft} onChange={setText} errors={visibleErrors} />
           </Section>
+
+          <section id="set-sec-branding" className="set-section" aria-labelledby="set-sec-branding-h">
+            <BrandingSection headingId="set-sec-branding-h" />
+          </section>
+
+          <section id="set-sec-legal" className="set-section" aria-labelledby="set-sec-legal-h">
+            <LegalTextsSection headingId="set-sec-legal-h" />
+          </section>
 
           <section id="set-sec-import" className="set-section" aria-labelledby="set-sec-import-h">
             <Card className="set-section-card">

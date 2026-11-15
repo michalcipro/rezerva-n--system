@@ -14,6 +14,8 @@ import { SERVER_MODE } from '../api/config';
 import { useStore } from '../store/hooks';
 import { logout } from '../store/server';
 import { AppShell, Avatar, Button, EmptyState, Icon, IconButton, Kbd, type IconName } from '../ui';
+import { TenantBrand } from '../components/TenantBrand';
+import { LicenseBanner } from './LicenseBanner';
 import { TestBar, useTestPersonName } from './TestBar';
 
 /** Ostrý provoz: upozornění na výpadek spojení se serverem. */
@@ -229,7 +231,17 @@ export function AdminApp(): JSX.Element {
   return (
     <>
       <AppShell
-        banner={SERVER_MODE ? <SyncBanner /> : <TestBar />}
+        banner={
+          SERVER_MODE ? (
+            <>
+              <LicenseBanner audience="staff" />
+              <SyncBanner />
+            </>
+          ) : (
+            <TestBar />
+          )
+        }
+        brand={SERVER_MODE ? <TenantBrand /> : undefined}
         nav={nav}
         active={activeNav}
         onNavigate={(id) => navigate({ name: id as NavId } as AdminRoute)}
