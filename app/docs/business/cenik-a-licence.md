@@ -27,7 +27,7 @@
 | Monitoring dostupnosti | bezplatný tarif (např. kontrola `/api/health` každých 5 minut) | podklad pro SLA (Příloha 3 licenční smlouvy) |
 | Podpora, onboarding, aktualizace | **čas majitele / vývojáře – největší náklad** | počítejte i s úpravami kvůli změnám zákonů (např. tlačítko pro odstoupení od 1. 1. 2027) |
 
-> **Dokud každý zákazník potřebuje vlastní nasazení** (konzole zatím nezakládá více provozoven na jednom nasazení, token Fio a odesílatelé jsou společné proměnné serveru), počítejte s náklady na samostatný projekt Supabase pro každého zákazníka – to citelně snižuje marži tarifu Start. Po přechodu na sdílené nasazení klesnou náklady na infrastrukturu na desítky korun za zákazníka měsíčně.
+> **Všichni zákazníci běží na jednom sdíleném nasazení:** provozovny zakládáte v konzoli `/platforma`, token Fio má každá provozovna vlastní (šifrovaně) a e-maily odcházejí z jedné ověřené adresy platformy se jménem provozovny. Náklady na infrastrukturu jsou proto v řádu desítek korun za zákazníka měsíčně. Samostatný projekt Supabase počítejte jen u zákazníka, který chce vlastní hosting (stejný kód s jedinou provozovnou – viz `../PLATFORM.md`).
 
 Ceny dodavatelů: `app/docs/DEPLOY.md` (Supabase, Cloudflare, Brevo) a `research_notes/Rezervační systém pro fyzioterapii/komunikace_integrace.md` (SMS brány a odesílatelé, data z října 2026). Všechny údaje ověřte na aktuálních cenících.
 
@@ -165,18 +165,18 @@ Platforma vynucuje licenci technicky: plán (zkušební / měsíční / roční 
 
 | Situace | Plán | Platnost do | Co se v Platformě děje | Co dělá Nexum Care |
 |---|---|---|---|---|
-| Zkouška | `trial` | konec zkoušky (30 dní) | plný provoz s omezeními zkoušky | připomene konec 7 dní předem |
+| Zkouška | `trial` | konec zkoušky (30 dní) | plný provoz s omezeními zkoušky; majitel vidí upozornění 14 dní před koncem | připomene konec 7 dní předem (podklad: denní e-mail s přehledem licencí) |
 | Předplatné měsíční | `monthly` | konec zaplaceného měsíce | plný provoz | po připsání platby prodlouží o měsíc |
 | Předplatné roční | `yearly` | konec zaplaceného roku | plný provoz | po připsání platby prodlouží o rok |
 | Doživotní licence | `lifetime` | konec zaplaceného nebo zahrnutého roku provozu | plný provoz | po zaplacení ročního poplatku prodlouží o rok |
 | Nezaplaceno – dny 1 až 14 po Platnosti | beze změny | uplynulo | **ochranná lhůta:** plný provoz, majitel vidí upozornění | upomínka 1. a 7. den, poslední upozornění 14. den |
 | Od 15. dne | beze změny | uplynulo | **režim jen pro čtení:** data vidět a exportovat, nové rezervace nejdou | oznámí zákazníkovi, ať informuje klienty |
-| Režim jen pro čtení 30 dní (od 45. dne) | beze změny | uplynulo | **pozastavení** (ručně, po upozornění 7 dní předem): přihlášení nejde, data zůstávají | export na žádost do 5 pracovních dnů – i bez zaplacení |
+| Režim jen pro čtení 30 dní (od 45. dne) | beze změny | uplynulo | **pozastavení** (ručně v konzoli, po upozornění 7 dní předem): tým ani klienti se nepřihlásí, automatika neběží; majitel data jen prohlíží a exportuje (Nastavení → Export dat) | s exportem na žádost pomůže do 5 pracovních dnů – i bez zaplacení |
 | 60 dní po Platnosti | – | – | – | může od smlouvy odstoupit (A), u B ukončit jen provoz |
 | Po skončení smlouvy | – | – | 60 dní jen pro čtení pro majitele (export), potom výmaz do 30 dní | potvrzení o výmazu |
 | Pozastavení z jiného důvodu | beze změny | – | zablokování v nezbytném rozsahu (bezpečnost, spam, úřední příkaz) | informuje zákazníka a důvod |
 
-> U plánu `lifetime` musí mít Platnost licence datum (konec zaplaceného provozu), jinak se omezení při neplacení ročního poplatku neuplatní. Ověřte, že to technika umí, a ve smlouvě i v tomto přehledu držte stejné lhůty jako v kódu.
+> U plánu `lifetime` se v konzoli zadává „Provoz a podpora zaplaceny do“ (výchozí +1 rok, prodloužení „+ rok“); po tomto datu platí stejné lhůty jako u předplatného. Bez data je provoz neomezený (vlastní hosting). Ve smlouvě i v tomto přehledu držte stejné lhůty jako v kódu (`app/src/api/license.ts`: upozornění 14 dní předem, ochranná lhůta 14 dní).
 
 ## 10. Fakturace a DPH
 
