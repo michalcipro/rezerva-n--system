@@ -15,11 +15,11 @@ import {
 } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { VISIT_STATUSES, visitPaymentInfo, type VisitContext } from '../../engine/visits';
-import { ToneDot } from '../../components/domain';
+import { BookingStatusPill, ToneDot } from '../../components/domain';
 import { VisitSourceBadge } from '../../components/payments';
-import { useClinic } from '../../store/hooks';
+import { useClinic, useTerms } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
-import { Badge, Button, Card, CardHeader, EmptyState, Icon, IconButton, Menu, StatusPill, Table, cx } from '../../ui';
+import { Badge, Button, Card, CardHeader, EmptyState, Icon, IconButton, Menu, Table, cx } from '../../ui';
 import { visitContextOf } from '../payments/qrStaff';
 import { bookingMoneyNote, messageKindLabel, messagesOfClient, policyBar, policyLines, stornoChip, upcomingPaymentNote } from './model';
 import { CONSENT_META, ConsentState, consentDate, DateBlock, Eyebrow, StornoChipView, type Permissions } from './parts';
@@ -180,6 +180,7 @@ export function BookingTable({
   caption: string;
 }): JSX.Element {
   const clinic = useClinic();
+  const words = useTerms();
   const year = now.slice(0, 4);
   const vc = useMemo(() => (finance ? visitContextOf(clinic) : null), [clinic, finance]);
   return (
@@ -188,7 +189,7 @@ export function BookingTable({
         <tr>
           <th scope="col">Datum</th>
           <th scope="col">Služba</th>
-          <th scope="col">Terapeut</th>
+          <th scope="col">{words.Staff.nom}</th>
           <th scope="col">Stav</th>
           {finance && <th scope="col">Platba a poznámka</th>}
         </tr>
@@ -222,7 +223,7 @@ export function BookingTable({
               </td>
               <td className="secondary nowrap">{therapistShort(getTherapist(clinic, b.therapistId))}</td>
               <td className="nowrap">
-                <StatusPill status={b.status} appearance="plain" />
+                <BookingStatusPill status={b.status} appearance="plain" />
                 {b.status === 'confirmed' && b.end <= now && <span className="cli-cell-sub">čeká na docházku</span>}
               </td>
               {finance && vc && (
@@ -283,6 +284,7 @@ export function RecentCard({
 
 export function ClinicalNoteCard({ client, perms, onOpenDocs }: { client: Client; perms: Permissions; onOpenDocs: () => void }): JSX.Element {
   const clinic = useClinic();
+  const words = useTerms();
   const note = client.notes[0];
   return (
     <Card as="section" className="cli-side" aria-label="Klinická poznámka">
@@ -290,12 +292,12 @@ export function ClinicalNoteCard({ client, perms, onOpenDocs }: { client: Client
         <Icon name="file" size={16} className="cli-side__icon" />
         <Eyebrow as="h2">Klinická poznámka</Eyebrow>
         <Badge tone="neutral" icon="lock">
-          jen pro terapeuty
+          jen pro {words.staffPl.acc}
         </Badge>
       </div>
       {!perms.clinical ? (
         <p className="cli-side__muted">
-          Klinickou dokumentaci vidí jen terapeuti
+          Klinickou dokumentaci vidí jen {words.staffPl.nom}
           {client.notes.length ? ` (${countLabel(client.notes.length, ['poznámka', 'poznámky', 'poznámek'])}).` : '.'}
         </p>
       ) : note ? (

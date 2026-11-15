@@ -23,6 +23,7 @@ import {
 } from '../../engine/format';
 import { moduleOn } from '../../engine/modules';
 import { bookingPolicy, evaluateCancellation, type CancellationEvaluation } from '../../engine/policy';
+import { templateName } from '../../engine/messages';
 import { pendingRequestFor } from '../../engine/qr';
 import { VISIT_PAY_STATE_LABEL, VISIT_STATUSES, visitPaymentInfo, type VisitPaymentInfo } from '../../engine/visits';
 import {
@@ -41,9 +42,9 @@ import {
 } from '../../engine/selectors';
 import { addHours, diffMinutes } from '../../engine/time';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
-import { ClientAvatar } from '../../components/domain';
+import { BookingStatusPill, ClientAvatar } from '../../components/domain';
 import { QrPaymentDialog, VisitSourceBadge, type QrPaymentDraft } from '../../components/payments';
-import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
+import { useActor, useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import {
   Badge,
@@ -59,7 +60,6 @@ import {
   Menu,
   Progress,
   StackedBar,
-  StatusPill,
   Textarea,
   cx,
   type DescriptionItem,
@@ -117,6 +117,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
   const now = useNow();
   const run = useCommand();
   const actor = useActor();
+  const words = useTerms();
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [waiveReason, setWaiveReason] = useState('');
   const [qr, setQr] = useState<QrDialogState | null>(null);
@@ -288,7 +289,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
     menu.push({ type: 'separator', id: 's1' });
     if (started) menu.push({ id: 'move', label: 'Přesunout', icon: 'repeat', onSelect: () => setDialog('reschedule') });
     if (ev?.options.some((o) => o.kind === 'clinic'))
-      menu.push({ id: 'clinic', label: 'Zrušit ze strany kliniky', icon: 'building', danger: true, onSelect: () => setDialog('clinic') });
+      menu.push({ id: 'clinic', label: `Zrušit ze strany ${words.business.gen}`, icon: 'building', danger: true, onSelect: () => setDialog('clinic') });
   }
   if (b.status === 'completed') menu.push({ type: 'separator', id: 's2' }, { id: 'ns', label: `Opravit: ${noShowText.toLowerCase()}`, icon: 'userX', onSelect: () => setDialog('noshow') });
   if (b.status === 'no_show' && feeDue) menu.push({ type: 'separator', id: 's3' }, { id: 'fix', label: 'Opravit na Proběhlo', icon: 'check', onSelect: () => complete(null) });
@@ -319,7 +320,7 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
               {svc?.remote ? ' · online' : ''}
             </span>
           </div>
-          <StatusPill status={b.status} label={b.status === 'no_show' ? noShowText : undefined} appearance="plain" />
+          <BookingStatusPill status={b.status} label={b.status === 'no_show' ? noShowText : undefined} appearance="plain" />
         </div>
 
         <div className={cx('cal-dr__when', inProgress && 'is-live')}>
@@ -750,6 +751,7 @@ function NoteEditor({ booking: b }: { booking: Booking }): JSX.Element {
 
 function History({ booking: b, now }: { booking: Booking; now: LocalDateTime }): JSX.Element | null {
   const clinic = useClinic();
+  const words = useTerms();
   const [all, setAll] = useState(false);
   const entries = useMemo(() => {
     const out: { id: string; at: LocalDateTime; title: string; detail: string; meta: string; tone: 'audit' | 'message' | 'skipped' }[] = [];
@@ -760,14 +762,14 @@ function History({ booking: b, now }: { booking: Booking; now: LocalDateTime }):
       out.push({
         id: m.id,
         at: m.at,
-        title: `${m.channel === 'sms' ? 'SMS' : 'E-mail'}: ${tpl?.name ?? 'zpráva'}`,
+        title: `${m.channel === 'sms' ? 'SMS' : 'E-mail'}: ${templateName(tpl, words) ?? 'zpráva'}`,
         detail: m.status === 'sent' ? m.subject || 'odesláno' : `neodesláno – ${m.skipReason ?? ''}`,
         meta: '',
         tone: m.status === 'sent' ? 'message' : 'skipped',
       });
     }
     return out.sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
-  }, [clinic.audit, clinic.messages, clinic.templates, b.id]);
+  }, [clinic.audit, clinic.messages, clinic.templates, b.id, words]);
   if (!entries.length) return null;
   const shown = all ? entries : entries.slice(0, 6);
   return (
@@ -818,6 +820,7 @@ export function SessionPanel({
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const [dialog, setDialog] = useState<'add' | 'cancel' | null>(null);
   const [reason, setReason] = useState('');
   const ses = getSession(clinic, sessionId);
@@ -868,7 +871,7 @@ export function SessionPanel({
                     <ClientAvatar client={c} size="xs" />
                     <span className="cal-person__name">{clientName(c)}</span>
                     <span className="cal-person__meta">{x.status === 'confirmed' ? participantPayHint(clinic, x, today) : ''}</span>
-                    {x.status !== 'confirmed' && <StatusPill status={x.status} appearance="plain" label={x.status === 'no_show' ? noShowLabel(c) : undefined} />}
+                    {x.status !== 'confirmed' && <BookingStatusPill status={x.status} appearance="plain" label={x.status === 'no_show' ? noShowLabel(c) : undefined} />}
                   </button>
                 </li>
               );
@@ -906,7 +909,7 @@ export function SessionPanel({
                   <button type="button" className="cal-person" onClick={() => onOpenBooking(x.id)}>
                     <ClientAvatar client={c} size="xs" />
                     <span className="cal-person__name">{clientName(c)}</span>
-                    <StatusPill status={x.status} appearance="plain" />
+                    <BookingStatusPill status={x.status} appearance="plain" />
                   </button>
                 </li>
               );
@@ -935,14 +938,14 @@ export function SessionPanel({
         message={`„${ses.title}“ ${formatDayShort(ses.start)} ${formatTimeRange(ses.start, ses.end)} · ${countLabel(participants.length, ['přihlášený', 'přihlášení', 'přihlášených'])}`}
         confirmLabel="Zrušit lekci"
         onConfirm={() => {
-          const r = run(cancelSession, { sessionId: ses.id, reason: reason.trim() || 'Zrušeno klinikou' }, {
+          const r = run(cancelSession, { sessionId: ses.id, reason: reason.trim() || `Zrušeno ${words.business.ins}` }, {
             success: (n) => (n ? `Lekce zrušena · omluva odešla ${countLabel(n, ['účastníkovi', 'účastníkům', 'účastníkům'])}` : 'Lekce zrušena'),
           });
           if (r.ok) setReason('');
         }}
       >
         <div className="cal-form">
-          <p className="cal-lead">Všem přihlášeným se termín zruší ze strany kliniky – bez poplatku a s vrácením platby. Dostanou omluvnou zprávu.</p>
+          <p className="cal-lead">Všem přihlášeným se termín zruší ze strany {words.business.gen} – bez poplatku a s vrácením platby. Dostanou omluvnou zprávu.</p>
           <Field label="Důvod" hint="Pošle se přihlášeným ve zprávě." optional>
             <Textarea value={reason} onValueChange={setReason} rows={2} placeholder="Např. nemoc lektora" />
           </Field>

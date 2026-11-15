@@ -4,8 +4,9 @@ import { cancelBooking } from '../../engine/commands';
 import { formatDayShort, formatMoney, formatPercent, formatTimeRange } from '../../engine/format';
 import { evaluateCancellation, type CancelOptionKind } from '../../engine/policy';
 import { clientName, getBooking, getClient, getService } from '../../engine/selectors';
+import type { Terms } from '../../engine/terms';
 import { PolicyTimeline } from '../../components/PolicyTimeline';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Badge, Button, ChoiceChips, Dialog, EmptyState, Field, RadioCards, Textarea, toast } from '../../ui';
 import './calendar.css';
 
@@ -25,7 +26,7 @@ export function CancelBookingDialog({ bookingId, open, onClose, initialOption }:
   return <CancelForm bookingId={bookingId} onClose={onClose} initialOption={initialOption} />;
 }
 
-function confirmLabel(kind: CancelOptionKind | null, fee: number): string {
+function confirmLabel(kind: CancelOptionKind | null, fee: number, words: Terms): string {
   switch (kind) {
     case 'excuse':
       return 'Omluvit termín';
@@ -34,7 +35,7 @@ function confirmLabel(kind: CancelOptionKind | null, fee: number): string {
     case 'fee':
       return fee > 0 ? `Zrušit s poplatkem ${formatMoney(fee)}` : 'Zrušit termín';
     case 'clinic':
-      return 'Zrušit ze strany kliniky';
+      return `Zrušit ze strany ${words.business.gen}`;
     default:
       return 'Zrušit termín';
   }
@@ -44,6 +45,7 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const booking = getBooking(clinic, bookingId);
   const ev = useMemo(() => (booking ? evaluateCancellation(clinic, booking, now, 'staff') : null), [clinic, booking, now]);
   const options = ev?.options ?? [];
@@ -64,13 +66,13 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
     const reason = [reasonChip, reasonText.trim()].filter(Boolean).join(' – ');
     const r = run(cancelBooking, { bookingId: booking.id, option: selected.kind, reason }, { quiet: true });
     if (r.ok) {
-      const head = selected.kind === 'excuse' ? 'Termín omluven' : selected.kind === 'clinic' ? 'Termín zrušen klinikou' : 'Termín zrušen';
+      const head = selected.kind === 'excuse' ? 'Termín omluven' : selected.kind === 'clinic' ? `Termín zrušen ${words.business.ins}` : 'Termín zrušen';
       toast.success(head, { description: [r.value.message, ...r.notices].filter(Boolean).join(' ') || undefined });
       onClose();
     }
   };
 
-  const title = booking && booking.status !== 'confirmed' ? 'Termín už nelze zrušit' : isClinic ? 'Zrušit ze strany kliniky' : 'Zrušit nebo omluvit termín';
+  const title = booking && booking.status !== 'confirmed' ? 'Termín už nelze zrušit' : isClinic ? `Zrušit ze strany ${words.business.gen}` : 'Zrušit nebo omluvit termín';
 
   return (
     <Dialog
@@ -92,7 +94,7 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
           </Button>
           {selected && (
             <Button variant={selected.kind === 'fee' && selected.feeAmount > 0 ? 'danger' : 'primary'} onClick={submit}>
-              {confirmLabel(selected.kind, selected.feeAmount)}
+              {confirmLabel(selected.kind, selected.feeAmount, words)}
             </Button>
           )}
         </>
@@ -117,7 +119,7 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
                 (ev.excuse.allowed
                   ? `Klient může použít omluvenku (zbývá ${ev.excuse.remaining} z ${ev.excuse.total}).`
                   : ev.excuse.reason)}
-            {ev.phase === 'started' && 'Termín už začal – zbývá jen zrušení ze strany kliniky.'}
+            {ev.phase === 'started' && `Termín už začal – zbývá jen zrušení ze strany ${words.business.gen}.`}
           </p>
           <RadioCards
             legend="Jak termín zrušit"
@@ -141,7 +143,7 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
             </div>
           </Field>
           <Field label="Poznámka k důvodu" optional hint={isClinic ? 'Klient dostane omluvnou zprávu s tímto důvodem.' : 'Klient dostane potvrzení zrušení e-mailem nebo SMS podle svých souhlasů.'}>
-            <Textarea value={reasonText} onValueChange={setReasonText} rows={2} placeholder={isClinic ? 'Např. nemoc terapeuta' : 'Např. horečka, doloží potvrzení'} />
+            <Textarea value={reasonText} onValueChange={setReasonText} rows={2} placeholder={isClinic ? `Např. nemoc ${words.staff.gen}` : 'Např. horečka, doloží potvrzení'} />
           </Field>
         </div>
       )}

@@ -8,6 +8,7 @@ import {
   packageUsage,
   type ExcuseStatus,
 } from './selectors';
+import { termsOf } from './terms';
 import { addDays, addHours, dateOf, diffMinutes } from './time';
 
 /**
@@ -217,7 +218,7 @@ export function evaluateCancellation(
   if (role === 'staff' && (phase === 'free' || phase === 'late' || phase === 'started')) {
     options.push({
       kind: 'clinic',
-      title: 'Zrušeno ze strany kliniky',
+      title: `Zrušeno ze strany ${termsOf(s).business.gen}`,
       description: 'Bez poplatku, platba se vrací v plné výši. Klient dostane omluvnou zprávu.',
       feeAmount: 0,
       feePct: 0,

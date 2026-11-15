@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import type { ClientConsents, ConsentRecord, LocalDateTime } from '../../domain/types';
 import { formatDate, formatNumber, formatSignedMoney, WEEKDAY_SHORT } from '../../engine/format';
+import type { Terms } from '../../engine/terms';
 import { weekdayOf } from '../../engine/time';
 import { useSession } from '../../store/session';
 import { Icon, IconButton, cx } from '../../ui';
@@ -234,11 +235,11 @@ export function SignedMoney({ amount, className }: { amount: number; className?:
   return <span className={cx('cli-money tnum', amount > 0 && 'cli-money--plus', amount < 0 && 'cli-money--minus', className)}>{formatSignedMoney(amount)}</span>;
 }
 
-export const CONSENT_META: { key: keyof ClientConsents; label: string; description: string }[] = [
-  { key: 'gdpr', label: 'Zpracování osobních údajů', description: 'Nutné pro vedení klienta, rezervace a vyúčtování. Nelze odebrat – výmaz řeší klinika na žádost klienta.' },
-  { key: 'health', label: 'Zdravotní dokumentace', description: 'Vedení klinických poznámek, anamnézy a průběhu terapie.' },
-  { key: 'marketingEmail', label: 'Obchodní sdělení e-mailem', description: 'Novinky, nabídky a kampaně kliniky. Lze kdykoli odvolat.' },
-  { key: 'sms', label: 'SMS připomínky a zprávy', description: 'Připomínky termínů a provozní zprávy přes SMS.' },
+export const CONSENT_META: { key: keyof ClientConsents; label: string; description: (words: Terms) => string }[] = [
+  { key: 'gdpr', label: 'Zpracování osobních údajů', description: (w) => `Nutné pro vedení klienta, rezervace a vyúčtování. Nelze odebrat – výmaz řeší ${w.business.nom} na žádost klienta.` },
+  { key: 'health', label: 'Zdravotní dokumentace', description: () => 'Vedení klinických poznámek, anamnézy a průběhu terapie.' },
+  { key: 'marketingEmail', label: 'Obchodní sdělení e-mailem', description: (w) => `Novinky, nabídky a kampaně ${w.business.gen}. Lze kdykoli odvolat.` },
+  { key: 'sms', label: 'SMS připomínky a zprávy', description: () => 'Připomínky termínů a provozní zprávy přes SMS.' },
 ];
 
 export function ConsentState({ record }: { record: ConsentRecord | null }): JSX.Element {

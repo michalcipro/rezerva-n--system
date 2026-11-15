@@ -29,6 +29,7 @@ import type {
 import { pushAudit } from './auditLog';
 import { fail, offerFreedSlot, ok } from './commands';
 import { countLabel, formatDayShort, formatMoney, formatTime } from './format';
+import { templateName } from './messages';
 import {
   STATUS_LABEL,
   bookingsOfClient,
@@ -40,6 +41,7 @@ import {
   packageUsage,
   therapistName,
 } from './selectors';
+import { termsOf } from './terms';
 import { addMinutes, dateOf } from './time';
 
 /* ------------------------------------------------------------------ */
@@ -179,7 +181,7 @@ function messageKind(s: ClinicState, m: Message): string {
     const c = m.campaignId ? s.campaigns.find((x) => x.id === m.campaignId) : undefined;
     return c ? `Kampaň „${c.name}“` : 'Kampaň';
   }
-  return s.templates.find((t) => t.key === m.kind)?.name ?? m.kind;
+  return templateName(s.templates.find((t) => t.key === m.kind), termsOf(s)) ?? m.kind;
 }
 
 function bookingRecord(s: ClinicState, b: Booking): ExportRecord {
@@ -192,9 +194,9 @@ function bookingRecord(s: ClinicState, b: Booking): ExportRecord {
     Služba: svc?.name ?? null,
     Terapeut: therapistName(getTherapist(s, b.therapistId)),
     Místnost: getRoom(s, b.roomId)?.name ?? null,
-    Stav: STATUS_LABEL[b.status],
+    Stav: b.status === 'clinic_cancelled' ? `Zrušeno ${termsOf(s).business.ins}` : STATUS_LABEL[b.status],
     Vytvořeno: b.createdAt,
-    'Vytvořil(a)': b.createdBy === 'client' ? 'klient' : 'klinika',
+    'Vytvořil(a)': b.createdBy === 'client' ? 'klient' : termsOf(s).business.nom,
     Kanál: b.channel,
     'Cena (Kč)': b.price,
     'Způsob platby': PAYMENT_LABEL[b.payment.method] + (pkg ? ` ${pkg.name}` : ''),
@@ -206,7 +208,7 @@ function bookingRecord(s: ClinicState, b: Booking): ExportRecord {
     'Důvod poplatku': b.fee ? FEE_REASON[b.fee.reason] : null,
     'Stav poplatku': b.fee ? FEE_STATUS[b.fee.status] : null,
     'Zrušeno dne': orNull(b.cancel?.at),
-    'Zrušil(a)': b.cancel ? (b.cancel.by === 'client' ? 'klient' : 'klinika') : null,
+    'Zrušil(a)': b.cancel ? (b.cancel.by === 'client' ? 'klient' : termsOf(s).business.nom) : null,
     'Omluvenka': b.cancel ? b.cancel.excuse : null,
     'Důvod zrušení': orNull(b.cancel?.reason),
     'Přesunuto z': orNull(b.rescheduledFrom),
@@ -235,8 +237,8 @@ export function clientDataExport(s: ClinicState, clientId: Id, opts: ClientDataE
       Vytvořeno: opts.now ?? null,
       'Správce osobních údajů': s.settings.clinicName,
       'Kontakt na správce': s.settings.senderEmail,
-      Obsah: 'Všechny osobní údaje, které o klientovi vede rezervační systém kliniky (právo na přístup a přenositelnost, čl. 15 a 20 GDPR).',
-      'Formát dat': 'Data a časy jsou místním časem kliniky ve tvaru RRRR-MM-DDTHH:MM, částky jsou v Kč.',
+      Obsah: `Všechny osobní údaje, které o klientovi vede rezervační systém ${termsOf(s).business.gen} (právo na přístup a přenositelnost, čl. 15 a 20 GDPR).`,
+      'Formát dat': `Data a časy jsou místním časem ${termsOf(s).business.gen} ve tvaru RRRR-MM-DDTHH:MM, částky jsou v Kč.`,
       'Verze formátu': 1,
     },
     Klient: {
@@ -353,7 +355,7 @@ export function clientDataExport(s: ClinicState, clientId: Id, opts: ClientDataE
           .sort(byAt)
           .map((n) => ({ Datum: n.at, Terapeut: therapistName(getTherapist(s, n.therapistId)), Text: n.text }))
       : c.notes.length
-        ? `Zdravotní dokumentace není součástí tohoto exportu (${countLabel(c.notes.length, ['záznam', 'záznamy', 'záznamů'])}) – vydá ji terapeut nebo majitelka kliniky.`
+        ? `Zdravotní dokumentace není součástí tohoto exportu (${countLabel(c.notes.length, ['záznam', 'záznamy', 'záznamů'])}) – vydá ji ${termsOf(s).staff.nom} nebo majitel ${termsOf(s).business.gen}.`
         : [],
     'Historie změn': s.audit
       .filter((a) => a.clientId === clientId || (!!a.bookingId && bookingIds.has(a.bookingId)))
@@ -377,7 +379,7 @@ export function clientDataExportFilename(c: Pick<Client, 'firstName' | 'lastName
 
 /** Zapíše do historie změn, že personál stáhl export osobních údajů (odpovědnost správce, čl. 5 odst. 2). */
 export const logClientDataExport: Command<{ clientId: Id }> = (d, input, ctx) => {
-  if (ctx.actor.role !== 'owner' && ctx.actor.role !== 'reception') return fail('Export osobních údajů může stáhnout jen majitelka nebo recepce.');
+  if (ctx.actor.role !== 'owner' && ctx.actor.role !== 'reception') return fail('Export osobních údajů může stáhnout jen majitel nebo recepce.');
   const c = d.clients.find((x) => x.id === input.clientId);
   if (!c) return fail('Klient neexistuje.');
   pushAudit(d, ctx, 'Export osobních údajů', 'Stažen export údajů klienta (GDPR)', { clientId: c.id });
@@ -479,7 +481,7 @@ function scrubberFor(c: Client): Scrubber {
  * nebo čekající QR platby.
  */
 export const anonymizeClient: Command<{ clientId: Id }, { message: string }> = (d, input, ctx) => {
-  if (ctx.actor.role !== 'owner') return fail('Anonymizovat klienta může jen majitelka kliniky.');
+  if (ctx.actor.role !== 'owner') return fail(`Anonymizovat klienta může jen majitel ${termsOf(d).business.gen}.`);
   const c = d.clients.find((x) => x.id === input.clientId) as ClientWithGdpr | undefined;
   if (!c) return fail('Klient neexistuje.');
   if (isAnonymized(c)) return fail('Klient už je anonymizovaný.');

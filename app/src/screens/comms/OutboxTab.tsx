@@ -3,7 +3,9 @@ import type { Channel, Client, ClinicState, Id, Message, MessageTemplate } from 
 import { MAX_DELIVERY_ATTEMPTS, sendManualMessage } from '../../engine/commands';
 import { countLabel, formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
 import { getBooking, getClient, getService } from '../../engine/selectors';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { templateName } from '../../engine/messages';
+import { prep, termsOf, type Terms } from '../../engine/terms';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import {
   Avatar,
@@ -235,7 +237,7 @@ function MessageDrawer({
               },
               { term: 'Kontakt', detail: client ? (m.channel === 'sms' ? client.phone || 'chybí telefon' : client.email || 'chybí e-mail') : '—' },
               { term: 'Kanál', detail: <ChannelLabel channel={m.channel} /> },
-              { term: 'Typ', detail: kindLabel(m.kind, clinic.templates) },
+              { term: 'Typ', detail: kindLabel(m.kind, clinic.templates, termsOf(clinic)) },
               { term: 'Čas', detail: <span className="tnum">{`${formatDateLong(m.at, { capital: true })} ${formatTime(m.at)}`}</span> },
               ...(m.attempts ? [{ term: 'Pokusy', detail: <span className="tnum">{`${m.attempts} z ${MAX_DELIVERY_ATTEMPTS}`}</span> }] : []),
               ...(booking
@@ -353,6 +355,7 @@ function ComposeDialog({
 }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const words = useTerms();
   const deliver = !!clinic.settings.messaging?.deliver;
   const [picked, setPicked] = useState<Id | null>(clientId);
   const [channel, setChannel] = useState<Channel>('email');
@@ -437,7 +440,7 @@ function ComposeDialog({
             )}
             {channel === 'email' && (
               <Field label="Předmět" optional>
-                <Input value={subject} onValueChange={setSubject} placeholder={`Zpráva z kliniky ${clinic.settings.clinicName}`} />
+                <Input value={subject} onValueChange={setSubject} placeholder={`Zpráva ${prep('z', words.business.gen)} ${clinic.settings.clinicName}`} />
               </Field>
             )}
             <Field label="Text zprávy" hint={channel === 'sms' ? `${formatNumber(body.length)} znaků` : undefined}>
@@ -470,14 +473,14 @@ interface OutboxTabProps {
   onOpenCampaign: (id: Id) => void;
 }
 
-function kindOptions(templates: readonly MessageTemplate[], messages: readonly Message[]): { value: string; label: string }[] {
+function kindOptions(templates: readonly MessageTemplate[], messages: readonly Message[], words: Terms): { value: string; label: string }[] {
   const present = new Set(messages.map((m) => m.kind));
   const opts = [
     { value: 'all', label: 'Všechny typy' },
     { value: 'campaign', label: 'Kampaně' },
     { value: 'manual', label: 'Ruční zprávy' },
   ];
-  for (const t of templates) opts.push({ value: t.key, label: present.has(t.key) ? t.name : `${t.name} (žádné)` });
+  for (const t of templates) opts.push({ value: t.key, label: present.has(t.key) ? templateName(t, words) ?? t.key : `${templateName(t, words)} (žádné)` });
   return opts;
 }
 
@@ -593,7 +596,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
             aria-label="Typ zprávy"
             value={filter.kind}
             onValueChange={(kind) => set({ kind: kind as OutboxFilter['kind'] })}
-            options={kindOptions(clinic.templates, all)}
+            options={kindOptions(clinic.templates, all, termsOf(clinic))}
           />
           <Select
             size="sm"
@@ -662,7 +665,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                           <ChannelLabel channel={m.channel} />
                         </td>
                         <td className="com-cell-kind">
-                          <span className="truncate">{kindLabel(m.kind, clinic.templates)}</span>
+                          <span className="truncate">{kindLabel(m.kind, clinic.templates, termsOf(clinic))}</span>
                         </td>
                         <td className="com-cell-subject">
                           <button
@@ -703,7 +706,7 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
                       <span className="com-mrow__subject">{summaryOf(m)}</span>
                       <span className="com-mrow__meta">
                         <StatusBadge m={m} />
-                        <span className="truncate">{statusReason(m) ?? kindLabel(m.kind, clinic.templates)}</span>
+                        <span className="truncate">{statusReason(m) ?? kindLabel(m.kind, clinic.templates, termsOf(clinic))}</span>
                       </span>
                     </button>
                   </li>

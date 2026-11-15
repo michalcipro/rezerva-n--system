@@ -11,7 +11,7 @@ import {
   getTherapist,
 } from '../../engine/selectors';
 import { dateOf, diffMinutes } from '../../engine/time';
-import { useClinic } from '../../store/hooks';
+import { useClinic, useTerms } from '../../store/hooks';
 import { EventBlock, EventChip, EventProgress, EventSeats, EventStatus, Icon, cx } from '../../ui';
 import { GHOST_LABEL, densityFor, isFirstVisit, noShowLabel, paymentHint, waitingForSession, type OfferGroup } from './model';
 
@@ -208,12 +208,13 @@ export function SessionBlock({ session: ses, style, ppm, now, selected, onOpen, 
 
 export function GhostBlock({ booking: b, offer, style, ppm, now, selected, onOpen }: CommonProps & { booking: Booking; offer: OfferGroup | null }): JSX.Element {
   const clinic = useClinic();
+  const words = useTerms();
   const client = getClient(clinic, b.clientId);
   const svc = getService(clinic, b.serviceId);
   const minutes = diffMinutes(b.end, b.start);
   const density = densityFor(minutes, ppm);
   const tone = serviceCategoryTone(clinic, b.serviceId);
-  const status = GHOST_LABEL[b.status] ?? 'Zrušeno';
+  const status = b.status === 'clinic_cancelled' ? `Zrušeno ${words.business.ins}` : GHOST_LABEL[b.status] ?? 'Zrušeno';
 
   if (offer) {
     const left = diffMinutes(offer.expiresAt, now);

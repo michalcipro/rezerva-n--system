@@ -5,7 +5,7 @@ import { countLabel, formatDayShort, formatDuration, formatMoney, formatTime } f
 import { moduleOn } from '../../engine/modules';
 import { therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Avatar, Button, Callout, Checkbox, Drawer, Field, Icon, Input, Select, Switch, Tabs } from '../../ui';
 import { ToneDot } from '../../components/domain';
 import { WEEKDAYS, byOrder, clone, cx, deepEqual, emptyWeek, hoursLabel, isEmail, templateEnd, validateWeek, weekMinutes, weekdayName } from './helpers';
@@ -54,6 +54,7 @@ export function TherapistEditor({
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const isNew = !initial.id;
   const [t, setT] = useState<Therapist>(() => clone(initial));
   const initialServices = useMemo(
@@ -89,14 +90,14 @@ export function TherapistEditor({
   if (!t.lastName.trim()) profile.lastName = 'Zadejte příjmení.';
   if (t.email.trim() && !isEmail(t.email)) profile.email = 'E-mail nemá platný tvar.';
   if (initial.active && !t.active && futureBookings.length)
-    profile.active = `Má ${countLabel(futureBookings.length, ['nadcházející rezervaci', 'nadcházející rezervace', 'nadcházejících rezervací'])} (první ${formatDayShort(futureBookings[0].start)} ${formatTime(futureBookings[0].start)}). Nejdřív je přesuňte k jinému terapeutovi nebo zrušte – jinak by zmizely z kalendáře.`;
+    profile.active = `Má ${countLabel(futureBookings.length, ['nadcházející rezervaci', 'nadcházející rezervace', 'nadcházejících rezervací'])} (první ${formatDayShort(futureBookings[0].start)} ${formatTime(futureBookings[0].start)}). Nejdřív je přesuňte k ${words.staff.agree('jinému', 'jiné', 'jinému')} ${words.staff.dat} nebo zrušte – jinak by zmizely z kalendáře.`;
   const profileError = Object.keys(profile).length > 0;
   const show = (k: keyof ProfileErrors): string | undefined => (submitted || k === 'active' ? profile[k] : undefined);
 
   const dirty = isNew || !deepEqual(t, initial) || !sameSet(serviceIds, initialServices);
   const weekly = weekMinutes(t);
   const days = WEEKDAYS.filter((wd) => (t.workingHours[wd] ?? []).length > 0).length;
-  const fullName = therapistName({ title: t.title.trim(), firstName: t.firstName.trim() || 'Nový', lastName: t.lastName.trim() || 'terapeut' });
+  const fullName = therapistName({ title: t.title.trim(), firstName: t.firstName.trim() || words.staff.adj('Nový'), lastName: t.lastName.trim() || words.staff.nom });
 
   const save = (): void => {
     setSubmitted(true);
@@ -145,7 +146,7 @@ export function TherapistEditor({
       open
       onClose={onClose}
       size="lg"
-      title={isNew ? 'Nový člen týmu' : 'Úprava terapeuta'}
+      title={isNew ? 'Nový člen týmu' : `Úprava ${words.staff.gen}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -195,7 +196,7 @@ export function TherapistEditor({
               <Input value={t.lastName} maxLength={40} onValueChange={(v) => setT((c) => ({ ...c, lastName: v }))} />
             </Field>
           </div>
-          <Field label="Zaměření" hint="Zobrazí se klientům při výběru terapeuta, např. „Sportovní fyzioterapie“.">
+          <Field label="Zaměření" hint={`Zobrazí se klientům při výběru ${words.staff.gen}, např. „Sportovní fyzioterapie“.`}>
             <Input value={t.focus} maxLength={80} onValueChange={(v) => setT((c) => ({ ...c, focus: v }))} />
           </Field>
           <div className="set-form__grid">
@@ -218,8 +219,8 @@ export function TherapistEditor({
             label="Aktivní člen týmu"
             description={
               t.active
-                ? 'Zobrazuje se v kalendáři a klienti si ho mohou vybrat online.'
-                : 'Neaktivní terapeut se nezobrazuje v kalendáři ani v online rezervaci.'
+                ? `Zobrazuje se v kalendáři a klienti si ${words.staff.agree('ho', 'ji', 'ho')} mohou vybrat online.`
+                : `Neaktivní ${words.staff.nom} se nezobrazuje v kalendáři ani v online rezervaci.`
             }
           />
           {profile.active && (
@@ -257,7 +258,7 @@ export function TherapistEditor({
 
       {tab === 'services' && (
         <div role="tabpanel" id="set-th-panel-services" aria-labelledby="set-th-tab-services" className="set-form set-tabpanel">
-          <p className="set-lead">Vyberte služby, které {t.firstName.trim() || 'terapeut'} poskytuje. Klienti si ho mohou objednat jen na ně.</p>
+          <p className="set-lead">Vyberte služby, které {t.firstName.trim() || words.staff.nom} poskytuje. Klienti si {words.staff.agree('ho', 'ji', 'ho')} mohou objednat jen na ně.</p>
           {categories.map((cat) => {
             const list = servicesOf(cat.id);
             if (!list.length) return null;
@@ -299,7 +300,7 @@ export function TherapistEditor({
           })}
           {serviceIds.length === 0 && (
             <Callout tone="warning" icon="alert">
-              Bez služeb si terapeuta nikdo nezarezervuje.
+              Bez služeb si {words.staff.acc} nikdo nezarezervuje.
             </Callout>
           )}
         </div>

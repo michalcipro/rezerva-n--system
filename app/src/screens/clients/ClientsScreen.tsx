@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Id, ModuleSettings } from '../../domain/types';
 import { countLabel, formatDayShort, formatMoney, formatNumber, formatRelative, formatTime } from '../../engine/format';
 import { modulesOf } from '../../engine/modules';
-import { useClinic, useNow } from '../../store/hooks';
+import { useClinic, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import { Avatar, Badge, Button, Card, EmptyState, Icon, IconButton, Input, PageHeader, Select, Table, cx, type IconName } from '../../ui';
 import { NewClientDialog } from './ClientForm';
@@ -48,6 +48,7 @@ const SORT_LABEL: Record<ClientSort, string> = {
 export function ClientsScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const perms = usePermissions();
   const compact = useMediaQuery('(max-width: 640px)');
   const [state, setState] = useState<ListState>(remembered);
@@ -113,7 +114,7 @@ export function ClientsScreen(): JSX.Element {
 
   const subtitle =
     rows.length === 0
-      ? 'Evidence klientů kliniky'
+      ? `Evidence klientů ${words.business.gen}`
       : `${countLabel(rows.length, ['klient', 'klienti', 'klientů'])}${mod.packages ? ` · ${formatNumber(totals.withPkg)} s aktivní permanentkou` : ''} · ${formatNumber(totals.fresh)} ${totals.fresh === 1 ? 'nový' : 'nových'} za 30 dní`;
 
   return (

@@ -3,6 +3,7 @@ import { copyText } from '../../app/clipboard';
 import type { ClinicState, Id, LocalDateTime, PaymentRequestStatus } from '../../domain/types';
 import { formatDateTimeShort, formatMoney } from '../../engine/format';
 import { formatIban, paymentMessage, paymentSpayd } from '../../engine/qr';
+import { termsOf } from '../../engine/terms';
 import { Badge, Callout, DescriptionList, IconButton, toast } from '../../ui';
 import { QrCode } from './QrCode';
 
@@ -95,7 +96,7 @@ export function QrPaymentCard({ clinic, clientId, amount, vs, label, dueAt, now,
         <DescriptionList items={items} termWidth={84} plain />
         {p.demoAccount && (
           <Callout tone="warning" title="Ukázkový účet">
-            Účet je smyšlený z testovacích dat – platbu neodesílejte. Skutečný účet kliniky se nastaví v Nastavení → Platby.
+            Účet je smyšlený z testovacích dat – platbu neodesílejte. Skutečný účet {termsOf(clinic).business.gen} se nastaví v Nastavení → Platby.
           </Callout>
         )}
         {hint && <div className="qrpay__hint">{hint}</div>}

@@ -10,6 +10,7 @@ import {
   getService,
   packageUsage,
 } from './selectors';
+import { termsOf, type Terms } from './terms';
 import { addDays, dateOf, daysBetween } from './time';
 
 /** Segmentace klientů pro newslettery. Obchodní sdělení dostávají jen klienti se souhlasem. */
@@ -151,7 +152,7 @@ export function defaultRule(s: ClinicState, type: SegmentRule['type']): SegmentR
 }
 
 /** Textová podoba kampaně (pro uložení odeslané zprávy). */
-export function campaignPlainText(c: Campaign, vars: TemplateVars): string {
+export function campaignPlainText(c: Campaign, vars: TemplateVars, words: Terms = termsOf(null)): string {
   const parts: string[] = [];
   for (const b of c.blocks) {
     if (b.type === 'heading') parts.push(renderTemplate(b.text, vars).toUpperCase());
@@ -160,6 +161,6 @@ export function campaignPlainText(c: Campaign, vars: TemplateVars): string {
     else if (b.type === 'button') parts.push(`→ ${b.label}`);
     else if (b.type === 'divider') parts.push('—');
   }
-  parts.push(`Toto je obchodní sdělení ${vars.klinika ? `kliniky ${vars.klinika}` : 'kliniky'}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek. Odhlásit odběr můžete jedním kliknutím v patičce nebo ve svém účtu.`);
+  parts.push(`Toto je obchodní sdělení ${vars.klinika ? `${words.business.gen} ${vars.klinika}` : words.business.gen}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek. Odhlásit odběr můžete jedním kliknutím v patičce nebo ve svém účtu.`);
   return parts.join('\n\n');
 }

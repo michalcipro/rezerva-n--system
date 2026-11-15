@@ -19,7 +19,7 @@ import {
   upcomingBookingsOfClient,
 } from '../engine/selectors';
 import { dateOf, daysBetween } from '../engine/time';
-import { useClinic, useCommand, useNow } from '../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import { Button, Callout, Icon, IconButton, StackedBar, cx } from '../ui';
 import { usePortal } from './context';
 import {
@@ -71,6 +71,7 @@ export function HomeScreen(): JSX.Element {
   const purchase = onlinePurchase(clinic);
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const { client, go, openAccount } = usePortal();
   const today = dateOf(now);
 
@@ -111,7 +112,7 @@ export function HomeScreen(): JSX.Element {
         <IconButton
           icon="mail"
           size="lg"
-          label={unread ? 'Zprávy od kliniky, máte novou zprávu' : 'Zprávy od kliniky'}
+          label={unread ? `Zprávy od ${words.business.gen}, máte novou zprávu` : `Zprávy od ${words.business.gen}`}
           dot={unread}
           onClick={() => openAccount('zpravy')}
         />

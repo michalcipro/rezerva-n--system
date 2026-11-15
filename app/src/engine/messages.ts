@@ -11,6 +11,7 @@ import type {
 import { formatDayShort, formatMoney, formatTime } from './format';
 import { newId } from './ids';
 import { getClient, getPackage, getRoom, getService, getTherapist, therapistName } from './selectors';
+import type { Terms } from './terms';
 
 /** Šablony automatických zpráv. Proměnné se zapisují do hranatých závorek, např. [jméno]. */
 export const DEFAULT_TEMPLATES: MessageTemplate[] = [
@@ -195,6 +196,24 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     smsBody: '',
   },
 ];
+
+/** Výchozí názvy a popisy šablon, které zmiňují provozovnu – zobrazují se podle názvosloví. */
+const TERM_AWARE_TEMPLATES: Partial<Record<TemplateKey, { name: (w: Terms) => string; description: (w: Terms) => string }>> = {
+  clinic_cancel: { name: (w) => `Zrušení ze strany ${w.business.gen}`, description: (w) => `Když termín ruší ${w.business.nom}.` },
+};
+
+/** Název šablony k zobrazení: výchozí „Zrušení ze strany kliniky“ podle názvosloví, upravený název beze změny. */
+export function templateName(t: Pick<MessageTemplate, 'key' | 'name'> | undefined, words: Terms): string | undefined {
+  if (!t) return undefined;
+  const local = TERM_AWARE_TEMPLATES[t.key];
+  return local && t.name === DEFAULT_TEMPLATES.find((d) => d.key === t.key)?.name ? local.name(words) : t.name;
+}
+
+/** Popis šablony k zobrazení (stejně jako templateName). */
+export function templateDescription(t: Pick<MessageTemplate, 'key' | 'description'>, words: Terms): string {
+  const local = TERM_AWARE_TEMPLATES[t.key];
+  return local && t.description === DEFAULT_TEMPLATES.find((d) => d.key === t.key)?.description ? local.description(words) : t.description;
+}
 
 /** Šablony, které jsou obchodním sdělením – vyžadují souhlas s marketingem. */
 /** Šablony, které jsou obchodním sdělením (žádost o hodnocení, nabídky) – jen se souhlasem s marketingem. */

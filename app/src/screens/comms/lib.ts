@@ -10,10 +10,11 @@ import type {
   TemplateKey,
 } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, formatTime, plural } from '../../engine/format';
-import { bookingVars, TEMPLATE_VARIABLES, type TemplateVars } from '../../engine/messages';
+import { bookingVars, TEMPLATE_VARIABLES, templateName, type TemplateVars } from '../../engine/messages';
 import { isGroupBooking } from '../../engine/policy';
 import { evaluateSegment, segmentFunnel } from '../../engine/segments';
 import { therapistName } from '../../engine/selectors';
+import { prep, termsOf, type Terms } from '../../engine/terms';
 import { addDays, addHours, addMinutes, combine, dateOf } from '../../engine/time';
 
 /*
@@ -208,7 +209,7 @@ export function recipientsLabel(n: number): string {
 }
 
 /** Kontrolní seznam před odesláním. Chyby (error) odeslání blokují, varování ne. */
-export function campaignChecks(c: CampaignContent, recipients: number): CheckItem[] {
+export function campaignChecks(c: CampaignContent, recipients: number, words: Terms = termsOf(null)): CheckItem[] {
   const subjectOk = c.subject.trim() !== '';
   const contentOk = hasContent(c.blocks);
   const items: CheckItem[] = [
@@ -244,7 +245,7 @@ export function campaignChecks(c: CampaignContent, recipients: number): CheckIte
       id: 'links',
       label: badLinks > 1 ? 'Odkazy tlačítek' : 'Odkaz tlačítka',
       state: 'warn',
-      hint: 'Doplňte celou adresu (https://…), jinak tlačítko povede na rezervace kliniky.',
+      hint: `Doplňte celou adresu (https://…), jinak tlačítko povede na rezervace ${words.business.gen}.`,
     });
   }
   const empty = c.blocks.filter((b) => b.type !== 'divider' && !blockHasContent(b)).length;
@@ -331,7 +332,7 @@ export interface CampaignPreset {
 
 const EVERYONE: SegmentDefinition = { match: 'all', rules: [], exclude: [] };
 
-export const CAMPAIGN_PRESETS: CampaignPreset[] = [
+export const campaignPresets = (words: Terms): CampaignPreset[] => [
   {
     id: 'blank',
     title: 'Prázdný e-mail',
@@ -349,11 +350,11 @@ export const CAMPAIGN_PRESETS: CampaignPreset[] = [
   },
   {
     id: 'news',
-    title: 'Novinky z kliniky',
+    title: `Novinky ${prep('z', words.business.gen)}`,
     description: 'Nadpis, text, seznam novinek a tlačítko k rezervaci. Všem se souhlasem.',
-    name: 'Novinky z kliniky',
+    name: `Novinky ${prep('z', words.business.gen)}`,
     build: (s) => ({
-      subject: `Novinky z kliniky ${s.settings.clinicName}`,
+      subject: `Novinky ${prep('z', words.business.gen)} ${s.settings.clinicName}`,
       preheader: 'Co je u nás nového a na co se můžete těšit',
       blocks: [
         { type: 'heading', text: 'Co je u nás nového' },
@@ -482,7 +483,9 @@ const EXTRA_VARIABLE_LABELS: Record<string, string> = {
   zrušené_termíny: 'Zrušené rezervace',
 };
 
-export function variableLabel(key: string): string {
+export function variableLabel(key: string, words: Terms = termsOf(null)): string {
+  if (key === 'terapeut') return `Jméno ${words.staff.gen}`;
+  if (key === 'klinika') return `Název ${words.business.gen}`;
   return TEMPLATE_VARIABLES.find((v) => v.key === key)?.label ?? EXTRA_VARIABLE_LABELS[key] ?? key;
 }
 
@@ -511,7 +514,7 @@ export function templateTiming(t: MessageTemplate, s: ClinicState): string {
     case 'no_show':
       return 'po označení nedostavení';
     case 'clinic_cancel':
-      return 'když termín ruší klinika';
+      return `když termín ruší ${termsOf(s).business.nom}`;
     case 'waitlist_offer':
       return s.settings.waitlist.enabled ? `při uvolnění termínu, nabídka platí ${s.settings.waitlist.offerMinutes} min` : 'čekací listina je vypnutá';
     case 'makeup_reminder':
@@ -643,10 +646,10 @@ export function smsInfo(text: string): SmsInfo {
 /* Odeslané                                                            */
 /* ------------------------------------------------------------------ */
 
-export function kindLabel(kind: Message['kind'], templates: readonly MessageTemplate[]): string {
+export function kindLabel(kind: Message['kind'], templates: readonly MessageTemplate[], words: Terms = termsOf(null)): string {
   if (kind === 'campaign') return 'Kampaň';
   if (kind === 'manual') return 'Ruční zpráva';
-  return templates.find((t) => t.key === kind)?.name ?? kind;
+  return templateName(templates.find((t) => t.key === kind), words) ?? kind;
 }
 
 /** Rada, jak napravit neodeslanou zprávu. */

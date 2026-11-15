@@ -6,7 +6,7 @@ import { formatDateTimeShort, formatDayShort, formatTimeRange } from '../../engi
 import { canRescheduleFree, evaluateCancellation } from '../../engine/policy';
 import { clientName, getBooking, getClient, getService, getSession, getTherapist, therapistName } from '../../engine/selectors';
 import { addMinutes, dateOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Button, Callout, Dialog, EmptyState, Field, Select } from '../../ui';
 import { MoveSummary } from './MoveDialog';
 import { SessionPicker, SlotCheckNotice, SlotPicker } from './pickers';
@@ -28,6 +28,7 @@ function RescheduleForm({ bookingId, onClose }: { bookingId: Id; onClose: () => 
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const booking = getBooking(clinic, bookingId);
   const service = booking ? getService(clinic, booking.serviceId) : undefined;
   const isGroup = !!booking?.sessionId || service?.kind === 'group';
@@ -151,7 +152,7 @@ function RescheduleForm({ bookingId, onClose }: { bookingId: Id; onClose: () => 
             />
           ) : (
             <>
-              <Field label="Terapeut">
+              <Field label={words.Staff.nom}>
                 <Select
                   value={therapistId}
                   onValueChange={(v) => {

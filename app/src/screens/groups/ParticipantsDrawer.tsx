@@ -6,9 +6,9 @@ import type { GroupSessionOverview } from '../../engine/groups';
 import { bookingsOfSession, clientName, getClient, getRoom, getTherapist, isOccupying, therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { packageEntryIndex, visitPaymentInfo, type VisitPaymentInfo } from '../../engine/visits';
-import { ClientAvatar } from '../../components/domain';
+import { BookingStatusPill, ClientAvatar } from '../../components/domain';
 import { VisitSourceBadge } from '../../components/payments';
-import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
+import { useActor, useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Button, Callout, ConfirmDialog, Drawer, EmptyState, Field, IconButton, StatusPill, Textarea } from '../../ui';
 import { noShowText, sessionOverview } from './model';
@@ -64,6 +64,7 @@ function ParticipantsContent({
   const now = useNow();
   const actor = useActor();
   const run = useCommand();
+  const words = useTerms();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [reason, setReason] = useState('');
   const ses = row.session;
@@ -190,7 +191,7 @@ function ParticipantsContent({
         onConfirm={() => {
           const r = run(
             cancelSession,
-            { sessionId: ses.id, reason: reason.trim() || 'Zrušeno klinikou' },
+            { sessionId: ses.id, reason: reason.trim() || `Zrušeno ${words.business.ins}` },
             { success: (n) => (n ? `Lekce zrušena · omluva odešla ${countLabel(n, ['účastníkovi', 'účastníkům', 'účastníkům'])}` : 'Lekce zrušena') },
           );
           if (!r.ok) throw new Error(r.error);
@@ -198,7 +199,7 @@ function ParticipantsContent({
         }}
       >
         <div className="grp-form">
-          <p className="grp-form__lead">Všem přihlášeným se termín zruší ze strany kliniky – bez poplatku a s vrácením platby. Dostanou omluvnou zprávu.</p>
+          <p className="grp-form__lead">Všem přihlášeným se termín zruší ze strany {words.business.gen} – bez poplatku a s vrácením platby. Dostanou omluvnou zprávu.</p>
           <Field label="Důvod" hint="Pošle se přihlášeným ve zprávě." optional>
             <Textarea value={reason} onValueChange={setReason} rows={2} placeholder="Např. nemoc lektora" />
           </Field>
@@ -265,7 +266,7 @@ function LeftRow({ booking, onOpen }: { booking: Booking; onOpen: () => void }):
         </button>
       </div>
       <div className="grp-person__side">
-        <StatusPill status={booking.status} appearance="plain" />
+        <BookingStatusPill status={booking.status} appearance="plain" />
         <IconButton icon="chevronRight" size="sm" label={`Detail rezervace – ${name}`} onClick={onOpen} />
       </div>
     </li>

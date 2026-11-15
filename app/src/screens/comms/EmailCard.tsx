@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import type { CampaignBlock, Client, ClinicState, Id } from '../../domain/types';
 import type { TemplateVars } from '../../engine/messages';
 import { getClient } from '../../engine/selectors';
+import { useTerms } from '../../store/hooks';
 import { Button, Card, Icon, Segmented, Select } from '../../ui';
 import { BlockEditor, type BlockList } from './BlockEditor';
 import { cleanBlocks } from './lib';
@@ -11,6 +12,7 @@ export type EditorMode = 'preview' | 'edit';
 
 /** Vykreslení bloků kampaně tak, jak je uvidí příjemce. */
 export function PreviewBlocks({ blocks, vars }: { blocks: CampaignBlock[]; vars: TemplateVars }): JSX.Element {
+  const words = useTerms();
   const visible = cleanBlocks(blocks);
   if (!visible.length) return <p className="com-email__placeholder">Obsah e-mailu je zatím prázdný.</p>;
   return (
@@ -55,7 +57,7 @@ export function PreviewBlocks({ blocks, vars }: { blocks: CampaignBlock[]; vars:
           case 'button':
             return (
               <div key={i} className="com-email__btnrow">
-                <span className="com-email__btn" title={b.url.trim() ? `Odkaz: ${b.url}` : 'Bez odkazu – povede na rezervace kliniky'}>
+                <span className="com-email__btn" title={b.url.trim() ? `Odkaz: ${b.url}` : `Bez odkazu – povede na rezervace ${words.business.gen}`}>
                   {b.label}
                 </span>
               </div>

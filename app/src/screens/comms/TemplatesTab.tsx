@@ -2,10 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import type { Channel, MessageTemplate, TemplateKey } from '../../domain/types';
 import { updateTemplate } from '../../engine/commands';
 import { countLabel, formatNumber } from '../../engine/format';
-import { DEFAULT_TEMPLATES, MARKETING_TEMPLATES, renderTemplate } from '../../engine/messages';
+import { DEFAULT_TEMPLATES, MARKETING_TEMPLATES, renderTemplate, templateDescription, templateName } from '../../engine/messages';
 import { templateInUse } from '../../engine/modules';
 import { addDays } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, useSession } from '../../store/session';
 import { Badge, Button, Callout, Card, Checkbox, cx, Field, Icon, Input, Switch, TabPanel, Tabs, Textarea, toast } from '../../ui';
 import {
@@ -51,6 +51,7 @@ function TemplateList({
 }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const words = useTerms();
   return (
     <Card padding="none" as="section" className="com-tlist" aria-label="Šablony automatických zpráv">
       {TEMPLATE_GROUPS.map((g) => {
@@ -67,7 +68,7 @@ function TemplateList({
                 <li key={t.key} className={cx('com-tlist__row', t.key === selected && 'is-active')}>
                   <button type="button" className="com-tlist__main" aria-current={t.key === selected ? 'true' : undefined} onClick={() => onSelect(t.key)}>
                     <span className="com-tlist__name">
-                      {t.name}
+                      {templateName(t, words)}
                       {drafts[t.key] && !sameDraft(drafts[t.key] as TemplateDraft, t) && (
                         <span className="com-tlist__dirty" title="Neuložené změny">
                           <span className="visually-hidden">(neuložené změny)</span>
@@ -81,8 +82,8 @@ function TemplateList({
                   <Switch
                     className="com-tlist__switch"
                     checked={t.enabled}
-                    aria-label={t.name}
-                    onChange={(value) => run(updateTemplate, { key: t.key, patch: { enabled: value } }, { success: `${t.name}: ${value ? 'zapnuto' : 'vypnuto'}` })}
+                    aria-label={templateName(t, words)}
+                    onChange={(value) => run(updateTemplate, { key: t.key, patch: { enabled: value } }, { success: `${templateName(t, words)}: ${value ? 'zapnuto' : 'vypnuto'}` })}
                   />
                 </li>
               ))}
@@ -110,6 +111,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const session = useSession();
   const value: TemplateDraft = draft ?? pickDraft(tpl);
   const dirty = !!draft && !sameDraft(draft, tpl);
@@ -169,7 +171,7 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   };
 
   const save = (): void => {
-    const r = run(updateTemplate, { key: tpl.key, patch: value }, { success: `Šablona „${tpl.name}“ uložena` });
+    const r = run(updateTemplate, { key: tpl.key, patch: value }, { success: `Šablona „${templateName(tpl, words)}“ uložena` });
     if (r.ok) onDraft(undefined);
   };
 
@@ -189,14 +191,14 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
   const settingsLink = session.role === 'owner' && (tpl.key === 'reminder' || tpl.key === 'waitlist_offer');
 
   return (
-    <Card padding="none" as="section" className="com-tedit" aria-label={`Šablona ${tpl.name}`}>
+    <Card padding="none" as="section" className="com-tedit" aria-label={`Šablona ${templateName(tpl, words)}`}>
       <div className="com-tedit__head">
         <Button variant="ghost" size="sm" icon="arrowLeft" className="com-tpl__back" onClick={onBack}>
           Všechny šablony
         </Button>
         <div className="com-tedit__titles">
-          <h2 className="com-tedit__title">{tpl.name}</h2>
-          <p className="com-tedit__desc">{tpl.description}</p>
+          <h2 className="com-tedit__title">{templateName(tpl, words)}</h2>
+          <p className="com-tedit__desc">{templateDescription(tpl, words)}</p>
         </div>
         <Switch
           className="com-tedit__switch"
@@ -339,8 +341,8 @@ function TemplateEditor({ tpl, draft, onDraft, onBack, onShowMessages }: Templat
                   key={key}
                   type="button"
                   className="com-var-chip"
-                  title={variableLabel(key)}
-                  aria-label={`Vložit ${variableLabel(key)}`}
+                  title={variableLabel(key, words)}
+                  aria-label={`Vložit ${variableLabel(key, words)}`}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => insertVariable(key)}
                 >

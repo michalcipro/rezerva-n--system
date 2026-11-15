@@ -19,9 +19,10 @@ import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, forma
 import { moduleOn } from '../../engine/modules';
 import { pendingRequestFor } from '../../engine/qr';
 import { clientCredit, getService, packageUsage } from '../../engine/selectors';
+import { prep, type Terms } from '../../engine/terms';
 import { addDays, dateOf } from '../../engine/time';
 import { QrPaymentDialog, type QrPaymentDraft } from '../../components/payments';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import {
   Badge,
   Button,
@@ -100,6 +101,7 @@ function DialogFooter({ onClose, submitLabel, formId, disabled, tone = 'primary'
 export function SendMessageDialog({ client, open, onClose }: { client: Client; open: boolean; onClose: () => void }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const words = useTerms();
   const formId = useId();
   const canEmail = !!client.email;
   const canSms = !!client.phone;
@@ -111,7 +113,7 @@ export function SendMessageDialog({ client, open, onClose }: { client: Client; o
   useEffect(() => {
     if (!open) return;
     setChannel(canEmail ? 'email' : 'sms');
-    setSubject(`Zpráva z kliniky ${clinic.settings.clinicName}`);
+    setSubject(`Zpráva ${prep('z', words.business.gen)} ${clinic.settings.clinicName}`);
     setBody(`Dobrý den, ${client.firstName},\n\n`);
     setTried(false);
   }, [open, canEmail, clinic.settings.clinicName, client.firstName]);
@@ -314,15 +316,16 @@ export function SellPackageDialog({ client, open, onClose }: { client: Client; o
 /* Prodloužení a zrušení permanentky                                    */
 /* ------------------------------------------------------------------ */
 
-const EXTEND_REASONS = ['Nemoc klienta', 'Dovolená terapeuta', 'Kompenzace', 'Jiný důvod'] as const;
+const extendReasons = (words: Terms): string[] => ['Nemoc klienta', `Dovolená ${words.staff.gen}`, 'Kompenzace', 'Jiný důvod'];
 
 export function ExtendPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage | null; open: boolean; onClose: () => void }): JSX.Element | null {
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
   const formId = useId();
+  const words = useTerms();
   const [days, setDays] = useState(14);
-  const [reason, setReason] = useState<(typeof EXTEND_REASONS)[number]>('Nemoc klienta');
+  const [reason, setReason] = useState<string>('Nemoc klienta');
   const [note, setNote] = useState('');
 
   useEffect(() => {
@@ -362,7 +365,7 @@ export function ExtendPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
           options={[7, 14, 30, 60].map((n) => ({ value: String(n), label: `+${n} dní` }))}
         />
         <Field label="Důvod">
-          <ChoiceChips aria-label="Důvod prodloužení" value={reason} onChange={setReason} options={EXTEND_REASONS.map((r) => ({ value: r, label: r }))} />
+          <ChoiceChips aria-label="Důvod prodloužení" value={reason} onChange={setReason} options={extendReasons(words).map((r) => ({ value: r, label: r }))} />
         </Field>
         <Field label="Poznámka" optional>
           <Input value={note} onValueChange={setNote} placeholder="Např. lékařská zpráva doložena" />
@@ -687,17 +690,18 @@ export function SettleDebtDialog({ item, open, onClose }: { item: DebtItem | nul
   );
 }
 
-const WAIVE_REASONS = ['Doložená nemoc', 'Vyšší moc', 'Chyba kliniky', 'Dobrý vztah s klientem'] as const;
+const waiveReasons = (words: Terms): string[] => ['Doložená nemoc', 'Vyšší moc', `Chyba ${words.business.gen}`, 'Dobrý vztah s klientem'];
 
 export function WaiveFeeDialog({ item, open, onClose }: { item: DebtItem | null; open: boolean; onClose: () => void }): JSX.Element | null {
   const run = useCommand();
   const formId = useId();
-  const [reason, setReason] = useState<string>(WAIVE_REASONS[0]);
+  const reasons = waiveReasons(useTerms());
+  const [reason, setReason] = useState<string>(reasons[0]);
   const [note, setNote] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setReason(WAIVE_REASONS[0]);
+    setReason(reasons[0]);
     setNote('');
   }, [open]);
 
@@ -721,7 +725,7 @@ export function WaiveFeeDialog({ item, open, onClose }: { item: DebtItem | null;
     >
       <form id={formId} className="cli-form" onSubmit={submit} noValidate>
         <Field label="Důvod">
-          <ChoiceChips aria-label="Důvod odpuštění" value={reason} onChange={setReason} options={WAIVE_REASONS.map((r) => ({ value: r, label: r }))} />
+          <ChoiceChips aria-label="Důvod odpuštění" value={reason} onChange={setReason} options={reasons.map((r) => ({ value: r, label: r }))} />
         </Field>
         <Field label="Poznámka" optional>
           <Input value={note} onValueChange={setNote} />

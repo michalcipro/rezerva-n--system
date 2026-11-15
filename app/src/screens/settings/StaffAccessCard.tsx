@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../../api/client';
 import type { MemberView, StaffRole } from '../../api/protocol';
 import { therapistName } from '../../engine/selectors';
-import { useClinic, useStore } from '../../store/hooks';
+import type { Terms } from '../../engine/terms';
+import { useClinic, useStore, useTerms } from '../../store/hooks';
 import { Badge, Button, Callout, Card, CardHeader, ConfirmDialog, Dialog, EmptyState, Field, IconButton, Input, Select, Spinner, toast } from '../../ui';
 
 /**
@@ -10,7 +11,7 @@ import { Badge, Button, Callout, Card, CardHeader, ConfirmDialog, Dialog, EmptyS
  * Přihlášení je kódem z e-mailu – stačí zadat e-mail, nic se neposílá.
  */
 
-const ROLE_LABEL: Record<StaffRole, string> = { owner: 'Majitel', reception: 'Recepce', therapist: 'Terapeut' };
+const roleLabels = (words: Terms): Record<StaffRole, string> => ({ owner: 'Majitel', reception: 'Recepce', therapist: words.Staff.nom });
 const ROLE_HINT: Record<StaffRole, string> = {
   owner: 'Vše včetně nastavení, statistik a přístupů.',
   reception: 'Kalendář, klienti, platby, komunikace. Bez statistik a nastavení.',
@@ -24,6 +25,7 @@ function message(e: unknown): string {
 
 export function StaffAccessCard(): JSX.Element {
   const clinic = useClinic();
+  const roleLabel = roleLabels(useTerms());
   const me = useStore((s) => s.session?.user.id ?? null);
   const [members, setMembers] = useState<MemberView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function StaffAccessCard(): JSX.Element {
                   <span className="set-access__email">{m.email || 'e-mail neuveden'}</span>
                   {therapistOf(m.therapistId) && <span className="set-access__email">Kalendář: {therapistOf(m.therapistId)}</span>}
                 </div>
-                <Badge tone={m.role === 'owner' ? 'accent' : 'neutral'}>{ROLE_LABEL[m.role]}</Badge>
+                <Badge tone={m.role === 'owner' ? 'accent' : 'neutral'}>{roleLabel[m.role]}</Badge>
                 {m.userId !== me ? (
                   <IconButton icon="trash" size="sm" variant="ghost" label={`Odebrat přístup – ${m.displayName || m.email}`} onClick={() => setRemoving(m)} />
                 ) : (
@@ -134,6 +136,8 @@ export function StaffAccessCard(): JSX.Element {
 
 function AddMemberDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (list: MemberView[]) => void }): JSX.Element {
   const clinic = useClinic();
+  const words = useTerms();
+  const roleLabel = roleLabels(words);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<StaffRole>('reception');
@@ -146,7 +150,7 @@ function AddMemberDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const errors = {
     email: !EMAIL_RE.test(email.trim()) ? 'Zadejte platný e-mail.' : undefined,
     name: !name.trim() ? 'Vyplňte jméno.' : undefined,
-    therapist: role === 'therapist' && !therapistId ? 'Vyberte, čí kalendář terapeut uvidí.' : undefined,
+    therapist: role === 'therapist' && !therapistId ? `Vyberte, čí kalendář ${words.staff.nom} uvidí.` : undefined,
   };
   const valid = !errors.email && !errors.name && !errors.therapist;
 
@@ -199,17 +203,17 @@ function AddMemberDialog({ onClose, onSaved }: { onClose: () => void; onSaved: (
             value={role}
             onValueChange={(v) => setRole(v as StaffRole)}
             options={[
-              { value: 'reception', label: ROLE_LABEL.reception },
-              { value: 'therapist', label: ROLE_LABEL.therapist },
-              { value: 'owner', label: ROLE_LABEL.owner },
+              { value: 'reception', label: roleLabel.reception },
+              { value: 'therapist', label: roleLabel.therapist },
+              { value: 'owner', label: roleLabel.owner },
             ]}
           />
         </Field>
         {(role === 'therapist' || role === 'owner') && (
-          <Field label="Kalendář terapeuta" optional={role === 'owner'} error={touched ? errors.therapist : undefined}>
+          <Field label={`Kalendář ${words.staff.gen}`} optional={role === 'owner'} error={touched ? errors.therapist : undefined}>
             <Select
               value={therapistId}
-              placeholder="Vyberte terapeuta"
+              placeholder={`Vyberte ${words.staff.acc}`}
               onValueChange={pickTherapist}
               options={[...(role === 'owner' ? [{ value: '', label: 'Bez vlastního kalendáře' }] : []), ...therapists.map((t) => ({ value: t.id, label: therapistName(t) }))]}
             />

@@ -2,7 +2,8 @@ import type { Booking, Client, ClinicState, Id, Therapist, Tone } from '../domai
 import { formatMoney } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
 import { getCategory, getService, getTherapist, therapistInitials, therapistName } from '../engine/selectors';
-import { Avatar, Badge, StatusPill } from '../ui';
+import { useTerms } from '../store/hooks';
+import { Avatar, Badge, StatusPill, type StatusPillProps } from '../ui';
 import './components.css';
 
 /** Barevná tečka kategorie / terapeuta. */
@@ -31,11 +32,17 @@ export function CategoryBadge({ clinic, serviceId }: { clinic: ClinicState; serv
   );
 }
 
+/** Stav rezervace – „Zrušeno klinikou / studiem…“ podle názvosloví provozovny (UI kit ho nezná). */
+export function BookingStatusPill({ label, ...rest }: StatusPillProps): JSX.Element {
+  const words = useTerms();
+  return <StatusPill {...rest} label={label ?? (rest.status === 'clinic_cancelled' ? `Zrušeno ${words.business.ins}` : undefined)} />;
+}
+
 /** Stav rezervace včetně poplatku. */
 export function BookingStatusBadges({ booking }: { booking: Booking }): JSX.Element {
   return (
     <span className="bk-badges">
-      <StatusPill status={booking.status} />
+      <BookingStatusPill status={booking.status} />
       {booking.fee && booking.fee.status === 'due' && <Badge tone="warning" size="sm">Poplatek {formatMoney(booking.fee.amount)} k úhradě</Badge>}
       {booking.fee && booking.fee.status === 'waived' && booking.fee.waivedReason && <Badge tone="neutral" size="sm">Poplatek odpuštěn</Badge>}
       {booking.status === 'confirmed' && booking.payment.method === 'onsite' && !booking.payment.paid && <Badge tone="neutral" size="sm">Platba na místě</Badge>}

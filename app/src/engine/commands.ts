@@ -46,6 +46,7 @@ import { MODULE_OFF, moduleOn } from './modules';
 import { bookingPolicy, evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { formatIban, isVsFree, nextVs, parseAccount, qrReady } from './qr';
 import { evaluateSegment, campaignPlainText } from './segments';
+import { termsOf } from './terms';
 import {
   bookingsOfClient,
   clientCredit,
@@ -255,7 +256,7 @@ export const setConsent: Command<{ clientId: Id; key: keyof ClientConsents; valu
   if (!c) return fail('Klient neexistuje.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== c.id) return fail('Nemáte oprávnění.');
   if (c.anonymizedAt) return fail(ANONYMIZED);
-  if (input.key === 'gdpr' && !input.value) return fail('Souhlas se zpracováním údajů nutných pro rezervace nelze odebrat. Pro výmaz účtu kontaktujte kliniku.');
+  if (input.key === 'gdpr' && !input.value) return fail(`Souhlas se zpracováním údajů nutných pro rezervace nelze odebrat. Pro výmaz účtu kontaktujte ${termsOf(d).business.acc}.`);
   c.consents[input.key] = input.value
     ? { at: ctx.now, source: ctx.actor.role === 'client' ? 'klientský účet' : 'recepce' }
     : null;
@@ -587,7 +588,7 @@ export const cancelBooking: Command<CancelBookingInput, { message: string }> = (
     case 'clinic': {
       b.status = 'clinic_cancelled';
       b.cancel = { at: ctx.now, by: 'staff', phase: 'clinic', excuse: false, reason, grace: false };
-      message = refundPayment(d, ctx, b, b.payment.paidAmount, 'Vrácení platby – termín zrušila klinika') || 'Termín zrušen klinikou.';
+      message = refundPayment(d, ctx, b, b.payment.paidAmount, `Vrácení platby – termín ${termsOf(d).business.past('zrušil')} ${termsOf(d).business.nom}`) || `Termín zrušen ${termsOf(d).business.ins}.`;
       queueTemplateMessage(d, { key: 'clinic_cancel', clientId: b.clientId, now: ctx.now, bookingId: b.id, vars: { ...vars, platba_vratka: message } });
       break;
     }
@@ -1477,7 +1478,7 @@ export const upsertTherapist: Command<Therapist, Id> = (d, input, ctx) => {
   const i = d.therapists.findIndex((x) => x.id === input.id);
   if (i >= 0) d.therapists[i] = input;
   else d.therapists.push({ ...input, id: input.id || newId('t'), order: d.therapists.length });
-  audit(d, ctx, i >= 0 ? 'Úprava terapeuta' : 'Nový terapeut', `${input.firstName} ${input.lastName}`);
+  audit(d, ctx, i >= 0 ? `Úprava ${termsOf(d).staff.gen}` : `${termsOf(d).staff.adj('Nový')} ${termsOf(d).staff.nom}`, `${input.firstName} ${input.lastName}`);
   return ok(i >= 0 ? input.id : d.therapists[d.therapists.length - 1].id);
 };
 
@@ -1713,7 +1714,7 @@ export function deliverCampaign(d: ClinicState, ctx: Ctx, campaign: Campaign): n
       channel: 'email',
       kind: 'campaign',
       subject: campaign.subject.replace(/\[jméno\]/g, c.firstName),
-      body: campaignPlainText(campaign, { jméno: c.firstName, klinika: d.settings.clinicName }),
+      body: campaignPlainText(campaign, { jméno: c.firstName, klinika: d.settings.clinicName }, termsOf(d)),
       at: ctx.now,
       status: outgoingStatus(d),
       campaignId: campaign.id,

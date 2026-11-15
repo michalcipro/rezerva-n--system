@@ -1118,7 +1118,7 @@ export interface ImportResult extends ImportCounts {
 }
 
 const canImport = (ctx: Ctx): boolean => ctx.actor.role === 'owner' || ctx.actor.role === 'reception';
-const DENIED = 'Import dat může spustit jen majitelka nebo recepce.';
+const DENIED = 'Import dat může spustit jen majitel nebo recepce.';
 
 function validRows<T>(rows: unknown): rows is T[] {
   return Array.isArray(rows) && rows.every((r) => !!r && typeof r === 'object');

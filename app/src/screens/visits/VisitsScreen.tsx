@@ -9,7 +9,7 @@ import { dateOf } from '../../engine/time';
 import { VISIT_KINDS, VISIT_KIND_LABEL, visitsCsv, visitsOverview, type VisitFilters } from '../../engine/visits';
 import { ToneDot } from '../../components/domain';
 import { PendingPaymentsList } from '../../components/payments';
-import { useActor, useClinic, useNow } from '../../store/hooks';
+import { useActor, useClinic, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import {
   Button,
@@ -119,6 +119,7 @@ export function VisitsScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
   const actor = useActor();
+  const words = useTerms();
   const today = dateOf(now);
   const compact = useMediaQuery(PHONE_QUERY);
   const [state, setState] = useState<ViewState>(() => remembered ?? initialState(today));
@@ -224,7 +225,7 @@ export function VisitsScreen(): JSX.Element {
     <Select
       className="vis-select"
       aria-label="Zaměstnanec"
-      title={locked ? 'Terapeut vidí jen své vstupy' : undefined}
+      title={locked ? `${words.Staff.nom} vidí jen své vstupy` : undefined}
       disabled={!!locked}
       prefix={locked ? <Icon name="lock" size={14} /> : undefined}
       value={therapistId}

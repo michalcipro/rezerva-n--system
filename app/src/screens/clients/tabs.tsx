@@ -7,7 +7,7 @@ import { pendingPaymentRequests } from '../../engine/qr';
 import { bookingsOfClient, getBooking, getService, getTherapist, packageUsage, packagesOfClient, therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { TherapistAvatar } from '../../components/domain';
-import { useActor, useClinic, useCommand } from '../../store/hooks';
+import { useActor, useClinic, useCommand, useTerms } from '../../store/hooks';
 import {
   Badge,
   Button,
@@ -189,6 +189,7 @@ export function FinanceTab({
   onOpen: (id: Id) => void;
 }): JSX.Element {
   const clinic = useClinic();
+  const words = useTerms();
   const today = dateOf(now);
   const packages = packagesOfClient(clinic, client.id).map((pkg) => ({ pkg, usage: packageUsage(clinic, pkg, today) }));
   const ledger = useMemo(() => ledgerWithBalance(clinic, client.id), [clinic, client.id]);
@@ -259,7 +260,7 @@ export function FinanceTab({
           }
         />
         {ledger.length === 0 ? (
-          <EmptyState compact icon="wallet" title="Žádné pohyby kreditu" text="Dobitím kreditu si klient předplatí termíny; bonus podle pravidel kliniky." />
+          <EmptyState compact icon="wallet" title="Žádné pohyby kreditu" text={`Dobitím kreditu si klient předplatí termíny; bonus podle pravidel ${words.business.gen}.`} />
         ) : (
           <>
             <Table caption="Pohyby kreditu" minWidth={620} wrapperClassName="cli-tablewrap">
@@ -415,6 +416,7 @@ export function DocsTab({ client, perms, onGrantHealth }: { client: Client; perm
   const clinic = useClinic();
   const actor = useActor();
   const run = useCommand();
+  const words = useTerms();
   const [text, setText] = useState('');
   const author = actor.therapistId ? getTherapist(clinic, actor.therapistId) : undefined;
 
@@ -423,11 +425,11 @@ export function DocsTab({ client, perms, onGrantHealth }: { client: Client; perm
       <Card>
         <EmptyState
           icon="lock"
-          title="Klinická dokumentace je jen pro terapeuty"
+          title={`Klinická dokumentace je jen pro ${words.staffPl.acc}`}
           text={
             client.notes.length
-              ? `Klient má ${countLabel(client.notes.length, ['klinickou poznámku', 'klinické poznámky', 'klinických poznámek'])}. Obsah vidí jen terapeuti.`
-              : 'Poznámky z terapie zapisují a čtou terapeuti.'
+              ? `Klient má ${countLabel(client.notes.length, ['klinickou poznámku', 'klinické poznámky', 'klinických poznámek'])}. Obsah vidí jen ${words.staffPl.nom}.`
+              : `Poznámky z terapie zapisují a čtou ${words.staffPl.nom}.`
           }
         />
       </Card>
@@ -460,7 +462,7 @@ export function DocsTab({ client, perms, onGrantHealth }: { client: Client; perm
           icon="edit"
           actions={
             <Badge tone="neutral" icon="lock">
-              vidí jen terapeuti
+              vidí jen {words.staffPl.nom}
             </Badge>
           }
         />
@@ -623,6 +625,7 @@ export function CommsTab({ client, onWrite }: { client: Client; onWrite?: () => 
 
 export function ConsentsTab({ client, readOnly }: { client: Client; /** Anonymizovaný klient – souhlasy jen pro čtení. */ readOnly?: boolean }): JSX.Element {
   const run = useCommand();
+  const words = useTerms();
   const [confirm, setConfirm] = useState<keyof ClientConsents | null>(null);
 
   const apply = (key: keyof ClientConsents, value: boolean): boolean => {
@@ -648,7 +651,7 @@ export function ConsentsTab({ client, readOnly }: { client: Client; /** Anonymiz
                 label={m.label}
                 description={
                   <>
-                    {m.description}
+                    {m.description(words)}
                     <span className={cx('cli-consent-row__state tnum', rec ? 'text-success' : 'muted')}>
                       {rec ? `Uděleno ${formatDate(rec.at)} · ${rec.source}` : 'Neuděleno'}
                       {locked ? ' · nelze odebrat' : ''}

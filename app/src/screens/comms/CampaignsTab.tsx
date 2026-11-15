@@ -3,11 +3,11 @@ import type { Campaign, Id, LocalDateTime } from '../../domain/types';
 import { saveCampaign, updateTemplate } from '../../engine/commands';
 import { formatDate, formatDayShort, formatNumber, formatTime, plural } from '../../engine/format';
 import { segmentFunnel } from '../../engine/segments';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Button, Card, CardHeader, Dialog, EmptyState, Field, Icon, IconButton, Input, RadioCards, Switch } from '../../ui';
 import { CampaignEditor } from './CampaignEditor';
 import type { EditorMode } from './EmailCard';
-import { CAMPAIGN_PRESETS, channelsLabel, emptyCampaign, formatWhen, recipientsLabel, templateTiming } from './lib';
+import { campaignPresets, channelsLabel, emptyCampaign, formatWhen, recipientsLabel, templateTiming } from './lib';
 import { CampaignStatusBadge, revealElement, type Device } from './shared';
 
 /* ------------------------------------------------------------------ */
@@ -141,12 +141,13 @@ function NewCampaignDialog({ open, onClose, onCreated }: { open: boolean; onClos
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const [preset, setPreset] = useState(CAMPAIGN_PRESETS[0].id);
+  const presets = campaignPresets(useTerms());
+  const [preset, setPreset] = useState(presets[0].id);
   const [name, setName] = useState('');
 
   useEffect(() => {
     if (open) {
-      setPreset(CAMPAIGN_PRESETS[0].id);
+      setPreset(presets[0].id);
       setName('');
     }
   }, [open]);
@@ -154,11 +155,11 @@ function NewCampaignDialog({ open, onClose, onCreated }: { open: boolean; onClos
   const counts = useMemo(() => {
     const out: Record<string, number> = {};
     if (!open) return out;
-    for (const p of CAMPAIGN_PRESETS) out[p.id] = segmentFunnel(clinic, p.build(clinic).segment, now).final;
+    for (const p of presets) out[p.id] = segmentFunnel(clinic, p.build(clinic).segment, now).final;
     return out;
   }, [open, clinic, now]);
 
-  const chosen = CAMPAIGN_PRESETS.find((p) => p.id === preset) ?? CAMPAIGN_PRESETS[0];
+  const chosen = presets.find((p) => p.id === preset) ?? presets[0];
 
   const create = (): void => {
     const r = run(
@@ -201,7 +202,7 @@ function NewCampaignDialog({ open, onClose, onCreated }: { open: boolean; onClos
           legend="Začít od"
           value={preset}
           onChange={setPreset}
-          options={CAMPAIGN_PRESETS.map((p) => ({
+          options={presets.map((p) => ({
             value: p.id,
             title: p.title,
             description: p.description,

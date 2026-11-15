@@ -4,14 +4,14 @@ import { setSimulatedNow } from '../engine/commands';
 import { formatDayShort, formatTime } from '../engine/format';
 import { clientName, therapistName } from '../engine/selectors';
 import { addDays, addHours, isValidLocalDateTime, nowLocal } from '../engine/time';
-import { useClinic, useCommand, useNow, useStore } from '../store/hooks';
+import { useClinic, useCommand, useNow, useStore, useTerms } from '../store/hooks';
 import { actorFor, getServerIdentity, setSession, useSession } from '../store/session';
 import { loadDemoData, wipeAll } from '../store/store';
 import { Button, ConfirmDialog, Icon, IconButton, Menu, Segmented, Select } from '../ui';
 import { FeedbackButton } from './Feedback';
 
 const ROLES: { value: ActorRole; label: string }[] = [
-  { value: 'owner', label: 'Majitelka' },
+  { value: 'owner', label: 'Majitel' },
   { value: 'reception', label: 'Recepce' },
   { value: 'therapist', label: 'Terapeut' },
   { value: 'client', label: 'Klient' },
@@ -23,6 +23,8 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
   const session = useSession();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
+  const roles = ROLES.map((r) => (r.value === 'therapist' ? { ...r, label: words.Staff.nom } : r));
   const storage = useStore((s) => s.storage);
   const sync = useStore((s) => s.sync);
   const syncError = useStore((s) => s.error);
@@ -85,17 +87,17 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
       aria-label="Testovací role"
       className="tb__select tb__select--role"
       value={session.role}
-      options={ROLES}
+      options={roles}
       onChange={(e) => setRole(e.target.value as ActorRole)}
     />
   ) : (
-    <Segmented size="sm" aria-label="Testovací role" options={ROLES} value={session.role} onChange={(v) => setRole(v as ActorRole)} />
+    <Segmented size="sm" aria-label="Testovací role" options={roles} value={session.role} onChange={(v) => setRole(v as ActorRole)} />
   );
 
   const personControl =
     session.role === 'therapist' ? (
       <Select
-        aria-label="Terapeut"
+        aria-label={words.Staff.nom}
         className="tb__select"
         value={session.therapistId ?? ''}
         options={therapistOptions}
@@ -117,7 +119,7 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
         <Icon name="clock" size={14} />
         {compact ? null : simulated ? 'Testovací čas' : 'Čas'}
       </span>
-      <span className="tb__now tnum" title={simulated ? 'Testovací čas kliniky' : 'Skutečný čas'}>
+      <span className="tb__now tnum" title={simulated ? `Testovací čas ${words.business.gen}` : 'Skutečný čas'}>
         {formatDayShort(now)} {formatTime(now)}
       </span>
       <Button size="sm" variant="ghost" onClick={() => shift(-1)} aria-label="Posunout čas o hodinu zpět">
@@ -146,7 +148,7 @@ export function TestBar({ compact = false }: { compact?: boolean }): JSX.Element
               applyClock();
             }}
           >
-            <label htmlFor="tb-clock" className="tb__label">Datum a čas kliniky</label>
+            <label htmlFor="tb-clock" className="tb__label">Datum a čas {words.business.gen}</label>
             <input id="tb-clock" type="datetime-local" step={900} value={clockInput || now} onChange={(e) => setClockInput(e.target.value)} className="tb__datetime" />
             <p className="tb__hint">Posun dopředu spustí automatiku: připomínky, docházku, propadání náhrad a nabídek. Posun zpět už provedené změny nevrací.</p>
             <Button type="submit" size="sm" variant="primary">Použít</Button>

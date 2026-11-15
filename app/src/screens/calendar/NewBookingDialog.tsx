@@ -26,7 +26,7 @@ import {
 } from '../../engine/selectors';
 import { addHours, addMinutes, combine, dateOf } from '../../engine/time';
 import { modulesOf } from '../../engine/modules';
-import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
+import { useActor, useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Dialog, Field, RadioCards, Segmented, Select, Textarea, toast, type RadioCardOption } from '../../ui';
 import { defaultServiceFor, servicesByCategory } from './model';
@@ -73,6 +73,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const today = dateOf(now);
   const policy = clinic.settings.policy;
 
@@ -350,7 +351,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
 
         <section className="cal-form__section" aria-labelledby="nb-service">
           <h3 id="nb-service" className="cal-form__title">
-            Služba a terapeut
+            Služba a {words.staff.nom}
           </h3>
           <div className={isGroup ? 'cal-form__one' : 'cal-grid2'}>
             <Field
@@ -366,7 +367,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
               <ServiceSelect groups={groups} value={serviceId} onChange={changeService} disabled={!!initSession} />
             </Field>
             {!isGroup && (
-              <Field label="Terapeut">
+              <Field label={words.Staff.nom}>
                 <Select
                   value={therapistChoice}
                   onValueChange={(v) => {
@@ -491,7 +492,7 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
               </dd>
             </div>
             <div>
-              <dt>Terapeut</dt>
+              <dt>{words.Staff.nom}</dt>
               <dd>{therapist ? `${therapistName(therapist)}${room ? ' · ' + room.name : ''}` : '—'}</dd>
             </div>
             <div>
