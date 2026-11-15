@@ -21,9 +21,9 @@ import { stateToChunkJson } from './core/state';
 import { pragueNow } from './core/time';
 import { deliveryJob } from './cron';
 import { createConsoleMessenger } from './providers';
+import { MIGRATIONS } from './store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from './store/sql';
 
-import MIGRATION from '../../supabase/migrations/20261113000000_init.sql?raw';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const CRON_SECRET = 'dev-cron-secret-only-for-localhost';
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   if (!migrated.rows[0]?.ok) {
     console.log('Zakládám lokální databázi…');
     await db.exec(SUPABASE_ROLES_SQL);
-    await db.exec(MIGRATION);
+    for (const m of MIGRATIONS) await db.exec(m);
   }
   const store = createSqlStore((sql, params) => db.query(sql, params));
   const auth = devAuth(DEV_SECRET);

@@ -11,17 +11,17 @@ import { projectForClient } from '../server/core/projection';
 import { commandFor } from '../src/engine/registry';
 import { chunksToState, computeChanges, stateToChunkJson } from '../server/core/state';
 import { pragueNow } from '../server/core/time';
+import { MIGRATIONS } from '../server/store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';
 import { normalizeState } from '../src/store/persistence';
 
-import MIGRATION from '../../supabase/migrations/20261113000000_init.sql?raw';
 const OWNER_ID = '00000000-0000-4000-8000-000000000001';
 const reception: Actor = { role: 'reception', name: 'Recepce' };
 
 async function freshDb(): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_ROLES_SQL);
-  await db.exec(MIGRATION);
+  for (const m of MIGRATIONS) await db.exec(m);
   return db;
 }
 

@@ -1,50 +1,61 @@
+import { licenseView, licenseWritable, type LicenseView } from '../src/api/license';
 import type {
   AddMemberRequest,
   ApiError,
   ChunkData,
   CommandRequest,
   CommandResponse,
+  CreateTenantRequest,
+  LegalDocument,
   MemberView,
+  PlatformTenant,
+  PublicTenant,
   RegisterRequest,
   SessionInfo,
   StaffRole,
   StatePayload,
+  UpdateTenantRequest,
 } from '../src/api/protocol';
 import type { Actor, ClinicState } from '../src/domain/types';
 import { createClient, setConsent } from '../src/engine/commands';
 import { createBaseState } from '../src/engine/defaults';
+import { createPresetState, isPresetId, OWNER_STAFF_ID, type PresetId, type PresetOptions } from '../src/engine/presets';
 import { runProcesses } from '../src/engine/processes';
 import { commandFor } from '../src/engine/registry';
 import { clientName, getClient } from '../src/engine/selectors';
-import { dateOf } from '../src/engine/time';
+import { addDays, dateOf } from '../src/engine/time';
 import { safeEqual, type AuthService, type AuthUser, type DevAuth } from './auth';
 import { ClinicEngine, isValidCommandId } from './core/executor';
 import { projectForClient } from './core/projection';
+import { encryptSecret } from './core/secrets';
 import { stateToChunkJson } from './core/state';
 import { pragueNow } from './core/time';
 import { verifyUnsubscribe } from './core/unsubscribe';
 import { validateInput } from './core/validate';
-import type { StateStore } from './store/types';
+import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateStore } from './store/types';
 
 /**
- * HTTP API rezervačního systému. Používá jen standardní Request/Response, takže stejný kód běží
- * v Supabase Edge Function (Deno) i v lokálním vývojovém serveru (Node).
+ * HTTP API univerzální rezervační platformy. Jedna instalace obsluhuje mnoho provozoven (klinika, studio,
+ * salon…); provozovnu pozná podle adresy (/<slug> → hlavička x-tenant, vlastní doména → x-tenant-host).
+ * Používá jen standardní Request/Response – stejný kód běží v Supabase Edge Function i v Node.
  *
- *   GET  /api/health                stav služby
- *   GET  /api/session               kdo je přihlášený (personál / klient / čeká na registraci)
- *   POST /api/register              registrace klienta po prvním přihlášení
- *   GET  /api/state                 celý stav (personál po částech, klient svůj pohled)
- *   GET  /api/changes?since=&hash=  změny od verze
- *   POST /api/command               provedení příkazu enginu
- *   GET|POST|DELETE /api/members    přístupy personálu (jen majitel)
- *   POST /api/cron                  automatika (hlavička x-cron-secret)
- *   POST /api/admin/bootstrap       první založení kliniky (hlavička x-admin-secret)
- *   GET|POST /api/unsubscribe       odhlášení z novinek odkazem z e-mailu (podepsaný odkaz)
- *   POST /api/dev/login             přihlášení bez e-mailu – jen při lokálním vývoji
+ *   GET  /api/health                     stav služby
+ *   GET  /api/tenant                     veřejné údaje provozovny (název, vzhled, názvosloví) – bez přihlášení
+ *   GET  /api/legal?doc=terms|privacy    obchodní podmínky / zásady ochrany údajů provozovny – bez přihlášení
+ *   GET  /api/session                    kdo je přihlášený (personál / klient / registrace / vlastník platformy)
+ *   POST /api/register                   registrace klienta po prvním přihlášení
+ *   GET  /api/state, /api/changes        stav provozovny (personál po částech, klient svůj pohled)
+ *   POST /api/command                    příkaz enginu (role, tvar vstupu, licence)
+ *   GET|POST|DELETE /api/members         přístupy personálu (majitel)
+ *   /api/platform/tenants…               správa provozoven a licencí (vlastník platformy)
+ *   POST /api/cron                       automatika (hlavička x-cron-secret)
+ *   GET|POST /api/unsubscribe            odhlášení z novinek (podepsaný odkaz)
+ *   POST /api/dev/login                  přihlášení bez e-mailu – jen lokální vývoj
  */
 
 export interface CronContext {
   clinicId: string;
+  tenant: ClinicInfo;
   engine: ClinicEngine;
   store: StateStore;
   now: () => string;
@@ -58,12 +69,14 @@ export interface ApiDeps {
   clock?: () => Date;
   /** Tajemství pro /api/cron (bez něj je automatika přes API vypnutá). */
   cronSecret?: string;
-  /** Tajemství pro /api/admin/bootstrap (bez něj je zakládání kliniky vypnuté). */
-  adminSecret?: string;
-  /** Povolené původy pro CORS (např. https://rezervace.klinika.cz). */
+  /** Povolené původy pro CORS (adresy aplikace, vlastní domény provozoven). */
   allowedOrigins?: string[];
-  /** Klinika, ke které se registrují klienti (jinak první založená). */
+  /** Provozovna pro adresu bez určení provozovny (jinak jen když je na platformě jediná). */
   defaultClinicId?: string;
+  /** E-maily vlastníků platformy: správa provozoven a licencí, podpora v provozovnách. */
+  platformAdmins?: string[];
+  /** Klíč pro šifrování tajných údajů provozoven (token Fio…). */
+  secretsKey?: string;
   /** Lokální vývoj: přihlášení bez e-mailu. */
   devAuth?: DevAuth;
   /** Platby kartou online – jen s napojenou platební bránou (zatím žádná). */
@@ -72,7 +85,7 @@ export interface ApiDeps {
   cronJobs?: ((ctx: CronContext) => Promise<Record<string, unknown>>)[];
   /** Tajemství pro podpis odkazů na odhlášení z novinek. */
   unsubscribeSecret?: string;
-  /** Akce po úspěšném příkazu (např. zrušení propojení účtu po anonymizaci klienta). */
+  /** Akce po úspěšném příkazu. */
   afterCommand?: Record<string, (ctx: { clinicId: string; input: unknown; store: StateStore }) => Promise<void>>;
   log?: (message: string, detail?: Record<string, unknown>) => void;
 }
@@ -93,6 +106,15 @@ const SYSTEM_ACTOR: Actor = { role: 'owner', name: 'Systém' };
 const REGISTRATION_ACTOR: Actor = { role: 'reception', name: 'Online registrace' };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STAFF_ROLES: readonly StaffRole[] = ['owner', 'reception', 'therapist'];
+const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/;
+const DOMAIN_RE = /^(?=.{4,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Adresy, které nemohou být identifikátorem provozovny (cesty aplikace). */
+export const RESERVED_SLUGS = new Set(['api', 'app', 'admin', 'platforma', 'assets', 'static', 'www', 'login', 'prihlaseni', 'registrace', 'podminky', 'gdpr', 'demo']);
+const PLANS: readonly LicensePlan[] = ['trial', 'monthly', 'yearly', 'lifetime'];
+const STATUSES: readonly LicenseStatus[] = ['active', 'suspended', 'cancelled'];
+/** Co jde i v režimu jen pro čtení (po vypršení licence): práva klientů a export údajů. */
+const READONLY_COMMANDS = new Set(['cancelBooking', 'setConsent', 'updateClient', 'leaveWaitlist', 'declineWaitlistOffer', 'withdrawFromPackage', 'markWithdrawalRefunded', 'logClientDataExport', 'anonymizeClient', 'cancelPaymentRequest']);
 
 /** FNV-1a – krátký otisk pohledu klienta (zda se od minula něco změnilo). */
 function hashText(text: string): string {
@@ -127,26 +149,35 @@ class RateLimiter {
 }
 
 type Resolved =
-  | { kind: 'staff'; clinicId: string; role: StaffRole; name: string; therapistId: string | null }
+  | { kind: 'staff'; clinicId: string; role: StaffRole; name: string; therapistId: string | null; support: boolean }
   | { kind: 'client'; clinicId: string; clientId: string }
-  | { kind: 'none'; clinicId: string | null };
+  | { kind: 'none'; clinicId: string };
 
 export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   const store = deps.store;
   const engine = deps.engine ?? new ClinicEngine(store);
   const clock = deps.clock ?? (() => new Date());
   const now = (): string => pragueNow(clock());
+  const today = (): string => dateOf(now());
   const log = deps.log ?? ((m: string, d?: Record<string, unknown>) => console.log(m, d ?? ''));
+  const platformAdmins = new Set((deps.platformAdmins ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean));
   const commandLimiter = new RateLimiter(120, 60_000);
   const requestLimiter = new RateLimiter(600, 60_000);
   const openLimiter = new RateLimiter(20, 60_000);
+  const publicLimiter = new RateLimiter(120, 60_000);
   const registering = new Set<string>();
+  const tenantCache = new Map<string, { t: ClinicInfo | null; until: number }>();
+  const TENANT_TTL_MS = 30_000;
   let defaultClinicCache: { id: string | null; at: number } | null = null;
-  /** Role uživatelů na krátkou dobu (změna přístupu se projeví nejpozději do minuty). */
+  /** Role uživatelů v provozovně na krátkou dobu (změna přístupu se projeví nejpozději do minuty). */
   const roleCache = new Map<string, { r: Resolved; until: number }>();
   const ROLE_TTL_MS = 60_000;
   const forgetRole = (userId: string): void => {
-    roleCache.delete(userId);
+    for (const key of roleCache.keys()) if (key.startsWith(userId + ':')) roleCache.delete(key);
+  };
+  const forgetTenants = (): void => {
+    tenantCache.clear();
+    defaultClinicCache = null;
   };
 
   /* ---------------------------- pomocné ---------------------------- */
@@ -159,8 +190,8 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (!allowed) return {};
     return {
       'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-tenant, x-tenant-host',
       'Access-Control-Max-Age': '600',
       Vary: 'Origin',
     };
@@ -194,82 +225,132 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     return user;
   }
 
+  const isPlatformAdmin = (user: AuthUser): boolean => user.emailVerified && platformAdmins.has(user.email);
+
+  /** Provozovna bez určení v adrese: nastavená, nebo jediná na platformě. */
   async function defaultClinic(): Promise<string | null> {
     if (deps.defaultClinicId) return deps.defaultClinicId;
     if (defaultClinicCache && Date.now() - defaultClinicCache.at < 60_000) return defaultClinicCache.id;
     const clinics = await store.listClinics();
-    defaultClinicCache = { id: clinics[0]?.id ?? null, at: Date.now() };
+    defaultClinicCache = { id: clinics.length === 1 ? clinics[0].id : null, at: Date.now() };
     return defaultClinicCache.id;
   }
 
-  async function resolve(user: AuthUser): Promise<Resolved> {
-    const hit = roleCache.get(user.id);
+  /** Provozovna podle adresy: /<slug> (hlavička x-tenant), vlastní doména (x-tenant-host), jinak výchozí. */
+  async function tenantOf(req: Request, url: URL): Promise<ClinicInfo | null> {
+    const slug = (req.headers.get('x-tenant') ?? url.searchParams.get('tenant') ?? '').trim().toLowerCase();
+    const host = (req.headers.get('x-tenant-host') ?? '').trim().toLowerCase().replace(/:\d+$/, '');
+    const key = slug ? `s:${slug}` : host ? `h:${host}` : '-';
+    const hit = tenantCache.get(key);
+    if (hit && hit.until > Date.now()) return hit.t;
+    let t: ClinicInfo | null = null;
+    if (slug) {
+      if (SLUG_RE.test(slug)) t = await store.resolveTenant(slug, null);
+    } else {
+      if (host && DOMAIN_RE.test(host)) t = await store.resolveTenant(null, host);
+      if (!t) {
+        const id = await defaultClinic();
+        if (id) t = await store.clinicInfo(id);
+      }
+    }
+    if (tenantCache.size > 1000) tenantCache.clear();
+    tenantCache.set(key, { t, until: Date.now() + TENANT_TTL_MS });
+    return t;
+  }
+
+  async function requireTenant(req: Request, url: URL): Promise<ClinicInfo> {
+    const t = await tenantOf(req, url);
+    if (!t) throw new HttpError(404, 'Provozovna nenalezena. Zkontrolujte prosím adresu.', 'not_found');
+    return t;
+  }
+
+  const licenseOf = (t: ClinicInfo): LicenseView => licenseView(t.license, today());
+
+  /** Licence provozovny: pozastavená = žádný přístup, po lhůtě = jen čtení (podpora platformy vždy). */
+  function ensureLicense(t: ClinicInfo, r: Resolved | null, command?: string): LicenseView {
+    const lv = licenseOf(t);
+    if (r?.kind === 'staff' && r.support) return lv;
+    const staff = r?.kind === 'staff';
+    if (lv.state === 'blocked')
+      throw new HttpError(
+        423,
+        staff ? 'Licence provozovny je pozastavená. Kontaktujte prosím dodavatele systému.' : 'Online rezervace jsou dočasně nedostupné. Kontaktujte prosím provozovnu.',
+        'license',
+      );
+    if (command !== undefined && !licenseWritable(lv.state) && !READONLY_COMMANDS.has(command))
+      throw new HttpError(
+        423,
+        staff
+          ? 'Licence vypršela – systém je jen pro čtení. Data můžete prohlížet a exportovat; po prodloužení licence vše funguje dál.'
+          : 'Online rezervace jsou dočasně nedostupné. Kontaktujte prosím provozovnu.',
+        'license',
+      );
+    return lv;
+  }
+
+  async function resolve(user: AuthUser, t: ClinicInfo): Promise<Resolved> {
+    const key = `${user.id}:${t.id}`;
+    const hit = roleCache.get(key);
     if (hit && hit.until > Date.now()) return hit.r;
-    const r = await resolveFresh(user);
+    const r = await resolveFresh(user, t);
     // nepropojeného uživatele si nepamatujeme – po registraci musí hned dostat roli
     if (r.kind !== 'none') {
       if (roleCache.size > 5000) roleCache.clear();
-      roleCache.set(user.id, { r, until: Date.now() + ROLE_TTL_MS });
+      roleCache.set(key, { r, until: Date.now() + ROLE_TTL_MS });
     }
     return r;
   }
 
-  async function resolveFresh(user: AuthUser): Promise<Resolved> {
+  async function resolveFresh(user: AuthUser, t: ClinicInfo): Promise<Resolved> {
     const who = await store.whoami(user.id);
-    const preferred = deps.defaultClinicId;
-    const member = who.members.find((m) => !preferred || m.clinicId === preferred) ?? who.members[0];
-    if (member) {
-      return { kind: 'staff', clinicId: member.clinicId, role: member.role, name: member.displayName || user.email, therapistId: member.therapistId };
-    }
-    const link = who.clients.find((c) => !preferred || c.clinicId === preferred) ?? who.clients[0];
-    if (link) return { kind: 'client', clinicId: link.clinicId, clientId: link.clientId };
-    return { kind: 'none', clinicId: await defaultClinic() };
+    const member = who.members.find((m) => m.clinicId === t.id);
+    if (member) return { kind: 'staff', clinicId: t.id, role: member.role, name: member.displayName || user.email, therapistId: member.therapistId, support: false };
+    const link = who.clients.find((c) => c.clinicId === t.id);
+    if (link) return { kind: 'client', clinicId: t.id, clientId: link.clientId };
+    // vlastník platformy má v každé provozovně přístup majitele (podpora, nastavení na míru)
+    if (isPlatformAdmin(user)) return { kind: 'staff', clinicId: t.id, role: 'owner', name: `${user.email} (podpora platformy)`, therapistId: null, support: true };
+    return { kind: 'none', clinicId: t.id };
   }
 
   async function loadState(clinicId: string): Promise<{ version: number; state: ClinicState; chunkJson: Map<string, string> }> {
     const loaded = await engine.current(clinicId);
-    if (!loaded) throw new HttpError(404, 'Klinika nemá založená data.', 'not_found');
+    if (!loaded) throw new HttpError(404, 'Provozovna nemá založená data.', 'not_found');
     return loaded;
   }
 
-  /** Klienta s ověřeným e-mailem propojí s existující kartou v kartotéce. */
+  /** Klienta s ověřeným e-mailem propojí s existující kartou v kartotéce provozovny. */
   async function linkByEmail(user: AuthUser, clinicId: string): Promise<string | null> {
     if (!user.emailVerified) return null;
     const { state } = await loadState(clinicId);
-    const match = state.clients
-      .filter((c) => c.email === user.email && !(c as { anonymizedAt?: string }).anonymizedAt)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    const match = state.clients.filter((c) => c.email === user.email && !c.anonymizedAt).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
     if (!match) return null;
     try {
       await store.linkClient(clinicId, user.id, match.id);
     } catch {
-      throw new HttpError(409, 'Karta s tímto e-mailem je už propojená s jiným přihlášením. Ozvěte se prosím klinice.', 'conflict');
+      throw new HttpError(409, 'Karta s tímto e-mailem je už propojená s jiným přihlášením. Ozvěte se prosím provozovně.', 'conflict');
     }
     return match.id;
   }
 
-  async function sessionInfo(user: AuthUser, r: Resolved): Promise<SessionInfo> {
-    const base = { user: { id: user.id, email: user.email }, clinicId: r.clinicId };
+  async function sessionInfo(user: AuthUser, t: ClinicInfo | null, r: Resolved | null): Promise<SessionInfo> {
+    const platformAdmin = isPlatformAdmin(user);
+    const base = { user: { id: user.id, email: user.email }, platformAdmin };
+    if (!t || !r) {
+      return { ...base, clinicId: null, clinicName: '', tenant: null, license: null, role: null, name: user.email, therapistId: null, clientId: null, needsRegistration: false };
+    }
+    const { state } = await loadState(t.id);
+    const tenant = { slug: t.slug, name: state.settings.clinicName || t.name };
+    const lv = licenseOf(t);
+    const common = { ...base, clinicId: t.id, clinicName: tenant.name, tenant };
     if (r.kind === 'staff') {
-      const { state } = await loadState(r.clinicId);
-      return { ...base, clinicName: state.settings.clinicName, role: r.role, name: r.name, therapistId: r.therapistId, clientId: null, needsRegistration: false };
+      return { ...common, license: lv, role: r.role, name: r.name, therapistId: r.therapistId, clientId: null, needsRegistration: false };
     }
+    const clientLicense: LicenseView = { ...lv, plan: 'monthly', validUntil: null, daysLeft: null, graceUntil: null };
     if (r.kind === 'client') {
-      const { state } = await loadState(r.clinicId);
       const c = getClient(state, r.clientId);
-      return {
-        ...base,
-        clinicName: state.settings.clinicName,
-        role: 'client',
-        name: c ? clientName(c) : user.email,
-        therapistId: null,
-        clientId: r.clientId,
-        needsRegistration: false,
-      };
+      return { ...common, license: clientLicense, role: 'client', name: c ? clientName(c) : user.email, therapistId: null, clientId: r.clientId, needsRegistration: false };
     }
-    let clinicName = '';
-    if (r.clinicId) clinicName = (await loadState(r.clinicId)).state.settings.clinicName;
-    return { ...base, clinicName, role: null, name: user.email, therapistId: null, clientId: null, needsRegistration: !!r.clinicId };
+    return { ...common, license: clientLicense, role: null, name: user.email, therapistId: null, clientId: null, needsRegistration: true };
   }
 
   function actorOf(r: Resolved, state: ClinicState): Actor {
@@ -289,8 +370,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (name === 'sellPackage' && input.paidBy === 'online') return true;
     if (name === 'topUpCredit' && input.method === 'online') return true;
     if (name === 'updateSettings') {
-      const patch = input as { features?: { cardPayments?: unknown }; patch?: { features?: { cardPayments?: unknown } } };
-      const features = patch.features ?? patch.patch?.features;
+      const features = input.features as { cardPayments?: unknown } | undefined;
       if (features?.cardPayments === true) return true;
     }
     return false;
@@ -311,7 +391,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   }
 
   function requireOwner(r: Resolved): asserts r is Extract<Resolved, { kind: 'staff' }> {
-    if (r.kind !== 'staff' || r.role !== 'owner') throw new HttpError(403, 'Přístupy spravuje jen majitel kliniky.', 'forbidden');
+    if (r.kind !== 'staff' || r.role !== 'owner') throw new HttpError(403, 'Přístupy spravuje jen majitel provozovny.', 'forbidden');
   }
 
   function checkSecret(req: Request, header: string, secret: string | undefined): void {
@@ -319,36 +399,77 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (!secret || !given || !safeEqual(given, secret)) throw new HttpError(401, 'Neplatný klíč.', 'unauthorized');
   }
 
-  /* ---------------------------- trasy ---------------------------- */
+  /* ---------------------------- veřejné ---------------------------- */
 
-  async function getSession(req: Request): Promise<Response> {
-    const user = await authenticate(req);
-    let r = await resolve(user);
-    if (r.kind === 'none' && r.clinicId) {
-      const clientId = await linkByEmail(user, r.clinicId);
-      if (clientId) r = { kind: 'client', clinicId: r.clinicId, clientId };
-    }
-    return json(req, 200, (await sessionInfo(user, r)) as unknown as Json);
+  async function getTenant(req: Request, url: URL): Promise<Response> {
+    const t = await requireTenant(req, url);
+    const { state } = await loadState(t.id);
+    const s = state.settings;
+    const body: PublicTenant = {
+      slug: t.slug,
+      name: s.clinicName || t.name,
+      tagline: s.clinicTagline,
+      branding: s.branding,
+      terms: s.terms,
+      legal: { terms: !!s.legal.terms.trim(), privacy: !!s.legal.privacy.trim() },
+      license: { state: licenseOf(t).state },
+    };
+    return json(req, 200, body as unknown as Json);
   }
 
-  async function register(req: Request): Promise<Response> {
+  async function getLegal(req: Request, url: URL): Promise<Response> {
+    const t = await requireTenant(req, url);
+    const doc = url.searchParams.get('doc') === 'privacy' ? 'privacy' : 'terms';
+    const { state } = await loadState(t.id);
+    const text = doc === 'privacy' ? state.settings.legal.privacy : state.settings.legal.terms;
+    if (!text.trim()) throw new HttpError(404, 'Dokument zatím není zveřejněný.', 'not_found');
+    const body: LegalDocument = {
+      doc,
+      title: doc === 'privacy' ? 'Informace o zpracování osobních údajů' : 'Obchodní podmínky',
+      text,
+      updatedAt: state.settings.legal.updatedAt,
+    };
+    return json(req, 200, body as unknown as Json);
+  }
+
+  /* ---------------------------- přihlášení a data ---------------------------- */
+
+  async function getSession(req: Request, url: URL): Promise<Response> {
     const user = await authenticate(req);
+    const t = await tenantOf(req, url);
+    if (!t) {
+      // adresa bez provozovny: správa platformy (jen vlastník platformy)
+      if (!isPlatformAdmin(user)) throw new HttpError(404, 'Provozovna nenalezena. Zkontrolujte prosím adresu.', 'not_found');
+      return json(req, 200, (await sessionInfo(user, null, null)) as unknown as Json);
+    }
+    let r = await resolve(user, t);
+    if (r.kind === 'none') {
+      const clientId = await linkByEmail(user, t.id);
+      if (clientId) r = { kind: 'client', clinicId: t.id, clientId };
+    }
+    return json(req, 200, (await sessionInfo(user, t, r)) as unknown as Json);
+  }
+
+  async function register(req: Request, url: URL): Promise<Response> {
+    const user = await authenticate(req);
+    const t = await requireTenant(req, url);
     const body = await readJson<RegisterRequest>(req, 16_000);
-    let r = await resolve(user);
-    if (r.kind !== 'none') return json(req, 200, (await sessionInfo(user, r)) as unknown as Json);
-    if (!r.clinicId) throw new HttpError(404, 'Klinika zatím není založená.', 'not_found');
+    let r = await resolve(user, t);
+    if (r.kind !== 'none') return json(req, 200, (await sessionInfo(user, t, r)) as unknown as Json);
+    ensureLicense(t, null, 'register');
     if (!user.emailVerified) throw new HttpError(403, 'Nejdřív prosím ověřte e-mail.', 'forbidden');
-    const existing = await linkByEmail(user, r.clinicId);
-    if (existing) return json(req, 200, (await sessionInfo(user, { kind: 'client', clinicId: r.clinicId, clientId: existing })) as unknown as Json);
+    const existing = await linkByEmail(user, t.id);
+    if (existing) return json(req, 200, (await sessionInfo(user, t, { kind: 'client', clinicId: t.id, clientId: existing })) as unknown as Json);
 
     const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
     const consents = body?.consents ?? ({} as RegisterRequest['consents']);
     const birth = typeof body?.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.birthDate) ? body.birthDate : null;
-    if (registering.has(user.id)) throw new HttpError(409, 'Registrace už probíhá.', 'conflict');
-    registering.add(user.id);
+    const lock = `${user.id}:${t.id}`;
+    if (registering.has(lock)) throw new HttpError(409, 'Registrace už probíhá.', 'conflict');
+    registering.add(lock);
     try {
       const result = await engine.execute(
-        r.clinicId,
+        t.id,
         createClient,
         {
           firstName: str(body?.firstName, 80),
@@ -363,12 +484,12 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       );
       if (!result.ok) throw new HttpError(400, result.error);
       const clientId = String(result.value);
-      await store.linkClient(r.clinicId, user.id, clientId);
-      r = { kind: 'client', clinicId: r.clinicId, clientId };
-      void store.logCommand({ clinicId: r.clinicId, userId: user.id, role: 'client', command: 'register', ok: true, version: result.version }).catch(() => undefined);
-      return json(req, 200, (await sessionInfo(user, r)) as unknown as Json);
+      await store.linkClient(t.id, user.id, clientId);
+      r = { kind: 'client', clinicId: t.id, clientId };
+      void store.logCommand({ clinicId: t.id, userId: user.id, role: 'client', command: 'register', ok: true, version: result.version }).catch(() => undefined);
+      return json(req, 200, (await sessionInfo(user, t, r)) as unknown as Json);
     } finally {
-      registering.delete(user.id);
+      registering.delete(lock);
     }
   }
 
@@ -386,24 +507,29 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     return { body: { kind: 'client', version, state: view, hash }, hash };
   }
 
-  async function getState(req: Request): Promise<Response> {
+  async function memberOrClient(req: Request, url: URL): Promise<{ user: AuthUser; t: ClinicInfo; r: Exclude<Resolved, { kind: 'none' }> }> {
     const user = await authenticate(req);
-    const r = await resolve(user);
-    if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s klinikou.', 'forbidden');
+    const t = await requireTenant(req, url);
+    const r = await resolve(user, t);
+    if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s provozovnou.', 'forbidden');
+    ensureLicense(t, r);
+    return { user, t, r };
+  }
+
+  async function getState(req: Request, url: URL): Promise<Response> {
+    const { r } = await memberOrClient(req, url);
     const loaded = await loadState(r.clinicId);
     if (r.kind === 'staff') return json(req, 200, staffChunksPayload(loaded.version, loaded.chunkJson));
     return json(req, 200, clientPayload(loaded.state, loaded.version, r.clientId).body as unknown as Json);
   }
 
   async function getChanges(req: Request, url: URL): Promise<Response> {
-    const user = await authenticate(req);
-    const r = await resolve(user);
-    if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s klinikou.', 'forbidden');
+    const { r } = await memberOrClient(req, url);
     const since = Number(url.searchParams.get('since') ?? '0');
     if (!Number.isInteger(since) || since < 0) throw new HttpError(400, 'Neplatná verze.');
     if (r.kind === 'staff') {
       const delta = await store.getChunks(r.clinicId, since);
-      if (delta.version === null) throw new HttpError(404, 'Klinika neexistuje.', 'not_found');
+      if (delta.version === null) throw new HttpError(404, 'Provozovna neexistuje.', 'not_found');
       if (delta.version === since) return json(req, 200, { kind: 'unchanged', version: since });
       if (delta.version < since) {
         // databáze je ve starší verzi (obnova zálohy) – poslat vše znovu
@@ -420,15 +546,17 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     return json(req, 200, p.body as unknown as Json);
   }
 
-  async function postCommand(req: Request): Promise<Response> {
+  async function postCommand(req: Request, url: URL): Promise<Response> {
     const user = await authenticate(req);
-    const r = await resolve(user);
-    if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s klinikou.', 'forbidden');
+    const t = await requireTenant(req, url);
+    const r = await resolve(user, t);
+    if (r.kind === 'none') throw new HttpError(403, 'Účet zatím není propojený s provozovnou.', 'forbidden');
     if (!commandLimiter.allow('c:' + user.id, Date.now())) throw new HttpError(429, 'Příliš mnoho akcí za krátkou dobu. Zkuste to za chvíli.', 'rate_limited');
     // import dat posílá i tisíce řádků (majitel a recepce); terapeut a klient jen malé vstupy
     const front = r.kind === 'staff' && (r.role === 'owner' || r.role === 'reception');
     const body = await readJson<CommandRequest & { retry?: boolean }>(req, front ? 8_000_000 : r.kind === 'staff' ? 1_000_000 : 64_000);
     const name = typeof body?.name === 'string' ? body.name : '';
+    ensureLicense(t, r, name);
     const role = r.kind === 'staff' ? r.role : 'client';
     const entry = commandFor(name, role);
     if (entry === 'unknown') throw new HttpError(400, 'Neznámá akce.');
@@ -453,14 +581,14 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     const actor = actorOf(r, loaded.state);
     const result = await engine.execute(r.clinicId, entry.run, input, { actor, now: now(), commandId: body.commandId });
     void store
-      .logCommand({ clinicId: r.clinicId, userId: user.id, role, command: name, ok: result.ok, error: result.ok ? null : result.error, version: result.version })
+      .logCommand({ clinicId: r.clinicId, userId: user.id, role: r.kind === 'staff' && r.support ? 'support' : role, command: name, ok: result.ok, error: result.ok ? null : result.error, version: result.version })
       .catch(() => undefined);
     if (!result.ok) return json(req, 200, { ok: false, error: result.error, version: result.version } satisfies CommandResponse);
     if (!result.duplicate && name === 'anonymizeClient') {
       // anonymizovaný klient se už nepřihlásí ke své (prázdné) kartě
       const clientId = String(input.clientId ?? '');
       await store.unlinkClient(r.clinicId, clientId).catch((e: unknown) => log('Zrušení propojení účtu selhalo', { error: String(e) }));
-      for (const [userId, cached] of roleCache) if (cached.r.kind === 'client' && cached.r.clientId === clientId) forgetRole(userId);
+      for (const [key, cached] of roleCache) if (cached.r.kind === 'client' && cached.r.clientId === clientId) roleCache.delete(key);
     }
     if (!result.duplicate && deps.afterCommand?.[name]) {
       try {
@@ -481,8 +609,10 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
 
   async function members(req: Request, url: URL): Promise<Response> {
     const user = await authenticate(req);
-    const r = await resolve(user);
+    const t = await requireTenant(req, url);
+    const r = await resolve(user, t);
     requireOwner(r);
+    ensureLicense(t, r, req.method === 'GET' ? undefined : 'members');
     const list = async (): Promise<MemberView[]> => (await store.listMembers(r.clinicId)) as MemberView[];
     if (req.method === 'GET') return json(req, 200, await list());
     if (req.method === 'POST') {
@@ -495,21 +625,21 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       let therapistId: string | null = null;
       if (body.therapistId) {
         const { state } = await loadState(r.clinicId);
-        if (!state.therapists.some((t) => t.id === body.therapistId)) throw new HttpError(400, 'Terapeut neexistuje.');
+        if (!state.therapists.some((x) => x.id === body.therapistId)) throw new HttpError(400, 'Vybraný člen týmu neexistuje.');
         therapistId = body.therapistId;
       }
-      if (body.role === 'therapist' && !therapistId) throw new HttpError(400, 'Terapeutovi vyberte jeho kalendář.');
+      if (body.role === 'therapist' && !therapistId) throw new HttpError(400, 'Vyberte, čí kalendář bude člen týmu vidět.');
       const userId = await deps.auth.ensureUser(email);
       const current = await list();
       if (userId === user.id && body.role !== 'owner' && current.filter((m) => m.role === 'owner').length <= 1)
-        throw new HttpError(400, 'Klinika musí mít aspoň jednoho majitele.');
+        throw new HttpError(400, 'Provozovna musí mít aspoň jednoho majitele.');
       await store.upsertMember(r.clinicId, userId, body.role, therapistId, displayName, email);
       forgetRole(userId);
       return json(req, 200, await list());
     }
     if (req.method === 'DELETE') {
       const userId = url.searchParams.get('userId') ?? '';
-      if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new HttpError(400, 'Neplatný uživatel.');
+      if (!UUID_RE.test(userId)) throw new HttpError(400, 'Neplatný uživatel.');
       if (userId === user.id) throw new HttpError(400, 'Sami sebe odebrat nemůžete.');
       await store.removeMember(r.clinicId, userId);
       forgetRole(userId);
@@ -517,6 +647,150 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     }
     throw new HttpError(405, 'Nepodporovaná metoda.');
   }
+
+  /* ---------------------------- správa platformy ---------------------------- */
+
+  async function platformUser(req: Request): Promise<AuthUser> {
+    const user = await authenticate(req);
+    if (!isPlatformAdmin(user)) throw new HttpError(403, 'Správa platformy je jen pro jejího vlastníka.', 'forbidden');
+    return user;
+  }
+
+  const tenantView = (row: PlatformClinicRow): PlatformTenant => ({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    createdAt: row.createdAt,
+    license: row.license,
+    licenseView: licenseOf(row),
+    domains: row.domains,
+    members: row.members,
+    clientAccounts: row.clientAccounts,
+    lastChangeAt: row.lastChangeAt,
+    owners: row.owners,
+  });
+
+  async function tenantRow(id: string): Promise<PlatformTenant> {
+    const row = (await store.platformClinics()).find((c) => c.id === id);
+    if (!row) throw new HttpError(404, 'Provozovna neexistuje.', 'not_found');
+    return tenantView(row);
+  }
+
+  function validDate(v: unknown): v is string {
+    return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + 'T00:00:00Z'));
+  }
+
+  function checkSlug(slug: string): void {
+    if (!SLUG_RE.test(slug)) throw new HttpError(400, 'Adresa smí obsahovat malá písmena bez diakritiky, číslice a pomlčky (2–40 znaků).');
+    if (RESERVED_SLUGS.has(slug)) throw new HttpError(400, 'Tato adresa je vyhrazená pro aplikaci – zvolte jinou.');
+  }
+
+  async function platformTenants(req: Request, path: string): Promise<Response> {
+    await platformUser(req);
+    const m = /^\/platform\/tenants(?:\/([0-9a-f-]{36})(?:\/(domains|secrets))?)?$/.exec(path);
+    if (!m) throw new HttpError(404, 'Nenalezeno.', 'not_found');
+    const [, id, sub] = m;
+
+    if (!id && req.method === 'GET') return json(req, 200, (await store.platformClinics()).map(tenantView));
+
+    if (!id && req.method === 'POST') {
+      const b = await readJson<CreateTenantRequest>(req, 8_000);
+      const name = typeof b.name === 'string' ? b.name.trim().slice(0, 80) : '';
+      const slug = typeof b.slug === 'string' ? b.slug.trim().toLowerCase() : '';
+      const ownerName = typeof b.ownerName === 'string' ? b.ownerName.trim().slice(0, 80) : '';
+      const ownerEmail = typeof b.ownerEmail === 'string' ? b.ownerEmail.trim().toLowerCase() : '';
+      if (!name || !ownerName) throw new HttpError(400, 'Vyplňte název provozovny a jméno majitele.');
+      if (!EMAIL_RE.test(ownerEmail)) throw new HttpError(400, 'Zadejte platný e-mail majitele.');
+      checkSlug(slug);
+      if (!isPresetId(b.preset)) throw new HttpError(400, 'Vyberte obor (šablonu).');
+      if (!PLANS.includes(b.plan)) throw new HttpError(400, 'Neplatný druh licence.');
+      const validUntil = b.plan === 'lifetime' ? null : b.validUntil === null ? null : b.validUntil;
+      if (validUntil !== null && !validDate(validUntil)) throw new HttpError(400, 'Neplatné datum konce licence.');
+      if (await store.resolveTenant(slug, null)) throw new HttpError(409, 'Adresa je už obsazená jinou provozovnou.', 'conflict');
+      const ownerId = await deps.auth.ensureUser(ownerEmail);
+      const state = productionState(b.preset, { businessName: name, ownerName, ownerEmail, today: today() });
+      const chunks = [...stateToChunkJson(state)].map(([key, data]) => ({ key, data: JSON.parse(data) as unknown }));
+      let clinicId: string;
+      try {
+        clinicId = await store.platformCreateClinic({ name, slug, ownerId, ownerName, ownerEmail, chunks, plan: b.plan, validUntil });
+      } catch (e) {
+        log('Založení provozovny selhalo', { error: String(e) });
+        throw new HttpError(409, 'Provozovnu se nepodařilo založit – adresa je možná obsazená.', 'conflict');
+      }
+      // majitel = první člen týmu (jeho kalendář)
+      await store.upsertMember(clinicId, ownerId, 'owner', OWNER_STAFF_ID, ownerName, ownerEmail);
+      forgetTenants();
+      return json(req, 200, (await tenantRow(clinicId)) as unknown as Json);
+    }
+
+    if (id && !sub && req.method === 'PATCH') {
+      const b = await readJson<UpdateTenantRequest>(req, 8_000);
+      const patch: UpdateTenantRequest = {};
+      if (b.name !== undefined) {
+        const n = String(b.name).trim().slice(0, 80);
+        if (!n) throw new HttpError(400, 'Název nesmí být prázdný.');
+        patch.name = n;
+      }
+      if (b.slug !== undefined) {
+        const s = String(b.slug).trim().toLowerCase();
+        checkSlug(s);
+        const other = await store.resolveTenant(s, null);
+        if (other && other.id !== id) throw new HttpError(409, 'Adresa je už obsazená jinou provozovnou.', 'conflict');
+        patch.slug = s;
+      }
+      if (b.plan !== undefined) {
+        if (!PLANS.includes(b.plan)) throw new HttpError(400, 'Neplatný druh licence.');
+        patch.plan = b.plan;
+      }
+      if (b.status !== undefined) {
+        if (!STATUSES.includes(b.status)) throw new HttpError(400, 'Neplatný stav licence.');
+        patch.status = b.status;
+      }
+      if (b.validUntil !== undefined) {
+        if (b.validUntil !== null && !validDate(b.validUntil)) throw new HttpError(400, 'Neplatné datum konce licence.');
+        patch.validUntil = b.validUntil;
+      }
+      if (b.note !== undefined) patch.note = String(b.note).slice(0, 1000);
+      const updated = await store.platformUpdateClinic(id, patch);
+      if (!updated) throw new HttpError(404, 'Provozovna neexistuje.', 'not_found');
+      forgetTenants();
+      return json(req, 200, (await tenantRow(id)) as unknown as Json);
+    }
+
+    if (id && sub === 'domains' && req.method === 'PUT') {
+      const b = await readJson<{ domains?: unknown }>(req, 8_000);
+      const list = Array.isArray(b.domains) ? b.domains.map((d) => String(d).trim().toLowerCase()).filter(Boolean) : [];
+      if (list.length > 10) throw new HttpError(400, 'Nejvýše 10 domén.');
+      for (const d of list) if (!DOMAIN_RE.test(d)) throw new HttpError(400, `Neplatná doména: ${d}`);
+      for (const d of list) {
+        const other = await store.resolveTenant(null, d);
+        if (other && other.id !== id) throw new HttpError(409, `Doména ${d} patří jiné provozovně.`, 'conflict');
+      }
+      await store.platformSetDomains(id, list);
+      forgetTenants();
+      return json(req, 200, (await tenantRow(id)) as unknown as Json);
+    }
+
+    if (id && sub === 'secrets' && req.method === 'GET') return json(req, 200, await store.clinicSecretKeys(id));
+
+    if (id && sub === 'secrets' && req.method === 'PUT') {
+      const b = await readJson<{ fioToken?: unknown }>(req, 4_000);
+      if (b.fioToken === undefined) throw new HttpError(400, 'Chybí údaj k uložení.');
+      if (b.fioToken !== null) {
+        const token = String(b.fioToken).trim();
+        if (!/^[A-Za-z0-9]{20,200}$/.test(token)) throw new HttpError(400, 'Token Fio má tvar dlouhého řetězce písmen a číslic.');
+        if (!deps.secretsKey) throw new HttpError(500, 'Na serveru chybí klíč pro šifrování (SECRETS_KEY).', 'server_error');
+        await store.setClinicSecret(id, 'fio_token', await encryptSecret(deps.secretsKey, token));
+      } else {
+        await store.setClinicSecret(id, 'fio_token', null);
+      }
+      return json(req, 200, await store.clinicSecretKeys(id));
+    }
+
+    throw new HttpError(405, 'Nepodporovaná metoda.');
+  }
+
+  /* ---------------------------- automatika ---------------------------- */
 
   async function cron(req: Request): Promise<Response> {
     checkSecret(req, 'x-cron-secret', deps.cronSecret);
@@ -531,14 +805,21 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
 
   async function runCron(): Promise<Record<string, unknown>> {
     const report: Record<string, unknown>[] = [];
-    for (const clinic of await store.listClinics()) {
-      const item: Record<string, unknown> = { clinicId: clinic.id };
+    for (const clinic of await store.platformClinics()) {
+      const item: Record<string, unknown> = { clinicId: clinic.id, slug: clinic.slug };
+      const lv = licenseOf(clinic);
+      item.license = lv.state;
+      // pozastavená provozovna: žádná automatika ani zprávy
+      if (lv.state === 'blocked') {
+        report.push(item);
+        continue;
+      }
       const minute = now().replace(/[^0-9]/g, '');
       const processes = await engine.execute(clinic.id, runProcesses, {}, { actor: SYSTEM_ACTOR, now: now(), commandId: `cron-${minute}` });
       item.processes = processes.ok ? { version: processes.version, changed: processes.changes.length } : { error: processes.error };
       for (const job of deps.cronJobs ?? []) {
         try {
-          Object.assign(item, await job({ clinicId: clinic.id, engine, store, now }));
+          Object.assign(item, await job({ clinicId: clinic.id, tenant: clinic, engine, store, now }));
         } catch (e) {
           log('Úloha automatiky selhala', { clinicId: clinic.id, error: String(e) });
           item.jobError = 'Úloha selhala – podrobnosti jsou v logu serveru.';
@@ -548,22 +829,6 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     }
     await store.maintenance().catch((e: unknown) => log('Údržba databáze selhala', { error: String(e) }));
     return { ok: true, at: now(), clinics: report };
-  }
-
-  async function bootstrap(req: Request): Promise<Response> {
-    checkSecret(req, 'x-admin-secret', deps.adminSecret);
-    const body = await readJson<{ clinicName?: string; ownerEmail?: string; ownerName?: string }>(req, 4_000);
-    const clinicName = (body.clinicName ?? '').trim().slice(0, 80);
-    const ownerEmail = (body.ownerEmail ?? '').trim().toLowerCase();
-    const ownerName = (body.ownerName ?? '').trim().slice(0, 80);
-    if (!clinicName || !ownerName || !EMAIL_RE.test(ownerEmail)) throw new HttpError(400, 'Vyplňte název kliniky, jméno a e-mail majitele.');
-    if ((await store.listClinics()).length) throw new HttpError(409, 'Klinika už je založená.', 'conflict');
-    const ownerId = await deps.auth.ensureUser(ownerEmail);
-    const state = productionBaseState(clinicName, dateOf(now()));
-    const chunks = [...stateToChunkJson(state)].map(([key, data]) => ({ key, data: JSON.parse(data) as unknown }));
-    const clinicId = await store.createClinic(clinicName, ownerId, ownerName, chunks, ownerEmail);
-    defaultClinicCache = null;
-    return json(req, 200, { ok: true, clinicId });
   }
 
   function page(req: Request, status: number, title: string, body: string): Response {
@@ -612,30 +877,35 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) });
     try {
       const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'local';
-      if ((path === '/dev/login' || path === '/admin/bootstrap' || path === '/unsubscribe') && !openLimiter.allow('ip:' + ip, Date.now()))
+      if ((path === '/dev/login' || path === '/unsubscribe') && !openLimiter.allow('ip:' + ip, Date.now()))
         throw new HttpError(429, 'Příliš mnoho pokusů.', 'rate_limited');
+      if ((path === '/tenant' || path === '/legal') && !publicLimiter.allow('ip:' + ip, Date.now()))
+        throw new HttpError(429, 'Příliš mnoho požadavků.', 'rate_limited');
+      if (path.startsWith('/platform/')) return await platformTenants(req, path);
       const route = `${req.method} ${path}`;
       switch (route) {
         case 'GET /health':
           return json(req, 200, { ok: true, at: now() });
+        case 'GET /tenant':
+          return await getTenant(req, url);
+        case 'GET /legal':
+          return await getLegal(req, url);
         case 'GET /session':
-          return await getSession(req);
+          return await getSession(req, url);
         case 'POST /register':
-          return await register(req);
+          return await register(req, url);
         case 'GET /state':
-          return await getState(req);
+          return await getState(req, url);
         case 'GET /changes':
           return await getChanges(req, url);
         case 'POST /command':
-          return await postCommand(req);
+          return await postCommand(req, url);
         case 'GET /members':
         case 'POST /members':
         case 'DELETE /members':
           return await members(req, url);
         case 'POST /cron':
           return await cron(req);
-        case 'POST /admin/bootstrap':
-          return await bootstrap(req);
         case 'POST /dev/login':
           return await devLogin(req);
         case 'GET /unsubscribe':
@@ -652,15 +922,28 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
   };
 }
 
-/** Výchozí stav nové kliniky pro ostrý provoz: bez ukázkových dat, bez simulovaných plateb kartou. */
-export function productionBaseState(clinicName: string, today: string): ClinicState {
-  const s = createBaseState(today);
-  s.settings.clinicName = clinicName;
-  s.settings.senderName = clinicName;
+/** Ostrý provoz: bez simulovaných plateb kartou a klinických poznámek, zprávy se skutečně odesílají. */
+function productionOverrides(s: ClinicState, name: string): ClinicState {
+  s.settings.clinicName = name;
+  s.settings.senderName = name;
   s.settings.senderEmail = '';
   s.settings.features = { clinicalNotes: false, cardPayments: false };
   s.settings.messaging = { deliver: true };
-  s.settings.payments = { ...s.settings.payments, recipientName: clinicName, accountNumber: '', iban: '', demoAccount: false };
+  s.settings.payments = { ...s.settings.payments, recipientName: name.slice(0, 35), accountNumber: '', iban: '', demoAccount: false };
   s.settings.simulatedNow = null;
   return s;
 }
+
+/** Nová provozovna na platformě podle oboru (šablony) – připravená pro ostrý provoz. */
+export function productionState(preset: PresetId, o: PresetOptions): ClinicState {
+  return productionOverrides(createPresetState(preset, o), o.businessName.trim());
+}
+
+/** Výchozí katalog s ukázkovým týmem v ostrém nastavení (testy a jednoprovozovnové instalace). */
+export function productionBaseState(clinicName: string, today: string): ClinicState {
+  return productionOverrides(createBaseState(today), clinicName);
+}
+
+/** Výchozí platnost zkušební licence. */
+export const TRIAL_DAYS = 30;
+export const trialUntil = (today: string): string => addDays(today, TRIAL_DAYS);

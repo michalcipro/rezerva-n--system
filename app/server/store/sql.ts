@@ -1,4 +1,10 @@
-import type { ChunkChange, ChunksResult, ClinicRow, CommandLogEntry, StateStore, StaffRole, Whoami } from './types';
+import type { ChunkChange, ChunksResult, ClinicInfo, ClinicRow, CommandLogEntry, PlatformClinicPatch, PlatformClinicRow, StateStore, StaffRole, Whoami } from './types';
+
+/** Číselné hodnoty z JSON (bigint) a prázdná odpověď. */
+export function clinicRow<T extends ClinicInfo | null>(r: T): T {
+  if (!r) return null as T;
+  return { ...r, version: Number(r.version), domains: r.domains ?? [] } as T;
+}
 
 /** Minimální rozhraní dotazu – splňuje ho PGlite (`db.query`) i node-postgres. */
 export type QueryFn = (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -71,6 +77,53 @@ export function createSqlStore(query: QueryFn): StateStore {
     },
     async unlinkClient(clinicId, clientId) {
       await query('select public.app_unlink_client($1::uuid, $2)', [clinicId, clientId]);
+    },
+    async resolveTenant(slug, domain) {
+      return one<ClinicInfo | null>('select public.app_resolve_tenant($1, $2) as r', [slug, domain]).then(clinicRow);
+    },
+    async clinicInfo(clinicId) {
+      return one<ClinicInfo | null>('select public.app_clinic_info($1::uuid) as r', [clinicId]).then(clinicRow);
+    },
+    async platformClinics() {
+      const rows = await one<PlatformClinicRow[]>('select public.app_platform_clinics() as r', []);
+      return rows.map((r) => ({ ...(clinicRow(r) as ClinicInfo), members: Number(r.members), clientAccounts: Number(r.clientAccounts), lastChangeAt: r.lastChangeAt, owners: r.owners }));
+    },
+    async platformCreateClinic(i) {
+      const r = await query('select public.app_platform_create_clinic($1, $2, $3::uuid, $4, $5, $6::jsonb, $7, $8::date) as r', [
+        i.name,
+        i.slug,
+        i.ownerId,
+        i.ownerName,
+        i.ownerEmail,
+        JSON.stringify(i.chunks),
+        i.plan,
+        i.validUntil,
+      ]);
+      return String(r.rows[0]?.r);
+    },
+    async platformUpdateClinic(clinicId, p: PlatformClinicPatch) {
+      return one<ClinicInfo | null>('select public.app_platform_update_clinic($1::uuid, $2, $3, $4, $5, $6::date, $7, $8) as r', [
+        clinicId,
+        p.name ?? null,
+        p.slug ?? null,
+        p.plan ?? null,
+        p.status ?? null,
+        p.validUntil ?? null,
+        p.validUntil === null,
+        p.note ?? null,
+      ]).then(clinicRow);
+    },
+    async platformSetDomains(clinicId, domains) {
+      await query('select public.app_platform_set_domains($1::uuid, $2::text[])', [clinicId, domains]);
+    },
+    async setClinicSecret(clinicId, key, value) {
+      await query('select public.app_set_clinic_secret($1::uuid, $2, $3)', [clinicId, key, value]);
+    },
+    async getClinicSecrets(clinicId) {
+      return one<Record<string, string>>('select public.app_get_clinic_secrets($1::uuid) as r', [clinicId]);
+    },
+    async clinicSecretKeys(clinicId) {
+      return one<{ key: string; updatedAt: string }[]>('select public.app_clinic_secret_keys($1::uuid) as r', [clinicId]);
     },
     async logCommand(e: CommandLogEntry) {
       await query('select public.app_log_command($1::uuid, $2::uuid, $3, $4, $5, $6, $7::bigint)', [

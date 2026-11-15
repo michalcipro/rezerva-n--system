@@ -100,7 +100,8 @@ export function deliveryJob(cfg: DeliveryConfig): (ctx: CronContext) => Promise<
 }
 
 export interface BankConfig {
-  token: string;
+  /** Token Fio provozovny (každá má vlastní účet) – null = párování se u ní nedělá. */
+  tokenFor: (ctx: CronContext) => Promise<string | null>;
   /** Jak daleko do minulosti hledat platby (dny). */
   daysBack?: number;
   fetchImpl?: typeof fetch;
@@ -110,9 +111,12 @@ export interface BankConfig {
 /** Spáruje příchozí platby z Fio s čekajícími QR platbami a potvrdí je. */
 export function bankJob(cfg: BankConfig): (ctx: CronContext) => Promise<Record<string, unknown>> {
   const log = cfg.log ?? (() => undefined);
-  return async ({ clinicId, engine, now }) => {
+  return async (ctx) => {
+    const { clinicId, engine, now } = ctx;
+    const token = await cfg.tokenFor(ctx);
+    if (!token) return { bank: 'bez napojení na banku' };
     const loaded = await engine.current(clinicId);
-    if (!loaded) return { bank: 'klinika nemá data' };
+    if (!loaded) return { bank: 'provozovna nemá data' };
     const pending = loaded.state.paymentRequests.filter((r) => r.status === 'pending');
     if (!pending.length) return { bank: { pending: 0 } };
     const today = dateOf(now());
@@ -121,7 +125,7 @@ export function bankJob(cfg: BankConfig): (ctx: CronContext) => Promise<Record<s
     const from = dateOf(oldest) < limit ? limit : dateOf(oldest);
     let txs;
     try {
-      txs = await fetchFioTransactions({ token: cfg.token, from, to: today, fetchImpl: cfg.fetchImpl });
+      txs = await fetchFioTransactions({ token, from, to: today, fetchImpl: cfg.fetchImpl });
     } catch (e) {
       const code = e instanceof FioError ? e.code : 'network';
       log('Výpis z Fio se nepodařilo načíst', { code });

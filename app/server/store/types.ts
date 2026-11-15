@@ -46,6 +46,45 @@ export interface ClinicRow {
   version: number;
 }
 
+export type LicensePlan = 'trial' | 'monthly' | 'yearly' | 'lifetime';
+export type LicenseStatus = 'active' | 'suspended' | 'cancelled';
+
+export interface LicenseInfo {
+  plan: LicensePlan;
+  status: LicenseStatus;
+  /** Platnost do (YYYY-MM-DD); null = bez omezení (doživotní licence). */
+  validUntil: string | null;
+  note: string;
+}
+
+/** Provozovna na platformě (bez osobních údajů). */
+export interface ClinicInfo {
+  id: string;
+  slug: string;
+  name: string;
+  version: number;
+  createdAt: string;
+  license: LicenseInfo;
+  domains: string[];
+}
+
+export interface PlatformClinicRow extends ClinicInfo {
+  members: number;
+  clientAccounts: number;
+  lastChangeAt: string | null;
+  owners: { email: string; name: string }[];
+}
+
+export interface PlatformClinicPatch {
+  name?: string;
+  slug?: string;
+  plan?: LicensePlan;
+  status?: LicenseStatus;
+  /** undefined = beze změny, null = bez omezení */
+  validUntil?: string | null;
+  note?: string;
+}
+
 export interface CommandLogEntry {
   clinicId: string;
   userId: string | null;
@@ -82,4 +121,26 @@ export interface StateStore {
   linkClient(clinicId: string, userId: string, clientId: string): Promise<void>;
   unlinkClient(clinicId: string, clientId: string): Promise<void>;
   logCommand(entry: CommandLogEntry): Promise<void>;
+
+  /* ---- platforma: více provozoven, licence, adresy, tajné údaje ---- */
+  /** Provozovna podle krátkého identifikátoru nebo vlastní domény (null = nenalezena). */
+  resolveTenant(slug: string | null, domain: string | null): Promise<ClinicInfo | null>;
+  clinicInfo(clinicId: string): Promise<ClinicInfo | null>;
+  platformClinics(): Promise<PlatformClinicRow[]>;
+  platformCreateClinic(input: {
+    name: string;
+    slug: string;
+    ownerId: string;
+    ownerName: string;
+    ownerEmail: string;
+    chunks: { key: string; data: unknown }[];
+    plan: LicensePlan;
+    validUntil: string | null;
+  }): Promise<string>;
+  platformUpdateClinic(clinicId: string, patch: PlatformClinicPatch): Promise<ClinicInfo | null>;
+  platformSetDomains(clinicId: string, domains: string[]): Promise<void>;
+  /** Uloží šifrovaný tajný údaj (null = smazat). */
+  setClinicSecret(clinicId: string, key: string, value: string | null): Promise<void>;
+  getClinicSecrets(clinicId: string): Promise<Record<string, string>>;
+  clinicSecretKeys(clinicId: string): Promise<{ key: string; updatedAt: string }[]>;
 }

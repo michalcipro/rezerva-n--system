@@ -1,27 +1,37 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { CommandResponse, SessionInfo, StatePayload } from '../src/api/protocol';
+import type { CommandResponse, PlatformTenant, PublicTenant, SessionInfo, StatePayload } from '../src/api/protocol';
 import type { ClinicState } from '../src/domain/types';
+import { availableSlots } from '../src/engine/availability';
 import { devAuth } from '../server/auth';
 import { createApi } from '../server/api';
 import { chunksToState } from '../server/core/state';
+import { decryptSecret } from '../server/core/secrets';
+import { MIGRATIONS } from '../server/store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';
 
-import MIGRATION from '../../supabase/migrations/20261113000000_init.sql?raw';
-
 const CRON = 'cron-secret-for-tests-0001';
-const ADMIN = 'admin-secret-for-tests-0001';
+const SECRETS_KEY = 'klic-pro-sifrovani-tajnych-udaju-v-testech-0001';
 // pevný čas: úterý 17. 11. 2026 9:00 v Praze
 const CLOCK = new Date('2026-11-17T08:00:00Z');
+const NOW = '2026-11-17T09:00';
+const A = 'klinika-test';
 
 let handle: (req: Request) => Promise<Response>;
 let auth: ReturnType<typeof devAuth>;
 let db: PGlite;
 const tokens: Record<string, string> = {};
 let n = 0;
+let tenantA: PlatformTenant;
 
-async function call<T = unknown>(method: string, path: string, opts: { as?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ status: number; body: T }> {
+async function call<T = unknown>(
+  method: string,
+  path: string,
+  opts: { as?: string; body?: unknown; headers?: Record<string, string>; tenant?: string | null } = {},
+): Promise<{ status: number; body: T }> {
   const headers: Record<string, string> = { 'content-type': 'application/json', ...opts.headers };
+  const tenant = opts.tenant === undefined ? A : opts.tenant;
+  if (tenant) headers['x-tenant'] = tenant;
   if (opts.as) headers.authorization = `Bearer ${tokens[opts.as]}`;
   const res = await handle(new Request(`http://localhost/api${path}`, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) }));
   return { status: res.status, body: (await res.json()) as T };
@@ -31,56 +41,93 @@ async function login(name: string, email: string): Promise<void> {
   tokens[name] = (await auth.issue(email)).token;
 }
 
-const cmd = (as: string, name: string, input: unknown, commandId = `t${String(++n).padStart(7, '0')}`, retry = false) =>
-  call<CommandResponse & { duplicate?: boolean }>('POST', '/command', { as, body: { name, input, commandId, retry } });
+const cmd = (as: string, name: string, input: unknown, commandId = `t${String(++n).padStart(7, '0')}`, retry = false, tenant?: string) =>
+  call<CommandResponse & { duplicate?: boolean }>('POST', '/command', { as, body: { name, input, commandId, retry }, tenant });
 
-async function staffState(as: string): Promise<{ version: number; state: ClinicState }> {
-  const r = await call<StatePayload>('GET', '/state', { as });
+async function staffState(as: string, tenant?: string): Promise<{ version: number; state: ClinicState }> {
+  const r = await call<StatePayload>('GET', '/state', { as, tenant });
   if (r.body.kind !== 'chunks') throw new Error('čekal jsem části stavu');
   const state = chunksToState(new Map(r.body.chunks.map((c) => [c.key, c.data])));
   return { version: r.body.version, state: state! };
 }
 
+/** Volný online termín 1:1 služby u majitele (šablona oboru určuje katalog). */
+function freeSlot(s: ClinicState, clientId: string, date: string, skip = 0): { serviceId: string; therapistId: string; start: string } {
+  const svc = s.services.find((x) => x.active && x.onlineBookable && x.kind !== 'group' && !x.newClientsOnly)!;
+  const therapistId = s.therapists[0].id;
+  const slots = availableSlots(s, { serviceId: svc.id, therapistId, date, now: NOW, mode: 'client', clientId });
+  const slot = slots[skip];
+  if (!slot) throw new Error('žádný volný termín');
+  return { serviceId: svc.id, therapistId, start: slot.start };
+}
+
 beforeAll(async () => {
   db = new PGlite();
   await db.exec(SUPABASE_ROLES_SQL);
-  await db.exec(MIGRATION);
+  for (const m of MIGRATIONS) await db.exec(m);
   const store = createSqlStore((sql, params) => db.query(sql, params));
   auth = devAuth('vyvojovy-klic-pro-testy-0001');
-  handle = createApi({ store, auth, devAuth: auth, clock: () => CLOCK, cronSecret: CRON, adminSecret: ADMIN, allowedOrigins: ['https://rezervace.example.cz'], log: () => undefined });
+  handle = createApi({
+    store,
+    auth,
+    devAuth: auth,
+    clock: () => CLOCK,
+    cronSecret: CRON,
+    platformAdmins: ['platforma@example.cz'],
+    secretsKey: SECRETS_KEY,
+    allowedOrigins: ['https://rezervace.example.cz'],
+    log: () => undefined,
+  });
+  await login('platforma', 'platforma@example.cz');
   await login('owner', 'majitelka@example.cz');
+  await login('ownerB', 'majitel-b@example.cz');
   await login('recepce', 'recepce@example.cz');
   await login('jana', 'jana@example.cz');
   await login('petr', 'petr@example.cz');
   await login('cizi', 'nekdo@example.cz');
 }, 60_000);
 
-describe('API', () => {
-  it('založí kliniku jen jednou a jen s klíčem', async () => {
-    const body = { clinicName: 'Klinika Test', ownerEmail: 'majitelka@example.cz', ownerName: 'Tereza Testová' };
-    expect((await call('POST', '/admin/bootstrap', { body })).status).toBe(401);
-    const ok = await call<{ clinicId: string }>('POST', '/admin/bootstrap', { body, headers: { 'x-admin-secret': ADMIN } });
+describe('API platformy', () => {
+  it('provozovnu zakládá jen vlastník platformy; adresa musí být volná a nevyhrazená', async () => {
+    const body = { name: 'Klinika Test', slug: A, preset: 'fyzio', ownerName: 'Tereza Testová', ownerEmail: 'majitelka@example.cz', plan: 'trial', validUntil: '2026-12-17' };
+    expect((await call('POST', '/platform/tenants', { as: 'cizi', body, tenant: null })).status).toBe(403);
+    const ok = await call<PlatformTenant>('POST', '/platform/tenants', { as: 'platforma', body, tenant: null });
     expect(ok.status).toBe(200);
-    expect(ok.body.clinicId).toMatch(/^[0-9a-f-]{36}$/);
-    expect((await call('POST', '/admin/bootstrap', { body, headers: { 'x-admin-secret': ADMIN } })).status).toBe(409);
+    tenantA = ok.body;
+    expect(ok.body).toMatchObject({ slug: A, name: 'Klinika Test', license: { plan: 'trial', status: 'active', validUntil: '2026-12-17' }, members: 1 });
+    expect(ok.body.licenseView.state).toBe('ok');
+    expect((await call('POST', '/platform/tenants', { as: 'platforma', body, tenant: null })).status).toBe(409);
+    expect((await call('POST', '/platform/tenants', { as: 'platforma', body: { ...body, slug: 'api' }, tenant: null })).status).toBe(400);
+    expect((await call('POST', '/platform/tenants', { as: 'platforma', body: { ...body, slug: 'Špatně' }, tenant: null })).status).toBe(400);
+    const list = await call<PlatformTenant[]>('GET', '/platform/tenants', { as: 'platforma', tenant: null });
+    expect(list.body.map((t) => t.slug)).toEqual([A]);
   });
 
-  it('majitelka je personál; nová klinika má vypnuté simulované platby kartou', async () => {
+  it('majitel je personál provozovny; nová provozovna má ostré nastavení a tým = majitel', async () => {
     const s = await call<SessionInfo>('GET', '/session', { as: 'owner' });
-    expect(s.body).toMatchObject({ role: 'owner', name: 'Tereza Testová', clinicName: 'Klinika Test', needsRegistration: false });
+    expect(s.body).toMatchObject({ role: 'owner', name: 'Tereza Testová', clinicName: 'Klinika Test', tenant: { slug: A }, platformAdmin: false, needsRegistration: false });
+    expect(s.body.license?.state).toBe('ok');
     const { state } = await staffState('owner');
     expect(state.settings.features).toEqual({ clinicalNotes: false, cardPayments: false });
     expect(state.settings.messaging.deliver).toBe(true);
+    expect(state.settings.preset).toBe('fyzio');
     expect(state.clients).toEqual([]);
+    expect(state.therapists.map((t) => `${t.firstName} ${t.lastName}`)).toEqual(['Tereza Testová']);
+  });
+
+  it('vlastník platformy má v provozovně přístup majitele (podpora)', async () => {
+    const s = await call<SessionInfo>('GET', '/session', { as: 'platforma' });
+    expect(s.body).toMatchObject({ platformAdmin: true, role: 'owner', tenant: { slug: A } });
+    expect(s.body.name).toContain('podpora platformy');
   });
 
   it('bez přihlášení nic nevrátí', async () => {
     expect((await call('GET', '/state')).status).toBe(401);
-    const bad = await handle(new Request('http://localhost/api/session', { headers: { authorization: 'Bearer nesmysl' } }));
+    const bad = await handle(new Request('http://localhost/api/session', { headers: { authorization: 'Bearer nesmysl', 'x-tenant': A } }));
     expect(bad.status).toBe(401);
   });
 
-  it('majitelka přidá recepci; recepce přístupy spravovat nesmí', async () => {
+  it('majitel přidá recepci; recepce přístupy spravovat nesmí', async () => {
     const r = await call<{ email: string; role: string }[]>('POST', '/members', {
       as: 'owner',
       body: { email: 'Recepce@Example.cz', role: 'reception', displayName: 'Recepce Anna' },
@@ -142,44 +189,44 @@ describe('API', () => {
     const jana = view.body.state.clients[0];
     const { state } = await staffState('owner');
     const petr = state.clients.find((c) => c.email === 'petr@example.cz')!;
-    const slot = { serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-19T09:00', payment: { method: 'onsite' } };
+    const s1 = freeSlot(state, jana.id, '2026-11-19');
+    const s2 = freeSlot(state, jana.id, '2026-11-19', 12);
+    const pay = { payment: { method: 'onsite' } };
 
-    const own = await cmd('jana', 'createBooking', { ...slot, clientId: jana.id }, 'janabook01');
+    const own = await cmd('jana', 'createBooking', { ...s1, ...pay, clientId: jana.id }, 'janabook01');
     expect(own.body).toMatchObject({ ok: true, value: 'b_janabook01-0' });
     expect(own.body.ok && 'changes' in own.body && own.body.changes).toBeFalsy(); // klient nedostává části stavu
 
-    const foreign = await cmd('jana', 'createBooking', { ...slot, start: '2026-11-19T11:00', clientId: petr.id });
+    const foreign = await cmd('jana', 'createBooking', { ...s2, ...pay, clientId: petr.id });
     expect(foreign.body).toMatchObject({ ok: false });
-
-    const extra = await cmd('jana', 'createBooking', { ...slot, start: '2026-11-19T11:00', clientId: jana.id, override: true });
+    const extra = await cmd('jana', 'createBooking', { ...s2, ...pay, clientId: jana.id, override: true });
     expect(extra.status).toBe(400);
-
-    const card = await cmd('jana', 'createBooking', { ...slot, start: '2026-11-19T11:00', clientId: jana.id, payment: { method: 'online' } });
+    const card = await cmd('jana', 'createBooking', { ...s2, clientId: jana.id, payment: { method: 'online' } });
     expect(card.status).toBe(400);
 
     expect((await cmd('jana', 'updateSettings', { patch: {} })).status).toBe(403);
     expect((await cmd('jana', 'updateClient', { clientId: jana.id, patch: { internalNote: 'x' } })).status).toBe(400);
     expect((await cmd('jana', 'neexistuje', {})).status).toBe(400);
-    expect((await call('POST', '/command', { as: 'jana', body: { name: 'createBooking', input: { ...slot, clientId: jana.id }, commandId: 'x' } })).status).toBe(400);
+    expect((await call('POST', '/command', { as: 'jana', body: { name: 'createBooking', input: { ...s1, ...pay, clientId: jana.id }, commandId: 'x' } })).status).toBe(400);
   });
 
   it('opakované odeslání stejného příkazu se neprovede dvakrát', async () => {
     const view = await call<StatePayload>('GET', '/state', { as: 'jana' });
     if (view.body.kind !== 'client') throw new Error('čekal jsem pohled klienta');
     const jana = view.body.state.clients[0];
-    const input = { clientId: jana.id, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-20T10:00', payment: { method: 'onsite' } };
+    const { state } = await staffState('owner');
+    const input = { ...freeSlot(state, jana.id, '2026-11-20'), clientId: jana.id, payment: { method: 'onsite' } };
     const first = await cmd('jana', 'createBooking', input, 'dupl000001');
     expect(first.body.ok).toBe(true);
     const retry = await cmd('jana', 'createBooking', input, 'dupl000001', true);
     expect(retry.body).toMatchObject({ ok: true, duplicate: true });
-    const { state } = await staffState('owner');
-    expect(state.bookings.filter((b) => b.id === 'b_dupl000001-0')).toHaveLength(1);
+    const after = await staffState('owner');
+    expect(after.state.bookings.filter((b) => b.id === 'b_dupl000001-0')).toHaveLength(1);
   });
 
   it('personál dostane změněné části a dočte jen rozdíl', async () => {
     const before = await staffState('recepce');
-    const { state } = before;
-    const jana = state.clients.find((c) => c.email === 'jana@example.cz')!;
+    const jana = before.state.clients.find((c) => c.email === 'jana@example.cz')!;
     const r = await cmd('recepce', 'updateClient', { clientId: jana.id, patch: { tags: ['VIP'] } });
     expect(r.body.ok).toBe(true);
     if (!r.body.ok) return;
@@ -199,17 +246,106 @@ describe('API', () => {
     expect(ok.body.ok).toBe(true);
   });
 
-  it('automatika běží jen s tajným klíčem', async () => {
-    expect((await call('POST', '/cron')).status).toBe(401);
-    const r = await call<{ ok: boolean; clinics: { processes: unknown }[] }>('POST', '/cron', { headers: { 'x-cron-secret': CRON } });
-    expect(r.status).toBe(200);
-    expect(r.body.clinics).toHaveLength(1);
+  it('veřejné údaje provozovny (bez přihlášení): název, vzhled, názvosloví, právní texty', async () => {
+    const t = await call<PublicTenant>('GET', '/tenant');
+    expect(t.status).toBe(200);
+    expect(t.body).toMatchObject({ slug: A, name: 'Klinika Test', branding: { accent: '#7c3aed', logo: null }, legal: { terms: false, privacy: false }, license: { state: 'ok' } });
+    expect(t.body.terms.staff.sg[0]).toBeTruthy();
+    expect((await call('GET', '/tenant', { tenant: 'neexistuje' })).status).toBe(404);
+    expect((await call('GET', '/legal?doc=terms')).status).toBe(404);
+    await cmd('owner', 'updateSettings', { legal: { terms: '# Obchodní podmínky\n\nText.' } });
+    const legal = await call<{ title: string; text: string }>('GET', '/legal?doc=terms');
+    expect(legal.body).toMatchObject({ title: 'Obchodní podmínky', text: '# Obchodní podmínky\n\nText.' });
   });
 
-  it('CORS jen pro povolený původ', async () => {
+  it('provozovny jsou oddělené – data, přístupy i klienti', async () => {
+    const b = await call<PlatformTenant>('POST', '/platform/tenants', {
+      as: 'platforma',
+      tenant: null,
+      body: { name: 'Studio B', slug: 'studio-b', preset: 'prazdna', ownerName: 'Bořek Béčko', ownerEmail: 'majitel-b@example.cz', plan: 'lifetime', validUntil: null },
+    });
+    expect(b.status).toBe(200);
+    expect(b.body.license).toMatchObject({ plan: 'lifetime', validUntil: null });
+    // majitel A v provozovně B nic nemá
+    expect((await call('GET', '/state', { as: 'owner', tenant: 'studio-b' })).status).toBe(403);
+    // klientka A je v B nová – musela by se zaregistrovat
+    expect((await call<SessionInfo>('GET', '/session', { as: 'jana', tenant: 'studio-b' })).body).toMatchObject({ role: null, needsRegistration: true });
+    const sb = await staffState('ownerB', 'studio-b');
+    expect(sb.state.clients).toEqual([]);
+    expect(sb.state.services).toEqual([]);
+    // adresa bez provozovny už nevede nikam (na platformě jsou dvě)
+    expect((await call('GET', '/tenant', { tenant: null })).status).toBe(404);
+    expect((await call<SessionInfo>('GET', '/session', { as: 'platforma', tenant: null })).body).toMatchObject({ platformAdmin: true, tenant: null, role: null });
+    expect((await call('GET', '/session', { as: 'owner', tenant: null })).status).toBe(404);
+    // vlastní doména provozovny
+    const d = await call<PlatformTenant>('PUT', `/platform/tenants/${b.body.id}/domains`, { as: 'platforma', tenant: null, body: { domains: ['rezervace.studio-b.cz'] } });
+    expect(d.body.domains).toEqual(['rezervace.studio-b.cz']);
+    const byHost = await call<PublicTenant>('GET', '/tenant', { tenant: null, headers: { 'x-tenant-host': 'rezervace.studio-b.cz' } });
+    expect(byHost.body.slug).toBe('studio-b');
+    expect((await call('PUT', `/platform/tenants/${tenantA.id}/domains`, { as: 'platforma', tenant: null, body: { domains: ['rezervace.studio-b.cz'] } })).status).toBe(409);
+  });
+
+  it('licence: po vypršení lhůty jen čtení, pozastavení zavře přístup; podpora platformy může vždy', async () => {
+    const path = `/platform/tenants/${tenantA.id}`;
+    // platnost skončila před měsícem → po 14denní lhůtě jen čtení
+    const ro = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { plan: 'monthly', validUntil: '2026-10-17' } });
+    expect(ro.body.licenseView.state).toBe('readonly');
+    expect((await call('GET', '/state', { as: 'owner' })).status).toBe(200);
+    const blockedWrite = await cmd('owner', 'createClient', { firstName: 'X', lastName: 'Y', email: 'x@example.cz', phone: '', consents: { gdpr: true, health: false, marketingEmail: false, sms: false } });
+    expect(blockedWrite.status).toBe(423);
+    expect((await call<SessionInfo>('GET', '/session', { as: 'owner' })).body.license?.state).toBe('readonly');
+    // klient: nové rezervace ne, ale souhlas odvolat může
+    const view = await call<StatePayload>('GET', '/state', { as: 'jana' });
+    if (view.body.kind !== 'client') throw new Error('čekal jsem pohled klienta');
+    const jana = view.body.state.clients[0];
+    expect((await cmd('jana', 'setConsent', { clientId: jana.id, key: 'sms', value: false })).body.ok).toBe(true);
+
+    // v lhůtě po konci platnosti vše funguje
+    const grace = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { validUntil: '2026-11-10' } });
+    expect(grace.body.licenseView.state).toBe('grace');
+    expect((await cmd('owner', 'updateSettings', { clinicTagline: 'v lhůtě' })).body.ok).toBe(true);
+
+    // pozastavení
+    await call('PATCH', path, { as: 'platforma', tenant: null, body: { status: 'suspended' } });
+    expect((await call('GET', '/state', { as: 'owner' })).status).toBe(423);
+    expect((await call('GET', '/state', { as: 'jana' })).status).toBe(423);
+    expect((await call<PublicTenant>('GET', '/tenant')).body.license.state).toBe('blocked');
+    expect((await call('GET', '/state', { as: 'platforma' })).status).toBe(200);
+    const cronRun = await call<{ clinics: { slug: string; license: string; processes?: unknown }[] }>('POST', '/cron', { headers: { 'x-cron-secret': CRON }, tenant: null });
+    const a = cronRun.body.clinics.find((c) => c.slug === A)!;
+    expect(a.license).toBe('blocked');
+    expect(a.processes).toBeUndefined();
+
+    // obnovení – doživotní licence
+    const back = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { status: 'active', plan: 'lifetime', validUntil: null } });
+    expect(back.body.licenseView.state).toBe('ok');
+    expect((await call('GET', '/state', { as: 'owner' })).status).toBe(200);
+  });
+
+  it('tajné údaje provozovny (token Fio) se ukládají šifrovaně', async () => {
+    const token = 'AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789';
+    expect((await call('PUT', `/platform/tenants/${tenantA.id}/secrets`, { as: 'owner', tenant: null, body: { fioToken: token } })).status).toBe(403);
+    const r = await call<{ key: string }[]>('PUT', `/platform/tenants/${tenantA.id}/secrets`, { as: 'platforma', tenant: null, body: { fioToken: token } });
+    expect(r.body.map((x) => x.key)).toEqual(['fio_token']);
+    const raw = await db.query<{ value: string }>('select value from app.clinic_secrets where key = $1', ['fio_token']);
+    expect(raw.rows[0].value).not.toContain(token);
+    expect(await decryptSecret(SECRETS_KEY, raw.rows[0].value)).toBe(token);
+    const cleared = await call<{ key: string }[]>('PUT', `/platform/tenants/${tenantA.id}/secrets`, { as: 'platforma', tenant: null, body: { fioToken: null } });
+    expect(cleared.body).toEqual([]);
+  });
+
+  it('automatika běží jen s tajným klíčem a pro všechny provozovny', async () => {
+    expect((await call('POST', '/cron', { tenant: null })).status).toBe(401);
+    const r = await call<{ ok: boolean; clinics: { slug: string }[] }>('POST', '/cron', { headers: { 'x-cron-secret': CRON }, tenant: null });
+    expect(r.status).toBe(200);
+    expect(r.body.clinics.map((c) => c.slug).sort()).toEqual([A, 'studio-b']);
+  });
+
+  it('CORS jen pro povolený původ (včetně hlaviček provozovny)', async () => {
     const pre = await handle(new Request('http://localhost/api/command', { method: 'OPTIONS', headers: { origin: 'https://rezervace.example.cz' } }));
     expect(pre.status).toBe(204);
     expect(pre.headers.get('access-control-allow-origin')).toBe('https://rezervace.example.cz');
+    expect(pre.headers.get('access-control-allow-headers')).toContain('x-tenant');
     const other = await handle(new Request('http://localhost/api/health', { headers: { origin: 'https://zly.example.com' } }));
     expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });

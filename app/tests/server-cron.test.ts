@@ -9,10 +9,10 @@ import { ClinicEngine } from '../server/core/executor';
 import { stateToChunkJson } from '../server/core/state';
 import { bankJob, deliveryJob } from '../server/cron';
 import type { Messenger, OutgoingEmail, OutgoingSms, SendResult } from '../server/providers';
+import { MIGRATIONS } from '../server/store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';
 import type { StateStore } from '../server/store/types';
 
-import MIGRATION from '../../supabase/migrations/20261113000000_init.sql?raw';
 
 const CRON = 'cron-secret-for-tests-0002';
 const UNSUB = 'unsubscribe-secret-for-tests';
@@ -67,7 +67,7 @@ let clinicId: string;
 async function setup(): Promise<void> {
   db = new PGlite();
   await db.exec(SUPABASE_ROLES_SQL);
-  await db.exec(MIGRATION);
+  for (const m of MIGRATIONS) await db.exec(m);
   store = createSqlStore((sql, params) => db.query(sql, params));
   const base: ClinicState = productionBaseState('Klinika Test', '2026-11-01');
   base.settings.senderEmail = 'recepce@klinika.example';
@@ -195,7 +195,7 @@ describe('automatika: párování plateb z Fio', () => {
         { id: 900002, date: '2026-11-17', amount: 500, vs: '99999999' },
       ]);
     };
-    const handle = api([bankJob({ token: 'tajny-token-fio', fetchImpl })]);
+    const handle = api([bankJob({ tokenFor: async () => 'tajny-token-fio', fetchImpl })]);
     const report = await cron(handle);
     expect((report.clinics as { bank: unknown }[])[0].bank).toMatchObject({ pending: 1, confirmed: 1 });
     expect(urls[0]).toContain('/periods/tajny-token-fio/2026-11-17/2026-11-17/transactions.json');
@@ -214,7 +214,7 @@ describe('automatika: párování plateb z Fio', () => {
     await run(createBooking as never, { clientId: id, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-19T09:00', payment: { method: 'qr' } }, 'book000005');
     const req = (await engine.current(clinicId))!.state.paymentRequests[0];
     const fetchImpl: typeof fetch = async () => fioStatement([{ id: 900003, date: '2026-11-10', amount: req.amount, vs: req.vs }]);
-    const report = await cron(api([bankJob({ token: 'tajny-token-fio', fetchImpl })]));
+    const report = await cron(api([bankJob({ tokenFor: async () => 'tajny-token-fio', fetchImpl })]));
     expect((report.clinics as { bank: unknown }[])[0].bank).toMatchObject({ confirmed: 0 });
   });
 });

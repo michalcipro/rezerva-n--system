@@ -1,4 +1,5 @@
-import type { ChunkChange, ChunksResult, ClinicRow, CommandLogEntry, StateStore, StaffRole, Whoami } from './types';
+import { clinicRow } from './sql';
+import type { ChunkChange, ChunksResult, ClinicInfo, ClinicRow, CommandLogEntry, PlatformClinicPatch, PlatformClinicRow, StateStore, StaffRole, Whoami } from './types';
 
 /**
  * Úložiště v Supabase přes REST API (PostgREST RPC) se služebním klíčem.
@@ -87,6 +88,54 @@ export function createRestStore(cfg: { url: string; serviceKey: string; fetchImp
     },
     async unlinkClient(clinicId, clientId) {
       await rpc('app_unlink_client', { p_clinic: clinicId, p_client: clientId });
+    },
+    async resolveTenant(slug, domain) {
+      return clinicRow(await rpc<ClinicInfo | null>('app_resolve_tenant', { p_slug: slug, p_domain: domain }));
+    },
+    async clinicInfo(clinicId) {
+      return clinicRow(await rpc<ClinicInfo | null>('app_clinic_info', { p_clinic: clinicId }));
+    },
+    async platformClinics() {
+      const rows = await rpc<PlatformClinicRow[]>('app_platform_clinics', {});
+      return rows.map((x) => ({ ...(clinicRow(x) as ClinicInfo), members: Number(x.members), clientAccounts: Number(x.clientAccounts), lastChangeAt: x.lastChangeAt, owners: x.owners }));
+    },
+    async platformCreateClinic(i) {
+      return rpc<string>('app_platform_create_clinic', {
+        p_name: i.name,
+        p_slug: i.slug,
+        p_owner: i.ownerId,
+        p_owner_name: i.ownerName,
+        p_owner_email: i.ownerEmail,
+        p_chunks: i.chunks,
+        p_plan: i.plan,
+        p_valid_until: i.validUntil,
+      });
+    },
+    async platformUpdateClinic(clinicId, p: PlatformClinicPatch) {
+      return clinicRow(
+        await rpc<ClinicInfo | null>('app_platform_update_clinic', {
+          p_clinic: clinicId,
+          p_name: p.name ?? null,
+          p_slug: p.slug ?? null,
+          p_plan: p.plan ?? null,
+          p_status: p.status ?? null,
+          p_valid_until: p.validUntil ?? null,
+          p_clear_valid_until: p.validUntil === null,
+          p_note: p.note ?? null,
+        }),
+      );
+    },
+    async platformSetDomains(clinicId, domains) {
+      await rpc('app_platform_set_domains', { p_clinic: clinicId, p_domains: domains });
+    },
+    async setClinicSecret(clinicId, key, value) {
+      await rpc('app_set_clinic_secret', { p_clinic: clinicId, p_key: key, p_value: value });
+    },
+    async getClinicSecrets(clinicId) {
+      return rpc<Record<string, string>>('app_get_clinic_secrets', { p_clinic: clinicId });
+    },
+    async clinicSecretKeys(clinicId) {
+      return rpc<{ key: string; updatedAt: string }[]>('app_clinic_secret_keys', { p_clinic: clinicId });
     },
     async logCommand(e: CommandLogEntry) {
       await rpc('app_log_command', {
