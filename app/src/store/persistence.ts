@@ -1,5 +1,5 @@
-import type { ClinicState } from '../domain/types';
-import { DEFAULT_SERVICES, DEMO_ACCOUNT, SCHEMA_VERSION, defaultGroupTemplates, defaultPaymentSettings } from '../engine/defaults';
+import type { ClinicState, TermsSettings } from '../domain/types';
+import { DEFAULT_MODULES, DEFAULT_SERVICES, DEFAULT_TERMS, DEMO_ACCOUNT, SCHEMA_VERSION, defaultGroupTemplates, defaultPaymentSettings } from '../engine/defaults';
 import { DEFAULT_TEMPLATES } from '../engine/messages';
 import { isoWeekKey, monthKey } from '../engine/time';
 
@@ -148,6 +148,11 @@ export function normalizeState(s: ClinicState): ClinicState {
   // data uložená před zavedením přepínačů funkcí a skutečného odesílání zpráv
   if (s.settings && !s.settings.features) s.settings.features = { clinicalNotes: true, cardPayments: true };
   if (s.settings && !s.settings.messaging) s.settings.messaging = { deliver: false };
+  // data z doby před univerzální platformou (názvosloví, moduly, vzhled, právní texty)
+  if (s.settings && !s.settings.terms) s.settings.terms = JSON.parse(JSON.stringify(DEFAULT_TERMS)) as TermsSettings;
+  if (s.settings && !s.settings.modules) s.settings.modules = { ...DEFAULT_MODULES };
+  if (s.settings && !s.settings.branding) s.settings.branding = { accent: null, logo: null };
+  if (s.settings && !s.settings.legal) s.settings.legal = { terms: '', privacy: '', updatedAt: null };
   // ukázková data z doby před kruhovým tréninkem: doplnit službu, pravidelné termíny a permanentku Skupiny 8
   if (s.demoSeededAt && s.services && !s.services.some((x) => x.id === 's_g_kruhovy')) {
     const svc = DEFAULT_SERVICES.find((x) => x.id === 's_g_kruhovy');

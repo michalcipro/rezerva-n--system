@@ -2,11 +2,13 @@ import type {
   Category,
   ClinicState,
   GroupTemplate,
+  ModuleSettings,
   PackageTemplate,
   PaymentSettings,
   Room,
   Service,
   Settings,
+  TermsSettings,
   Therapist,
   TimeRange,
   WeekSchedule,
@@ -241,6 +243,22 @@ export const DEFAULT_PACKAGE_TEMPLATES: PackageTemplate[] = [
   },
 ];
 
+/** Výchozí názvosloví: klinika a terapeut (šablony oborů ho mění, viz presets.ts a terms.ts). */
+export const DEFAULT_TERMS: TermsSettings = {
+  business: {
+    sg: ['klinika', 'kliniky', 'klinice', 'kliniku', 'klinice', 'klinikou'],
+    pl: ['kliniky', 'klinik', 'klinikám', 'kliniky', 'klinikách', 'klinikami'],
+    gender: 'f',
+  },
+  staff: {
+    sg: ['terapeut', 'terapeuta', 'terapeutovi', 'terapeuta', 'terapeutovi', 'terapeutem'],
+    pl: ['terapeuti', 'terapeutů', 'terapeutům', 'terapeuty', 'terapeutech', 'terapeuty'],
+    gender: 'm',
+  },
+};
+
+export const DEFAULT_MODULES: ModuleSettings = { groups: true, packages: true, credit: true, marketing: true };
+
 export function defaultSettings(): Settings {
   return {
     clinicName: 'pohyb',
@@ -285,6 +303,10 @@ export function defaultSettings(): Settings {
     payments: defaultPaymentSettings(),
     features: { clinicalNotes: true, cardPayments: true },
     messaging: { deliver: false },
+    terms: JSON.parse(JSON.stringify(DEFAULT_TERMS)) as TermsSettings,
+    modules: { ...DEFAULT_MODULES },
+    branding: { accent: null, logo: null },
+    legal: { terms: '', privacy: '', updatedAt: null },
     simulatedNow: null,
   };
 }

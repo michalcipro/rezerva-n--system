@@ -583,6 +583,56 @@ export interface MessagingSettings {
   deliver: boolean;
 }
 
+/**
+ * Tvary podstatného jména pro české texty aplikace (skloňování):
+ * [1. pád kdo/co, 2. pád koho/čeho, 3. pád komu/čemu, 4. pád koho/co, 6. pád o kom/o čem, 7. pád kým/čím].
+ */
+export type CaseForms = [string, string, string, string, string, string];
+
+export interface NounForms {
+  sg: CaseForms;
+  pl: CaseForms;
+  /** Rod pro shodu přídavných jmen: m = mužský životný, i = mužský neživotný, f = ženský, n = střední. */
+  gender: 'm' | 'i' | 'f' | 'n';
+}
+
+/** Názvosloví provozovny – aplikace mluví jazykem oboru (klinika × studio × salon, terapeut × trenér × kosmetička). */
+export interface TermsSettings {
+  /** Provozovna: klinika, studio, salon, centrum… */
+  business: NounForms;
+  /** Kdo poskytuje služby: terapeut, trenér, lektor, kosmetička… */
+  staff: NounForms;
+}
+
+/** Části systému, které provozovna nemusí používat – vypnuté se v aplikaci ani v portálu neukazují. */
+export interface ModuleSettings {
+  /** Skupinové lekce (rozvrh, kapacity). */
+  groups: boolean;
+  /** Permanentky (balíčky vstupů). */
+  packages: boolean;
+  /** Kredit – předplacená peněženka klienta. */
+  credit: boolean;
+  /** Kampaně a obchodní sdělení. */
+  marketing: boolean;
+}
+
+/** Vzhled provozovny (white-label). */
+export interface BrandingSettings {
+  /** Barva značky #RRGGBB – null = výchozí barva platformy. */
+  accent: string | null;
+  /** Logo jako data URL (PNG / SVG / WebP, do cca 200 kB) – null = textové logo z názvu. */
+  logo: string | null;
+}
+
+/** Právní texty provozovny (je správcem osobních údajů svých klientů). */
+export interface LegalSettings {
+  /** Obchodní podmínky v Markdownu – prázdné = obecná stránka platformy. */
+  terms: string;
+  /** Informace o zpracování osobních údajů v Markdownu. */
+  privacy: string;
+  updatedAt: LocalDateTime | null;
+}
+
 export interface Settings {
   clinicName: string;
   clinicTagline: string;
@@ -601,6 +651,14 @@ export interface Settings {
   payments: PaymentSettings;
   features: FeatureSettings;
   messaging: MessagingSettings;
+  /** Názvosloví oboru (skloňované tvary). */
+  terms: TermsSettings;
+  /** Zapnuté části systému. */
+  modules: ModuleSettings;
+  branding: BrandingSettings;
+  legal: LegalSettings;
+  /** Šablona oboru, ze které provozovna vznikla (fyzio, masaze, fitness, beauty, prazdna…). */
+  preset?: string;
   /** Testovací hodiny – null znamená skutečný čas. */
   simulatedNow: LocalDateTime | null;
 }
