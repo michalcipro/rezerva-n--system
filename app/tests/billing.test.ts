@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeInvoice, dueDate, invoiceNumber, round2, vsFromNumber, type InvoiceLine } from '../src/billing/invoice';
+import { computeInvoice, documentNumber, dueDate, round2, vsFromNumber, type InvoiceLine } from '../src/billing/invoice';
 
 const line = (unitPrice: number, vatRate: InvoiceLine['vatRate'] = 21, quantity = 1): InvoiceLine => ({ text: 'Položka', quantity, unit: 'ks', unitPrice, vatRate });
 
 describe('faktury: výpočet částek a DPH', () => {
-  it('plátce, ceny bez DPH: rekapitulace podle sazby (návrh faktury 2026-0042)', () => {
+  it('plátce, ceny bez DPH: rekapitulace podle sazby (návrh dokladu DP-2026-000045)', () => {
     const t = computeInvoice({ vatPayer: true, pricesIncludeVat: false, lines: [line(13900), line(9900)] });
     expect(t.recap).toEqual([{ rate: 21, base: 23800, vat: 4998, total: 28798 }]);
     expect(t.lines).toEqual([
@@ -44,8 +44,11 @@ describe('faktury: výpočet částek a DPH', () => {
   });
 
   it('číslo dokladu, variabilní symbol a splatnost', () => {
-    expect(invoiceNumber(2026, 42)).toBe('2026-0042');
-    expect(vsFromNumber('2026-0042')).toBe('20260042');
+    expect(documentNumber('payment_request', 2026, 123)).toBe('VP-2026-000123');
+    expect(documentNumber('payment_receipt', 2026, 45)).toBe('DP-2026-000045');
+    expect(documentNumber('correction', 2027, 1)).toBe('OD-2027-000001');
+    // výzva i navazující doklad k platbě mají týž variabilní symbol (z čísla výzvy)
+    expect(vsFromNumber('VP-2026-000123')).toBe('2026000123');
     expect(dueDate('2026-12-01')).toBe('2026-12-15');
     expect(dueDate('2026-12-25', 14)).toBe('2027-01-08');
   });

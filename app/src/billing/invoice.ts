@@ -115,12 +115,26 @@ export function computeInvoice(doc: InvoiceAmounts): InvoiceTotals {
   return { lines, recap, base, vat, total: round2(base + vat) };
 }
 
-/** Číslo dokladu v roční řadě: 2026-0042. */
-export function invoiceNumber(year: number, seq: number): string {
-  return `${year}-${String(seq).padStart(4, '0')}`;
+/**
+ * Druhy dokladů a jejich číselné řady (docs/business/faktury-nalezitosti.md, kap. 4.1):
+ * VP výzva k platbě (není daňový doklad), FV faktura / daňový doklad, DP daňový doklad k přijaté platbě,
+ * OD opravný daňový doklad / dobropis, PD doklad o zaplacení (provozovna → klient).
+ */
+export type DocumentKind = 'payment_request' | 'invoice' | 'payment_receipt' | 'correction' | 'receipt';
+export const DOCUMENT_SERIES: Record<DocumentKind, string> = {
+  payment_request: 'VP',
+  invoice: 'FV',
+  payment_receipt: 'DP',
+  correction: 'OD',
+  receipt: 'PD',
+};
+
+/** Číslo dokladu v roční řadě daného druhu: VP-2026-000123 (pořadí bez mezer, přiděluje se až při vystavení). */
+export function documentNumber(kind: DocumentKind, year: number, seq: number): string {
+  return `${DOCUMENT_SERIES[kind]}-${year}-${String(seq).padStart(6, '0')}`;
 }
 
-/** Variabilní symbol z čísla dokladu (jen číslice, nejvýš 10): 2026-0042 → 20260042. */
+/** Variabilní symbol z čísla dokladu (jen číslice, nejvýš 10): VP-2026-000123 → 2026000123. */
 export function vsFromNumber(number: string): string {
   return number.replace(/\D/g, '').slice(-10);
 }

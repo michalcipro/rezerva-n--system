@@ -9,7 +9,7 @@ slouží vlastníkovi platformy jen k dohledu, výjimkám a podpoře.
 | Otázka | Rozhodnutí |
 |---|---|
 | Veřejná registrace nových zákazníků | **Ne.** Provozovnu zakládá vlastník platformy v konzoli (po uzavření smlouvy). Majitel pak nastaví vše ostatní sám. |
-| Fakturace licencí | **Faktury vznikají přímo v aplikaci.** Nexum Care s.r.o. je plátce DPH (DIČ CZ29616484), ceny se fakturují s DPH, splatnost 14 dní, zálohové faktury se nepoužívají. |
+| Fakturace licencí | **Faktury vznikají přímo v aplikaci.** Nexum Care s.r.o. je plátce DPH (DIČ CZ29616484), ceny se fakturují s DPH, splatnost 14 dní. Doporučený postup (čeká na potvrzení): výzva k platbě → po připsání platby daňový doklad k přijaté platbě, viz [rešerše](business/faktury-nalezitosti.md), kap. 3. |
 | Platební brána (platby kartou online) | Zatím ne. |
 | SMS | Zatím ne – s klienty se komunikuje **jen e-mailem**. SMS jsou v rozhraní skryté, kód zůstává vypnutý pro případné pozdější použití. |
 
@@ -40,16 +40,19 @@ pro QR platby, šablony zpráv, vzhled (barva, logo), názvosloví, moduly, prá
    - **Při prvním přihlášení:** majitel kliknutím přijme licenční podmínky a smlouvu o zpracování osobních
      údajů. Uloží se verze, čas a kdo souhlasil, včetně souhlasu s elektronickými fakturami.
    - **Průvodce prvním nastavením:** navazuje na kontrolní seznam.
-5. **Předplatné a faktury za licenci**
+5. **Předplatné a faktury za licenci** (náležitosti a postup: [business/faktury-nalezitosti.md](business/faktury-nalezitosti.md))
    - **Stránka „Předplatné“ v administraci:** tarif, platnost, využití a faktury ke stažení.
    - **Tarify a limity:** Start / Standard / Profi (počet pracovníků, moduly) hlídá systém. Období je měsíc,
      rok nebo doživotní licence s ročním poplatkem za provoz.
-   - **Vystavování:** faktura (daňový doklad) se vystaví automaticky na začátku období a pošle se e-mailem
-     v PDF s QR Platbou.
-   - **Placení a připomínky:** platba na účet Nexum Care se spáruje podle VS a licence se sama prodlouží.
-     Před splatností a po ní odejdou připomínky.
+   - **Vystavování:** před začátkem období odejde e-mailem výzva k platbě (VP, není daňový doklad) v PDF
+     s QR Platbou. Po připsání platby na účet Nexum Care se spáruje podle VS, systém sám vystaví daňový
+     doklad k přijaté platbě (DP, datum přijetí úplaty) a prodlouží licenci. DPH tak vzniká jen z
+     přijatých peněz. Před splatností a po ní odejdou připomínky.
    - **Opravy:** opravný daňový doklad při změně tarifu, vrácení nebo chybě. Vystavený doklad se nemaže.
-   - **Pro účetní:** číselné řady, archiv 10 let, export (CSV, později ISDOC / účetní programy).
+   - **Pro účetní:** roční číselné řady bez mezer (VP, DP, OD), neměnný archiv 10 let, export
+     (CSV, později ISDOC / účetní programy), data pro kontrolní hlášení.
+   - **Smlouva:** souhlas odběratele s elektronickými doklady (§ 26 odst. 3 zákona o DPH) – návrh textu
+     v rešerši, kap. 4.5.
    - **Ukončení:** majitel zruší předplatné sám. Následuje export dat, 60 dní jen pro čtení a potom
      automatický výmaz.
 6. **Doklady provozoven klientům**
@@ -57,6 +60,9 @@ pro QR platby, šablony zpráv, vzhled (barva, logo), názvosloví, moduly, prá
      vlastní číselnou řadou, značkou a logem.
    - **Varianty:** plátce a neplátce DPH a osvobozená zdravotní služba. Na požádání klienta (zákon o ochraně
      spotřebitele) i automaticky po platbě.
+   - **EET 2.0 od 1. 1. 2027** (zákon č. 180/2026 Sb.): platby na recepci (hotově, kartou, QR) eviduje
+     provozovna – zdarma v aplikaci finanční správy MOJE EET, později případně přímo z platformy
+     (k rozhodnutí).
 7. **Adresa a web:** změna `/adresy` majitelem, vlastní doména s ověřením, tlačítko nebo okno „Rezervovat“
    pro vlastní web.
 8. **Bezpečnost:** dvoufázové přihlášení majitele, citlivé údaje jen pro majitele a šifrovaně, přehled
