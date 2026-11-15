@@ -319,11 +319,11 @@ describe('import klientů', () => {
     expect(tryRun(s, importClients, { rows: 'x' as unknown as ClientImportRow[], onDuplicate: 'skip' }, owner())).toMatch(/žádné řádky/);
   });
 
-  it('jen majitelka a recepce; prázdný soubor odmítne; výsledek je deterministický', () => {
+  it('jen majitel a recepce; prázdný soubor odmítne; výsledek je deterministický', () => {
     const { s } = setup();
     const rows = readImportFile('clients', CLIENTS_CSV).rows;
-    expect(tryRun(s, importClients, { rows, onDuplicate: 'skip' }, therapist())).toMatch(/majitelka nebo recepce/);
-    expect(tryRun(s, importClients, { rows, onDuplicate: 'skip' }, { now: NOW, actor: { role: 'client', name: 'Klient', clientId: 'x' } })).toMatch(/majitelka nebo recepce/);
+    expect(tryRun(s, importClients, { rows, onDuplicate: 'skip' }, therapist())).toMatch(/majitel nebo recepce/);
+    expect(tryRun(s, importClients, { rows, onDuplicate: 'skip' }, { now: NOW, actor: { role: 'client', name: 'Klient', clientId: 'x' } })).toMatch(/majitel nebo recepce/);
     expect(tryRun(s, importClients, { rows: [], onDuplicate: 'skip' }, owner())).toMatch(/žádné řádky/);
     const once = (): ClinicState => {
       const restore = withIdGenerator(sequentialIds('t'));
@@ -382,9 +382,9 @@ describe('import permanentek', () => {
     expect(again.state.packages).toHaveLength(2);
   });
 
-  it('jen majitelka a recepce', () => {
+  it('jen majitel a recepce', () => {
     const { s } = setup();
-    expect(tryRun(s, importPackages, { rows: readImportFile('packages', CSV).rows }, therapist())).toMatch(/majitelka nebo recepce/);
+    expect(tryRun(s, importPackages, { rows: readImportFile('packages', CSV).rows }, therapist())).toMatch(/majitel nebo recepce/);
   });
 });
 
@@ -417,6 +417,6 @@ describe('import kreditů', () => {
     const again = run(r.state, importCredits, { rows: file.rows.slice(0, 2) }, owner());
     expect(again.value).toMatchObject({ created: 0, skipped: 2 });
     expect(clientCredit(again.state, eva)).toBe(1500);
-    expect(tryRun(s, importCredits, { rows: file.rows }, therapist())).toMatch(/majitelka nebo recepce/);
+    expect(tryRun(s, importCredits, { rows: file.rows }, therapist())).toMatch(/majitel nebo recepce/);
   });
 });

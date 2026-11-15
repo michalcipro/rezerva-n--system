@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useClinic } from '../store/hooks';
+import { useClinic, useTerms } from '../store/hooks';
 import { Badge, Button, Callout, Icon, RadioCards } from '../ui';
 import { clinicPolicy, type PayOption, type TermsInfo } from './logic';
 import { Sheet } from './parts';
@@ -78,6 +78,7 @@ export function useSimulatedPayment(): { paying: boolean; run: (simulate: boolea
 
 /** Srozumitelné storno podmínky konkrétního termínu. */
 export function TermsBox({ terms, onShowPolicy, title = 'Storno podmínky' }: { terms: TermsInfo; onShowPolicy?: () => void; title?: string }): JSX.Element {
+  const words = useTerms();
   return (
     <section className="por-terms" aria-label={title}>
       <div className="por-terms__head">
@@ -91,7 +92,7 @@ export function TermsBox({ terms, onShowPolicy, title = 'Storno podmínky' }: { 
       </ul>
       {onShowPolicy && (
         <button type="button" className="link por-terms__link" onClick={onShowPolicy}>
-          Celé podmínky kliniky
+          Celé podmínky {words.business.gen}
         </button>
       )}
     </section>
@@ -120,11 +121,12 @@ export function PolicyList(): JSX.Element {
 }
 
 export function PolicySheet({ open, onClose }: { open: boolean; onClose: () => void }): JSX.Element {
+  const words = useTerms();
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Storno podmínky kliniky"
+      title={`Storno podmínky ${words.business.gen}`}
       footer={
         <Button variant="secondary" size="lg" full onClick={onClose}>
           Rozumím

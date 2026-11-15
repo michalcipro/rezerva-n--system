@@ -47,6 +47,7 @@ import {
   sessionsOnDate,
   type PackageUsage,
 } from '../../engine/selectors';
+import { makeTerms, termsFor } from '../../engine/terms';
 import { addDays, addMinutes, combine, dateOf, daysBetween, diffMinutes, minutesOfDay, timeFromMinutes, timeOf } from '../../engine/time';
 
 /* ------------------------------------------------------------------ */
@@ -563,7 +564,7 @@ export type PaymentsDraft = Pick<PaymentSettings, 'qrEnabled' | 'accountNumber' 
 
 export type SettingsDraft = Pick<
   Settings,
-  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'features'
+  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'features' | 'terms'
 > & { payments: PaymentsDraft };
 
 export function settingsDraftOf(s: Settings): SettingsDraft {
@@ -578,6 +579,8 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
     reminders: s.reminders,
     // starší data bez přepínačů: obojí zapnuté (stejně jako engine)
     features: { clinicalNotes: s.features ? !!s.features.clinicalNotes : true, cardPayments: s.features?.cardPayments !== false },
+    // starší data bez názvosloví: klinika / terapeut (stejně jako engine)
+    terms: s.terms ?? termsFor('klinika', 'terapeut'),
     payments: {
       qrEnabled: s.payments.qrEnabled,
       accountNumber: s.payments.accountNumber,
@@ -590,7 +593,7 @@ export function settingsDraftOf(s: Settings): SettingsDraft {
 /** Nejdelší jméno příjemce v QR Platbě (formát SPAYD). */
 export const RECIPIENT_MAX = 35;
 
-export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'clinic';
+export type SectionId = 'booking' | 'policy' | 'excuses' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'clinic' | 'terms';
 
 export function dirtySections(draft: SettingsDraft, base: SettingsDraft): SectionId[] {
   const out: SectionId[] = [];
@@ -610,6 +613,7 @@ export function dirtySections(draft: SettingsDraft, base: SettingsDraft): Sectio
     draft.senderEmail !== base.senderEmail
   )
     out.push('clinic');
+  if (!deepEqual(draft.terms, base.terms)) out.push('terms');
   return out;
 }
 
@@ -685,7 +689,7 @@ export function validateSettings(d: SettingsDraft): SettingsErrors {
   }
   if (pay.recipientName.trim().length > RECIPIENT_MAX) e['payments.recipientName'] = `Nejvýše ${RECIPIENT_MAX} znaků.`;
   if (!(pay.qrDueHours >= 1 && pay.qrDueHours <= 720)) e['payments.qrDueHours'] = 'Zadejte 1–720 hodin.';
-  if (!d.clinicName.trim()) e['clinic.clinicName'] = 'Zadejte název kliniky.';
+  if (!d.clinicName.trim()) e['clinic.clinicName'] = `Zadejte název ${makeTerms(d.terms).business.gen}.`;
   if (!d.senderName.trim()) e['clinic.senderName'] = 'Zadejte jméno odesílatele.';
   if (!isEmail(d.senderEmail)) e['clinic.senderEmail'] = 'Zadejte platný e-mail, např. rezervace@klinika.cz.';
   return e;

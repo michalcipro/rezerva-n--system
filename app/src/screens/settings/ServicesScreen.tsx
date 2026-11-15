@@ -4,7 +4,7 @@ import { upsertCategory, upsertService } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatMoney, formatPercent, formatTime } from '../../engine/format';
 import { getCategory, getRoom, getService, getTherapist, therapistShort } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import {
   Badge,
   Button,
@@ -254,6 +254,7 @@ function CategoryBlock({
   onDuplicate: (s: Service) => void;
 }): JSX.Element {
   const run = useCommand();
+  const words = useTerms();
   const headingId = `set-cat-${category.id}`;
   const activeCount = all.filter((s) => s.active).length;
 
@@ -334,7 +335,7 @@ function CategoryBlock({
                   Typ
                 </th>
                 <th scope="col" className="set-col-lg set-c-team">
-                  Terapeuti
+                  {words.StaffPl.nom}
                 </th>
                 <th scope="col" className="set-col-md set-c-online">
                   Online

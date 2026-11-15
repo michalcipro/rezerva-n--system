@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { Actor, ClinicState, Command, CommandResult, LocalDateTime } from '../domain/types';
+import { makeTerms, type Terms } from '../engine/terms';
 import { nowLocal } from '../engine/time';
 import { toast } from '../ui';
 import { actorFor, useSession } from './session';
@@ -19,6 +20,16 @@ export function useClinic(): ClinicState {
   const clinic = useStore((s) => s.clinic);
   if (!clinic) throw new Error('Data kliniky nejsou načtená.');
   return clinic;
+}
+
+/**
+ * Názvosloví provozovny (klinika × studio…, terapeut × trenér…) pro texty v UI:
+ *   const words = useTerms();  `Vyberte ${words.staff.acc}`  ·  {words.Business.nom}  ·  `${words.staff.adj('Vybraný')} ${words.staff.nom}`
+ * Bez načtených dat vrací výchozí klinika / terapeut.
+ */
+export function useTerms(): Terms {
+  const terms = useStore((s) => s.clinic?.settings.terms);
+  return useMemo(() => makeTerms(terms), [terms]);
 }
 
 /** Aktuální čas kliniky. Při skutečném čase se obnovuje každých 30 s. */

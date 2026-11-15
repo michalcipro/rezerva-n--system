@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Actor, ActorRole, ClinicState, Id, LocalDate } from '../domain/types';
 import { clientName, getClient, getTherapist, therapistName } from '../engine/selectors';
+import { termsOf } from '../engine/terms';
 
 /**
  * Nastavení konkrétního prohlížeče (role v testovacím režimu, otevřená obrazovka, motiv).
@@ -153,7 +154,7 @@ export function actorFor(s: Session, clinic: ClinicState | null): Actor {
     }
     case 'therapist': {
       const t = clinic && s.therapistId ? getTherapist(clinic, s.therapistId) : undefined;
-      return { role: 'therapist', name: t ? therapistName(t) : 'Terapeut', therapistId: s.therapistId ?? undefined };
+      return { role: 'therapist', name: t ? therapistName(t) : termsOf(clinic).Staff.nom, therapistId: s.therapistId ?? undefined };
     }
     case 'reception':
       return { role: 'reception', name: 'Recepce' };

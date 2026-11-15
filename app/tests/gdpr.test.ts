@@ -149,14 +149,14 @@ describe('export osobních údajů (GDPR)', () => {
     expect(clientDataExport(s, 'c_neni')).toBeNull();
     const logged = run(s, logClientDataExport, { clientId: id }, reception(T1)).state;
     expect(logged.audit[logged.audit.length - 1]).toMatchObject({ action: 'Export osobních údajů', clientId: id, actor: 'Recepce' });
-    expect(tryRun(s, logClientDataExport, { clientId: id }, asClient(T1, id))).toMatch(/majitelka nebo recepce/);
+    expect(tryRun(s, logClientDataExport, { clientId: id }, asClient(T1, id))).toMatch(/jen majitel nebo recepce/);
   });
 });
 
 describe('anonymizace klienta (GDPR)', () => {
-  it('jen majitelka; odmítne s nadcházející rezervací nebo čekající QR platbou a řekne, co udělat', () => {
+  it('jen majitel; odmítne s nadcházející rezervací nebo čekající QR platbou a řekne, co udělat', () => {
     const { s, id } = history();
-    expect(tryRun(s, anonymizeClient, { clientId: id }, reception(T1))).toMatch(/jen majitelka/);
+    expect(tryRun(s, anonymizeClient, { clientId: id }, reception(T1))).toMatch(/jen majitel kliniky\./);
     expect(tryRun(s, anonymizeClient, { clientId: 'c_neni' }, owner(T1))).toMatch(/neexistuje/);
 
     const upcoming = run(s, createBooking, { clientId: id, serviceId: 's_fyzio45', therapistId: 't_mala', start: '2026-11-20T09:00', payment: { method: 'onsite' } }, reception(T1)).state;

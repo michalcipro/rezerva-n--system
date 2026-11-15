@@ -3,7 +3,7 @@ import type { Client, Id } from '../../domain/types';
 import { createClient, updateClient } from '../../engine/commands';
 import { clientName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import { Button, Callout, Checkbox, Dialog, Field, Input, Select, Textarea } from '../../ui';
 import { allTags, digitsOf, normalize, SOURCE_LABEL } from './model';
@@ -108,6 +108,7 @@ export function NewClientDialog({ open, onClose, onCreated }: { open: boolean; o
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const formId = useId();
   const today = dateOf(now);
   const [draft, setDraft] = useState<ContactDraft>(EMPTY);
@@ -227,7 +228,7 @@ export function NewClientDialog({ open, onClose, onCreated }: { open: boolean; o
                     {m.key === 'gdpr' && <span className="cli-required"> (povinné)</span>}
                   </>
                 }
-                description={m.key === 'gdpr' ? 'Nutné pro vedení klienta, rezervace a vyúčtování.' : m.description}
+                description={m.key === 'gdpr' ? 'Nutné pro vedení klienta, rezervace a vyúčtování.' : m.description(words)}
                 aria-invalid={m.key === 'gdpr' && !!shown.gdpr ? true : undefined}
               />
             ))}

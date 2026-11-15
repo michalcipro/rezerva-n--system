@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Campaign, CampaignBlock, Id, SegmentDefinition } from '../../domain/types';
 import { deleteCampaign, saveCampaign } from '../../engine/commands';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Button, Card, CardHeader, ConfirmDialog, Field, IconButton, Input, Menu, type MenuEntry } from '../../ui';
 import { newBlockKey, type BlockList } from './BlockEditor';
 import { EmailCard, type EditorMode } from './EmailCard';
@@ -63,6 +63,7 @@ export function CampaignEditor({
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const readOnly = campaign.status === 'sent';
 
   const [draft, setDraft] = useState<CampaignDraft>(() => toDraft(campaign));
@@ -301,7 +302,7 @@ export function CampaignEditor({
                   <span className="com-sender__value">
                     {clinic.settings.senderName} <span className="com-sender__mail">&lt;{clinic.settings.senderEmail}&gt;</span>
                   </span>
-                  <span className="field__hint">Mění se v Nastavení v sekci Klinika.</span>
+                  <span className="field__hint">Mění se v Nastavení v sekci {words.Business.nom}.</span>
                 </div>
               </>
             )}

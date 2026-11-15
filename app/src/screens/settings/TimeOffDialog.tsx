@@ -4,7 +4,7 @@ import { addTimeOff, cancelSession } from '../../engine/commands';
 import { countLabel, formatDayShort, formatTime } from '../../engine/format';
 import { clientName, getClient, getService, getTherapist, therapistName, therapistShort } from '../../engine/selectors';
 import { addDays, combine, dateOf, isValidLocalDate } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Button, Callout, Checkbox, ChoiceChips, Dialog, Field, Input, Segmented, Select, toast } from '../../ui';
 import { TIME_OFF_REASONS, byOrder, describeRange, timeOffImpact } from './helpers';
@@ -25,6 +25,7 @@ export function TimeOffDialog({ therapistId, onClose }: { therapistId?: Id | nul
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const today = dateOf(now);
   const therapists = useMemo(() => clinic.therapists.filter((t) => t.active).sort(byOrder), [clinic.therapists]);
   const [who, setWho] = useState<string>(therapistId === null ? CLINIC : therapistId ?? therapists[0]?.id ?? CLINIC);
@@ -72,7 +73,7 @@ export function TimeOffDialog({ therapistId, onClose }: { therapistId?: Id | nul
     setSubmitted(true);
     if (!valid) return;
     const r = run(addTimeOff, { therapistId: target, start, end, reason: reasonText }, {
-      success: isClinic ? `Zavření kliniky uloženo (${describeRange(start, end)})` : `Nepřítomnost uložena (${describeRange(start, end)})`,
+      success: isClinic ? `Zavření ${words.business.gen} uloženo (${describeRange(start, end)})` : `Nepřítomnost uložena (${describeRange(start, end)})`,
     });
     if (!r.ok) return;
     if (cancelLessons && impact.sessions.length) {
@@ -108,11 +109,11 @@ export function TimeOffDialog({ therapistId, onClose }: { therapistId?: Id | nul
       open
       onClose={onClose}
       size="md"
-      title={isClinic ? 'Zavřít kliniku' : 'Nepřítomnost'}
+      title={isClinic ? `Zavřít ${words.business.acc}` : 'Nepřítomnost'}
       description={
         isClinic
-          ? 'Celá klinika bude zavřená – online rezervace v tomto čase nenabídne žádný termín.'
-          : 'Terapeut nebude v tomto čase k dispozici pro nové rezervace.'
+          ? `${words.business.adj('Celý')} ${words.business.nom} bude ${words.business.adj('zavřený')} – online rezervace v tomto čase nenabídne žádný termín.`
+          : `${words.Staff.nom} nebude v tomto čase k dispozici pro nové rezervace.`
       }
       footer={
         <>
@@ -120,7 +121,7 @@ export function TimeOffDialog({ therapistId, onClose }: { therapistId?: Id | nul
             Zpět
           </Button>
           <Button variant="primary" icon="check" onClick={save}>
-            {isClinic ? 'Zavřít kliniku' : 'Uložit nepřítomnost'}
+            {isClinic ? `Zavřít ${words.business.acc}` : 'Uložit nepřítomnost'}
           </Button>
         </>
       }
@@ -131,7 +132,7 @@ export function TimeOffDialog({ therapistId, onClose }: { therapistId?: Id | nul
             value={who}
             onValueChange={setWho}
             options={[
-              { value: CLINIC, label: 'Celá klinika (zavřeno)' },
+              { value: CLINIC, label: `${words.business.adj('Celý')} ${words.business.nom} (zavřeno)` },
               ...therapists.map((t) => ({ value: t.id, label: therapistName(t) })),
             ]}
           />

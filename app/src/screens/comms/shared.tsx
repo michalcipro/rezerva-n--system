@@ -1,6 +1,7 @@
 import { Fragment, forwardRef, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import type { Campaign, ClinicState } from '../../domain/types';
 import type { TemplateVars } from '../../engine/messages';
+import { termsOf } from '../../engine/terms';
 import { Badge, cx, type BadgeTone, type DotShape } from '../../ui';
 import { splitTokens } from './lib';
 
@@ -133,7 +134,7 @@ export function MarketingFooter({ clinic }: { clinic: ClinicState }): JSX.Elemen
   return (
     <>
       <p>
-        Toto je obchodní sdělení kliniky {clinic.settings.clinicName}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek.{' '}
+        Toto je obchodní sdělení {termsOf(clinic).business.gen} {clinic.settings.clinicName}. Dostáváte ho, protože jste nám udělili souhlas se zasíláním novinek.{' '}
         <span className="com-email__link">Odhlásit odběr</span> · <span className="com-email__link">Nastavení preferencí</span>
       </p>
       <p className="com-email__legal">
@@ -147,7 +148,7 @@ export function MarketingFooter({ clinic }: { clinic: ClinicState }): JSX.Elemen
 export function ServiceFooter({ clinic }: { clinic: ClinicState }): JSX.Element {
   return (
     <>
-      <p>Tuto zprávu dostáváte, protože u nás máte rezervaci nebo účet. Termíny spravujete v aplikaci kliniky.</p>
+      <p>Tuto zprávu dostáváte, protože u nás máte rezervaci nebo účet. Termíny spravujete v aplikaci {termsOf(clinic).business.gen}.</p>
       <p className="com-email__legal">
         {clinic.settings.senderName} · {clinic.settings.senderEmail}
       </p>

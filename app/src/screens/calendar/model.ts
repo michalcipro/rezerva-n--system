@@ -30,6 +30,7 @@ import {
   sessionParticipants,
   sessionsOnDate,
 } from '../../engine/selectors';
+import { termsOf } from '../../engine/terms';
 import { addDays, addMinutes, dateOf, daysBetween, minutesOf, minutesOfDay, startOfWeek, weekdayOf } from '../../engine/time';
 
 /* ------------------------------------------------------------------ */
@@ -232,7 +233,7 @@ export function columnLayout(
     .map((t) => ({
       startMin: t.start <= dayStart ? 0 : minuteIn(t.start, date),
       endMin: t.end >= dayEnd ? 1440 : minuteIn(t.end, date),
-      label: t.reason.trim() || (t.therapistId === null ? 'Klinika zavřená' : 'Nepřítomnost'),
+      label: t.reason.trim() || (t.therapistId === null ? `${termsOf(s).Business.nom} ${termsOf(s).business.adj('zavřený')}` : 'Nepřítomnost'),
     }))
     .map((t) => ({ ...t, startMin: Math.max(t.startMin, range.startMin), endMin: Math.min(t.endMin, range.endMin) }))
     .filter((t) => t.endMin > t.startMin);
@@ -391,7 +392,6 @@ export const GHOST_LABEL: Partial<Record<BookingStatus, string>> = {
   cancelled: 'Zrušeno',
   late_cancelled: 'Pozdní storno',
   excused: 'Omluveno',
-  clinic_cancelled: 'Zrušeno klinikou',
 };
 
 /* ------------------------------------------------------------------ */

@@ -22,6 +22,7 @@ import {
   sessionParticipants,
   sessionsOnDate,
 } from './selectors';
+import { termsOf } from './terms';
 import {
   addDays,
   addMinutes,
@@ -358,7 +359,7 @@ export function checkBookingSlot(
   const therapist = getTherapist(s, q.therapistId);
   const client = getClient(s, q.clientId);
   if (!service) return { ok: false, errors: ['Služba neexistuje.'], warnings };
-  if (!therapist) return { ok: false, errors: ['Terapeut neexistuje.'], warnings };
+  if (!therapist) return { ok: false, errors: [`${termsOf(s).Staff.nom} neexistuje.`], warnings };
   if (!client) return { ok: false, errors: ['Klient neexistuje.'], warnings };
   const strict = q.mode === 'client';
   const push = (msg: string, hard: boolean): void => {
@@ -404,10 +405,10 @@ export function checkBookingSlot(
   const endBuf = addMinutes(end, service.bufferMin);
   const date = dateOf(q.start);
   const ivs = workingIntervals(s, therapist.id, date);
-  if (!ivs.some((iv) => iv.start <= q.start && end <= iv.end)) push('Termín je mimo pracovní dobu terapeuta.', strict);
+  if (!ivs.some((iv) => iv.start <= q.start && end <= iv.end)) push(`Termín je mimo pracovní dobu ${termsOf(s).staff.gen}.`, strict);
   const blocks = busyBlocks(s, therapist.id, date, { ignoreBookingId: q.ignoreBookingId });
   const clash = blocks.find((b) => overlaps(q.start, endBuf, b.start, b.endWithBuffer));
-  if (clash) push('Terapeut má v tomto čase jinou rezervaci.', true);
+  if (clash) push(`${termsOf(s).Staff.nom} má v tomto čase jinou rezervaci.`, true);
   const clientClash = bookingsOfClient(s, client.id).find(
     (b) => b.id !== q.ignoreBookingId && isOccupying(b.status) && overlaps(q.start, end, b.start, b.end),
   );

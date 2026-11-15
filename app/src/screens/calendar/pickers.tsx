@@ -19,7 +19,7 @@ import {
   therapistName,
 } from '../../engine/selectors';
 import { addDays, combine, dateOf, minutesOf, timeOf } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import {
   Avatar,
   Badge,
@@ -400,6 +400,7 @@ export function SlotPicker({
 }: SlotPickerProps): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const isPhone = useMediaQuery(PHONE_QUERY);
   const today = dateOf(now);
   const slots: Slot[] = useMemo(() => {
@@ -448,7 +449,7 @@ export function SlotPicker({
               compact
               icon="calendarX"
               title={date < today ? 'V minulosti se volné časy nenabízejí' : 'Tento den nejsou volné časy'}
-              text={nextDate ? `Nejbližší volný den: ${formatDayShort(nextDate)}.` : 'V příštích 60 dnech není volný termín. Zkuste jiného terapeuta.'}
+              text={nextDate ? `Nejbližší volný den: ${formatDayShort(nextDate)}.` : `V příštích 60 dnech není volný termín. Zkuste ${words.staff.agree('jiného', 'jinou', 'jiné', 'jiný')} ${words.staff.acc}.`}
               action={
                 <div className="cal-row">
                   {nextDate && (
@@ -516,7 +517,7 @@ export function SlotPicker({
         <div className="cal-manual">
           {therapistId === 'any' ? (
             <Callout tone="info" title="Ruční čas">
-              Pro ruční zadání času vyberte konkrétního terapeuta.
+              Pro ruční zadání času vyberte {words.staff.agree('konkrétního', 'konkrétní', 'konkrétní', 'konkrétní')} {words.staff.acc}.
             </Callout>
           ) : (
             <Field label="Začátek" hint="Po 15 minutách. Mimo volné časy uvidíte upozornění.">

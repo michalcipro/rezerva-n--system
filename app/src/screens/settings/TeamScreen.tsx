@@ -7,7 +7,7 @@ import { removeTimeOff } from '../../engine/commands';
 import { WEEKDAY_SHORT, countLabel, formatDayShort, formatPercent } from '../../engine/format';
 import { getRoom, getTherapist, therapistName } from '../../engine/selectors';
 import { addDays, dateOf, startOfWeek } from '../../engine/time';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import {
   Badge,
   Button,
@@ -48,6 +48,7 @@ export function TeamScreen(): JSX.Element {
   const clinic = useClinic();
   const role = useSession().role;
   const now = useNow();
+  const words = useTerms();
   const [edit, setEdit] = useState<{ therapist: Therapist; tab?: TherapistTab } | null>(null);
   const [timeOffFor, setTimeOffFor] = useState<{ therapistId?: Id | null } | null>(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -78,14 +79,14 @@ export function TeamScreen(): JSX.Element {
     <div className="page set-page">
       <PageHeader
         title="Tým a směny"
-        subtitle={`${countLabel(active.length, ['aktivní terapeut', 'aktivní terapeuti', 'aktivních terapeutů'])} · ${hoursLabel(weekly)} pracovní doby týdně`}
+        subtitle={`${countLabel(active.length, [`aktivní ${words.staff.nom}`, `aktivní ${words.staffPl.nom}`, `aktivních ${words.staffPl.gen}`])} · ${hoursLabel(weekly)} pracovní doby týdně`}
         actions={
           <>
             <Button variant="secondary" icon="calendarX" onClick={() => setTimeOffFor({})}>
               Přidat nepřítomnost
             </Button>
             <Button variant="primary" icon="userPlus" onClick={() => setEdit({ therapist: newTherapist(clinic) })}>
-              Nový terapeut
+              {words.staff.adj('Nový')} {words.staff.nom}
             </Button>
           </>
         }
@@ -94,7 +95,7 @@ export function TeamScreen(): JSX.Element {
       <section className="set-stack" aria-labelledby="set-team-h">
         <div className="set-section-head">
           <h2 id="set-team-h" className="eyebrow">
-            Terapeuti a pracovní doba
+            {words.StaffPl.nom} a pracovní doba
           </h2>
           {inactiveCount > 0 && (
             <Switch checked={showInactive} onChange={setShowInactive} label={`Zobrazit neaktivní (${inactiveCount})`} labelPosition="end" />
@@ -105,10 +106,10 @@ export function TeamScreen(): JSX.Element {
             <EmptyState
               icon="users"
               title="V týmu zatím nikdo není"
-              text="Přidejte terapeuty s jejich pracovní dobou – teprve pak půjde vytvářet rezervace."
+              text={`Přidejte ${words.staffPl.acc} s jejich pracovní dobou – teprve pak půjde vytvářet rezervace.`}
               action={
                 <Button variant="primary" icon="userPlus" onClick={() => setEdit({ therapist: newTherapist(clinic) })}>
-                  Přidat prvního terapeuta
+                  Přidat {words.staff.agree('prvního', 'první', 'první', 'první')} {words.staff.acc}
                 </Button>
               }
             />
@@ -165,6 +166,7 @@ function TherapistCard({
   onEdit: (tab?: TherapistTab) => void;
   onTimeOff: () => void;
 }): JSX.Element {
+  const words = useTerms();
   const headingId = `set-th-${t.id}`;
   const weekly = weekMinutes(t);
   const nextOff = [...off].sort((a, b) => (a.start < b.start ? -1 : 1))[0];
@@ -185,7 +187,7 @@ function TherapistCard({
           items={[
             { id: 'profile', label: 'Upravit profil', icon: 'user', onSelect: () => onEdit('profile') },
             { id: 'hours', label: 'Upravit pracovní dobu', icon: 'clock', onSelect: () => onEdit('hours') },
-            { id: 'services', label: 'Služby terapeuta', icon: 'briefcase', onSelect: () => onEdit('services') },
+            { id: 'services', label: `Služby ${words.staff.gen}`, icon: 'briefcase', onSelect: () => onEdit('services') },
             { type: 'separator' },
             { id: 'off', label: 'Přidat nepřítomnost', icon: 'calendarX', onSelect: onTimeOff, disabled: !t.active },
           ]}
@@ -261,6 +263,7 @@ function TherapistCard({
 function CapacityCard(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const today = dateOf(now);
   const thisWeek = startOfWeek(today);
   const [weekStart, setWeekStart] = useState(thisWeek);
@@ -301,12 +304,12 @@ function CapacityCard(): JSX.Element {
         }
       />
       {rows.length === 0 ? (
-        <EmptyState compact icon="clock" title="Žádní aktivní terapeuti" />
+        <EmptyState compact icon="clock" title={`${words.staffPl.adj('Žádný')} aktivní ${words.staffPl.nom}`} />
       ) : (
-        <Table caption="Pracovní hodiny terapeutů v týdnu" className="set-cap-table" minWidth={640}>
+        <Table caption={`Pracovní hodiny ${words.staffPl.gen} v týdnu`} className="set-cap-table" minWidth={640}>
           <thead>
             <tr>
-              <th scope="col">Terapeut</th>
+              <th scope="col">{words.Staff.nom}</th>
               {dates.map((d, i) => (
                 <th key={d} scope="col" className={cx('num', d === today && 'is-today')} aria-label={formatDayShort(d)}>
                   {WEEKDAY_SHORT[i]} {Number(d.slice(8, 10))}.
@@ -336,7 +339,7 @@ function CapacityCard(): JSX.Element {
                       key={d.date}
                       className={cx('num', 'set-cap-cell', d.date === today && 'is-today', (d.off || d.closed) && 'is-off')}
                       title={
-                        d.closed ? 'Klinika zavřená' : d.off ? `Nepřítomnost – plánováno ${hoursLabel(d.nominal)}` : undefined
+                        d.closed ? `${words.Business.nom} ${words.business.adj('zavřený')}` : d.off ? `Nepřítomnost – plánováno ${hoursLabel(d.nominal)}` : undefined
                       }
                     >
                       {d.closed && d.minutes === 0 ? (
@@ -400,6 +403,7 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const [view, setView] = useState<'upcoming' | 'past'>('upcoming');
   const [removing, setRemoving] = useState<TimeOff | null>(null);
 
@@ -440,8 +444,8 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
               </Button>
             }
             items={[
-              { id: 'person', label: 'Nepřítomnost terapeuta', icon: 'user', onSelect: () => onAdd(undefined) },
-              { id: 'clinic', label: 'Zavřít celou kliniku', icon: 'building', onSelect: () => onAdd(null) },
+              { id: 'person', label: `Nepřítomnost ${words.staff.gen}`, icon: 'user', onSelect: () => onAdd(undefined) },
+              { id: 'clinic', label: `Zavřít ${words.business.agree('celého', 'celou', 'celé', 'celý')} ${words.business.acc}`, icon: 'building', onSelect: () => onAdd(null) },
             ]}
           />
         }
@@ -489,7 +493,7 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
                   )}
                   <div className="set-offlist__text">
                     <span className="set-offlist__who">
-                      {o.therapistId === null ? 'Celá klinika – zavřeno' : t ? therapistName(t) : 'Neznámý terapeut'}
+                      {o.therapistId === null ? `${words.business.adj('Celý')} ${words.business.nom} – zavřeno` : t ? therapistName(t) : `${words.staff.adj('Neznámý')} ${words.staff.nom}`}
                     </span>
                     <span className="set-offlist__range tnum">{describeRange(o.start, o.end)}</span>
                     <span className="set-offlist__badges">
@@ -517,10 +521,10 @@ function TimeOffCard({ onAdd }: { onAdd: (therapistId?: Id | null) => void }): J
         open={!!removing}
         onClose={() => setRemoving(null)}
         tone="danger"
-        title={removing?.therapistId === null ? 'Zrušit zavření kliniky?' : 'Odebrat nepřítomnost?'}
+        title={removing?.therapistId === null ? `Zrušit zavření ${words.business.gen}?` : 'Odebrat nepřítomnost?'}
         message={
           removing
-            ? `${removing.therapistId === null ? 'Celá klinika' : therapistName(getTherapist(clinic, removing.therapistId))} · ${describeRange(removing.start, removing.end)}${removing.reason ? ` · ${removing.reason}` : ''}. Čas se znovu uvolní pro online rezervace.`
+            ? `${removing.therapistId === null ? `${words.business.adj('Celý')} ${words.business.nom}` : therapistName(getTherapist(clinic, removing.therapistId))} · ${describeRange(removing.start, removing.end)}${removing.reason ? ` · ${removing.reason}` : ''}. Čas se znovu uvolní pro online rezervace.`
             : undefined
         }
         confirmLabel="Odebrat"

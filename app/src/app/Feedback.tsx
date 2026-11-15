@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { ClinicState } from '../domain/types';
 import { formatDateTimeShort } from '../engine/format';
 import { clientName, therapistName } from '../engine/selectors';
+import { termsOf } from '../engine/terms';
 import { useNow, useStore } from '../store/hooks';
 import { useSession, type Session } from '../store/session';
 import { Button, Dialog, Field, Icon, IconButton, Input, Textarea, toast } from '../ui';
@@ -111,7 +112,7 @@ const PORTAL_SCREEN: Record<Session['portalRoute']['name'], string> = {
 };
 
 const ROLE_LABEL: Record<Session['role'], string> = {
-  owner: 'Majitelka',
+  owner: 'Majitel',
   reception: 'Recepce',
   therapist: 'Terapeut',
   client: 'Klient',
@@ -141,7 +142,7 @@ export function describeContext(
     if (route.name === 'kalendar') screen += session.calendarView === 'week' ? ' (týden)' : ' (den)';
     parts.push(screen);
     if (session.role === 'therapist') {
-      parts.push(ROLE_LABEL.therapist + ' ' + therapistName(clinic.therapists.find((t) => t.id === session.therapistId)));
+      parts.push(termsOf(clinic).Staff.nom + ' ' + therapistName(clinic.therapists.find((t) => t.id === session.therapistId)));
     } else {
       parts.push(ROLE_LABEL[session.role]);
     }

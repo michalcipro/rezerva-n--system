@@ -3,7 +3,7 @@ import type { Id } from '../../domain/types';
 import { cancelPaymentRequest, confirmPaymentRequest, createPaymentRequest, receiveQrPayment, type PaymentRequestInput } from '../../engine/commands';
 import { nextVs, pendingRequestFor, qrReady } from '../../engine/qr';
 import { getClient } from '../../engine/selectors';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate, useSession } from '../../store/session';
 import { Button, Callout, Dialog } from '../../ui';
 import { QrPaymentCard } from './QrPaymentCard';
@@ -40,6 +40,7 @@ function QrPaymentDialogInner({ onClose, requestId, draft, onDone }: QrPaymentDi
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const session = useSession();
   // variabilní symbol nové platby se určí jednou při otevření, aby se QR nepřekresloval
   const [draftVs] = useState(() => nextVs(clinic, now));
@@ -141,7 +142,7 @@ function QrPaymentDialogInner({ onClose, requestId, draft, onDone }: QrPaymentDi
             ) : undefined
           }
         >
-          Doplňte číslo účtu kliniky v Nastavení → Platby a zapněte QR platbu.
+          Doplňte číslo účtu {words.business.gen} v Nastavení → Platby a zapněte QR platbu.
         </Callout>
       ) : request ? (
         <QrPaymentCard

@@ -6,7 +6,7 @@ import { getBooking, getRoom, therapistName, therapistShort } from '../../engine
 import { daySummary } from '../../engine/stats';
 import { addDays, dateOf } from '../../engine/time';
 import { TherapistAvatar } from '../../components/domain';
-import { useActor, useClinic, useNow } from '../../store/hooks';
+import { useActor, useClinic, useNow, useTerms } from '../../store/hooks';
 import { navigate, setSession, useSession } from '../../store/session';
 import { Badge, Button, EmptyState, IconButton, Input, PageHeader, Progress, Segmented, Select, Swatch, Switch, cx, toast } from '../../ui';
 import { BookingDrawer, SessionDrawer } from './BookingDrawer';
@@ -36,6 +36,7 @@ export function CalendarScreen(): JSX.Element {
   const now = useNow();
   const session = useSession();
   const actor = useActor();
+  const words = useTerms();
   const isPhone = useMediaQuery(PHONE_QUERY);
   const today = dateOf(now);
   const date: LocalDate = session.calendarDate ?? today;
@@ -133,8 +134,8 @@ export function CalendarScreen(): JSX.Element {
         <PageHeader title="Kalendář" />
         <EmptyState
           icon="users"
-          title="V kalendáři zatím nejsou žádní terapeuti"
-          text="Přidejte terapeuty a jejich pracovní dobu v sekci Tým a směny – potom se tu objeví jejich sloupce."
+          title={`V kalendáři zatím nejsou ${words.staffPl.adj('žádný')} ${words.staffPl.nom}`}
+          text={`Přidejte ${words.staffPl.acc} a jejich pracovní dobu v sekci Tým a směny – potom se tu objeví jejich sloupce.`}
           action={
             <Button variant="primary" onClick={() => navigate({ name: 'tym' })}>
               Otevřít Tým a směny
@@ -207,14 +208,14 @@ export function CalendarScreen(): JSX.Element {
             />
             {!isPhone && (
               <Select
-                aria-label="Terapeut"
-                prefix="Terapeut:"
+                aria-label={words.Staff.nom}
+                prefix={`${words.Staff.nom}:`}
                 inline
                 className="cal-filter"
                 value={view === 'week' ? focusId ?? '' : filter}
                 onValueChange={(v) => setSession({ calendarTherapist: v })}
                 options={[
-                  ...(view === 'day' ? [{ value: 'all', label: 'Všichni' }] : []),
+                  ...(view === 'day' ? [{ value: 'all', label: words.staffPl.agree('Všichni', 'Všechny', 'Všechna') }] : []),
                   ...therapists.map((t) => ({ value: t.id, label: therapistName(t) })),
                 ]}
               />
@@ -225,7 +226,7 @@ export function CalendarScreen(): JSX.Element {
 
       {isPhone && focusId && (
         <Segmented
-          aria-label="Terapeut"
+          aria-label={words.Staff.nom}
           className="cal-phonepick"
           value={focusId}
           onChange={(id) => setSession({ calendarTherapist: id })}
@@ -238,7 +239,7 @@ export function CalendarScreen(): JSX.Element {
       <div className="split cal-split">
         <div className="split__main">
           {columns.length === 0 ? (
-            <EmptyState icon="calendar" title="Pro tento výběr není co zobrazit" text="Terapeut je neaktivní nebo nemá v tomto týdnu žádný den." />
+            <EmptyState icon="calendar" title="Pro tento výběr není co zobrazit" text={`${words.Staff.nom} je neaktivní nebo nemá v tomto týdnu žádný den.`} />
           ) : (
             <TimeGrid
               columns={columns}
@@ -247,7 +248,7 @@ export function CalendarScreen(): JSX.Element {
               selectedId={selection?.id ?? null}
               showCancelled={showCancelled}
               colMinWidth={view === 'week' ? 104 : single ? 220 : 124}
-              ariaLabel={view === 'week' ? `Týdenní rozvrh – ${focus ? therapistName(focus) : ''}` : `Rozvrh terapeutů – ${formatDateLong(date)}`}
+              ariaLabel={view === 'week' ? `Týdenní rozvrh – ${focus ? therapistName(focus) : ''}` : `Rozvrh ${words.staffPl.gen} – ${formatDateLong(date)}`}
               scrollKey={`${view}|${dates[0]}|${columns.length}`}
               footer={legend}
               onOpenBooking={(id) => setSelection({ kind: 'booking', id })}

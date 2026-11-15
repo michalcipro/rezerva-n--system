@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActorRole } from '../domain/types';
 import { clientName } from '../engine/selectors';
+import type { Terms } from '../engine/terms';
 import { CalendarScreen, NewBookingDialog } from '../screens/calendar';
 import { ClientDetailScreen, ClientsScreen } from '../screens/clients';
 import { CommsScreen } from '../screens/comms';
@@ -8,7 +9,7 @@ import { GroupsScreen } from '../screens/groups';
 import { PackagesScreen, ServicesScreen, SettingsScreen, TeamScreen } from '../screens/settings';
 import { DashboardScreen, StatsScreen } from '../screens/stats';
 import { VisitsScreen } from '../screens/visits';
-import { useClinic } from '../store/hooks';
+import { useClinic, useTerms } from '../store/hooks';
 import { navigate, useSession, type AdminRoute } from '../store/session';
 import { SERVER_MODE } from '../api/config';
 import { useStore } from '../store/hooks';
@@ -55,7 +56,7 @@ const ACCESS: Record<ActorRole, NavId[]> = {
   client: [],
 };
 
-const ROLE_LABEL: Record<ActorRole, string> = { owner: 'majitelka', reception: 'recepce', therapist: 'terapeut', client: 'klient' };
+const roleLabels = (words: Terms): Record<ActorRole, string> => ({ owner: 'majitel', reception: 'recepce', therapist: words.staff.nom, client: 'klient' });
 
 function GlobalSearch(): JSX.Element {
   const clinic = useClinic();
@@ -151,6 +152,7 @@ function GlobalSearch(): JSX.Element {
 export function AdminApp(): JSX.Element {
   const clinic = useClinic();
   const session = useSession();
+  const words = useTerms();
   const person = useTestPersonName();
   const [newBooking, setNewBooking] = useState(false);
   const allowed = ACCESS[session.role] ?? [];
@@ -170,7 +172,7 @@ export function AdminApp(): JSX.Element {
       <EmptyState
         icon="lock"
         title="Sem tato role nemá přístup"
-        text={SERVER_MODE ? 'Statistiky a nastavení vidí jen majitel kliniky.' : 'Statistiky a nastavení vidí jen majitelka. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře.'}
+        text={SERVER_MODE ? `Statistiky a nastavení vidí jen majitel ${words.business.gen}.` : 'Statistiky a nastavení vidí jen majitel. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře.'}
         action={<Button variant="primary" onClick={() => navigate({ name: 'kalendar' })}>Otevřít kalendář</Button>}
       />
       </div>
@@ -248,7 +250,7 @@ export function AdminApp(): JSX.Element {
             <Avatar initials={initials || 'TM'} tone="teal" size="sm" />
             <div className="sb-user__text">
               <span className="sb-user__name">{person}</span>
-              <span className="sb-user__role">{ROLE_LABEL[session.role]}</span>
+              <span className="sb-user__role">{roleLabels(words)[session.role]}</span>
             </div>
             {SERVER_MODE && (
               <IconButton icon="logout" size="sm" variant="ghost" label="Odhlásit se" className="sb-user__logout" onClick={() => void logout()} />

@@ -322,6 +322,18 @@
 .set-mailpreview__from { font-size: var(--text-md); line-height: var(--leading-md); }
 .set-mailpreview__subject { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
 
+/* ---------- Náhled názvosloví ---------- */
+.set-terms-preview {
+  max-width: 620px;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
 /* ---------- Živý náhled storno podmínek ---------- */
 .set-preview {
   display: flex;

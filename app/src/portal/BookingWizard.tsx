@@ -29,7 +29,7 @@ import {
   therapistShort,
 } from '../engine/selectors';
 import { addDays, dateOf, daysBetween, weekdayOf } from '../engine/time';
-import { useClinic, useCommand, useNow } from '../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import type { PortalRoute } from '../store/session';
 import {
   ActionBar,
@@ -155,6 +155,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const { client, go, scrollToTop } = usePortal();
   const today = dateOf(now);
   const [flow] = useState(() => resolveFlow(clinic, client.id, route, now));
@@ -331,7 +332,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
   if (!query || !therapistId) {
     return (
       <Screen title={title} onBack={back} dock={null}>
-        <EmptyState icon="info" title="Vyberte terapeuta" action={<Button onClick={() => setStep('terapeut')}>Vybrat</Button>} />
+        <EmptyState icon="info" title={`Vyberte ${words.staff.acc}`} action={<Button onClick={() => setStep('terapeut')}>Vybrat</Button>} />
       </Screen>
     );
   }
@@ -531,7 +532,7 @@ export function BookingWizard({ route }: { route: RezervaceRoute }): JSX.Element
           <PaymentPicker options={payOpts} value={effectivePayKey} onChange={setPayKey} />
           {online && payment && <SimulatedPaymentNote amount={formatMoney(payment.amount)} />}
           {qr && payment && <QrChoiceNote amount={payment.amount} dueAt={qrDueAt(clinic, slot.start, now)} />}
-          <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : 'terapeuta'}`} optional hint="Uvidí ji jen personál kliniky.">
+          <Field label={`Poznámka pro ${service.kind === 'group' ? 'lektora' : words.staff.acc}`} optional hint={`Uvidí ji jen personál ${words.business.gen}.`}>
             <Textarea rows={2} maxLength={300} value={note} onValueChange={setNote} placeholder="Např. budu potřebovat fakturu na firmu" />
           </Field>
         </>
@@ -666,6 +667,7 @@ function RescheduleNote({ flow }: { flow: Flow }): JSX.Element {
 function ServiceStep({ flow, onPick }: { flow: Flow; onPick: (svc: Service) => void }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const { client, go } = usePortal();
   const today = dateOf(now);
   const [cat, setCat] = useState<string>('all');
@@ -694,7 +696,7 @@ function ServiceStep({ flow, onPick }: { flow: Flow; onPick: (svc: Service) => v
       <EmptyState
         icon="calendarX"
         title="Online teď nic rezervovat nelze"
-        text="Klinika zatím nenabízí žádné služby k online rezervaci. Ozvěte se prosím na recepci."
+        text={`${words.Business.nom} zatím nenabízí žádné služby k online rezervaci. Ozvěte se prosím na recepci.`}
       />
     );
   }
@@ -1327,6 +1329,7 @@ function SessionList({
 function BookingPreview({ service, slot, original }: { service: Service; slot: Slot; original?: Booking }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const cat = getCategory(clinic, service.categoryId);
   const t = getTherapist(clinic, slot.therapistId);
   const ses = slot.sessionId ? getSession(clinic, slot.sessionId) : undefined;
@@ -1346,7 +1349,7 @@ function BookingPreview({ service, slot, original }: { service: Service; slot: S
       <DescriptionList
         termWidth={92}
         items={[
-          { term: service.kind === 'group' ? 'Lektor' : 'Terapeut', detail: therapistName(t) },
+          { term: service.kind === 'group' ? 'Lektor' : words.Staff.nom, detail: therapistName(t) },
           { term: 'Místo', detail: place || '—' },
           { term: 'Cena', detail: <span className="tnum">{formatMoney(service.priceCzk)}</span> },
           ...(original
@@ -1365,6 +1368,7 @@ function BookingPreview({ service, slot, original }: { service: Service; slot: S
 function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; rescheduledFrom?: Booking; onHome: () => void }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const { client, go } = usePortal();
   const b = getBooking(clinic, bookingId);
   if (!b) {
@@ -1410,7 +1414,7 @@ function DoneStep({ bookingId, rescheduledFrom, onHome }: { bookingId: Id; resch
           termWidth={92}
           items={[
             { term: 'Kdy', detail: <span className="tnum">{`${formatDateLong(b.start, { capital: true })}, ${formatTimeRange(b.start, b.end)}`}</span> },
-            { term: b.sessionId ? 'Lektor' : 'Terapeut', detail: therapistName(t) },
+            { term: b.sessionId ? 'Lektor' : words.Staff.nom, detail: therapistName(t) },
             { term: 'Místo', detail: placeLabel(clinic, b) || '—' },
             {
               term: 'Platba',

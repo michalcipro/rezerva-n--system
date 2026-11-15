@@ -14,9 +14,10 @@ import {
 } from '../engine/format';
 import { isImportedPackage, type ImportedPackage } from '../engine/importer';
 import { clientCredit, packagesOfClient, packageUsage } from '../engine/selectors';
+import { prep, type Terms } from '../engine/terms';
 import { addDays, dateOf, daysBetween } from '../engine/time';
 import { SERVER_MODE } from '../api/config';
-import { useClinic, useCommand, useNow } from '../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import { logout } from '../store/server';
 import {
   ActionBar,
@@ -78,6 +79,7 @@ export function AccountScreen(): JSX.Element {
 function AccountRoot(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const { client, setAccountView, accountAction, clearAccountAction } = usePortal();
   const today = dateOf(now);
   // z domovské obrazovky „Zobrazit QR“ → rovnou na čekající platby
@@ -155,7 +157,7 @@ function AccountRoot(): JSX.Element {
         <div role="listitem">
           <ListRow
             icon="mail"
-            label="Zprávy od kliniky"
+            label={`Zprávy od ${words.business.gen}`}
             hint="Potvrzení, připomínky, nabídky"
             value={stats.messages ? String(stats.messages) : undefined}
             onClick={() => go('zpravy')}
@@ -192,6 +194,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function ProfileView({ onBack }: { onBack: () => void }): JSX.Element {
   const run = useCommand();
+  const words = useTerms();
   const { client } = usePortal();
   const [form, setForm] = useState({
     firstName: client.firstName,
@@ -267,7 +270,7 @@ function ProfileView({ onBack }: { onBack: () => void }): JSX.Element {
           <Input size="lg" type="date" value={form.birthDate} onValueChange={set('birthDate')} autoComplete="bday" />
         </Field>
       </form>
-      <p className="por-note">Údaje používáme jen pro vaše rezervace a komunikaci s klinikou.</p>
+      <p className="por-note">Údaje používáme jen pro vaše rezervace a komunikaci {prep('s', words.business.ins)}.</p>
     </Screen>
   );
 }
@@ -276,18 +279,18 @@ function ProfileView({ onBack }: { onBack: () => void }): JSX.Element {
 /* Souhlasy                                                            */
 /* ------------------------------------------------------------------ */
 
-const CONSENTS: { key: Exclude<keyof ClientConsents, 'gdpr'>; label: string; on: string; off: string }[] = [
+const consentRows = (words: Terms): { key: Exclude<keyof ClientConsents, 'gdpr'>; label: string; on: string; off: string }[] => [
   {
     key: 'health',
     label: 'Zdravotní dokumentace',
-    on: 'Terapeut si vede poznámky o průběhu terapie.',
-    off: 'Bez souhlasu si terapeut nemůže vést poznámky o vašem zdravotním stavu.',
+    on: `${words.Staff.nom} si vede poznámky o průběhu terapie.`,
+    off: `Bez souhlasu si ${words.staff.nom} nemůže vést poznámky o vašem zdravotním stavu.`,
   },
   { key: 'sms', label: 'SMS zprávy', on: 'Připomínky termínů a nabídky uvolněných termínů.', off: 'Připomínky a nabídky dostanete jen e-mailem.' },
   {
     key: 'marketingEmail',
     label: 'Novinky a nabídky e-mailem',
-    on: 'Občas pošleme tipy na cvičení a akce kliniky.',
+    on: `Občas pošleme tipy na cvičení a akce ${words.business.gen}.`,
     off: 'Nebudeme vám posílat obchodní sdělení.',
   },
 ];
@@ -295,6 +298,7 @@ const CONSENTS: { key: Exclude<keyof ClientConsents, 'gdpr'>; label: string; on:
 function ConsentsView({ onBack }: { onBack: () => void }): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const words = useTerms();
   const { client } = usePortal();
   const gdpr = client.consents.gdpr;
   return (
@@ -307,11 +311,11 @@ function ConsentsView({ onBack }: { onBack: () => void }): JSX.Element {
           <span className="por-consent__body">
             <span className="por-consent__label">Zpracování osobních údajů</span>
             <span className="por-consent__desc">
-              Nutné pro vedení rezervací{gdpr ? ` · uděleno ${formatDate(gdpr.at)}` : ''}. Pro výmaz účtu napište klinice.
+              Nutné pro vedení rezervací{gdpr ? ` · uděleno ${formatDate(gdpr.at)}` : ''}. Pro výmaz účtu napište {words.business.dat}.
             </span>
           </span>
         </div>
-        {CONSENTS.map((c) => {
+        {consentRows(words).map((c) => {
           const rec = client.consents[c.key];
           return (
             <Switch
@@ -402,6 +406,7 @@ function PackagesView({ onBack }: { onBack: () => void }): JSX.Element {
 function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const today = dateOf(now);
   const u = packageUsage(clinic, pkg, today);
   const done = u.expired || u.free + u.reserved === 0;
@@ -450,7 +455,7 @@ function PackageCard({ pkg }: { pkg: ClientPackage }): JSX.Element {
         )}
         <span className="por-pkg__bought">
           {isImportedPackage(pkg)
-            ? `Převedeno z dřívějšího systému kliniky ${formatDate((pkg as ImportedPackage).importedAt ?? pkg.purchasedAt)}`
+            ? `Převedeno z dřívějšího systému ${words.business.gen} ${formatDate((pkg as ImportedPackage).importedAt ?? pkg.purchasedAt)}`
             : `Zakoupeno ${formatDate(pkg.purchasedAt)} za ${formatMoney(pkg.priceCzk)} ${MONEY_LABEL[pkg.paidBy] ?? ''}`}
         </span>
       </div>
@@ -933,14 +938,14 @@ function TopUpSheet({ onClose }: { onClose: () => void }): JSX.Element {
 /* Zprávy                                                              */
 /* ------------------------------------------------------------------ */
 
-const KIND_LABEL: Partial<Record<Message['kind'], string>> = {
+const kindLabels = (words: Terms): Partial<Record<Message['kind'], string>> => ({
   booking_confirmation: 'Potvrzení rezervace',
   reminder: 'Připomínka',
   cancellation: 'Zrušení',
   excuse: 'Omluvenka',
   late_cancel: 'Pozdní zrušení',
   no_show: 'Nedostavení',
-  clinic_cancel: 'Zrušeno klinikou',
+  clinic_cancel: `Zrušeno ${words.business.ins}`,
   reschedule: 'Přesun termínu',
   waitlist_offer: 'Uvolněný termín',
   makeup_reminder: 'Náhradní termín',
@@ -950,12 +955,14 @@ const KIND_LABEL: Partial<Record<Message['kind'], string>> = {
   reactivation: 'Novinky',
   birthday: 'Přání',
   campaign: 'Novinky',
-  manual: 'Zpráva od kliniky',
-};
+  manual: `Zpráva od ${words.business.gen}`,
+});
 
 function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
+  const kindLabel = kindLabels(words);
   const { client } = usePortal();
   const messages = useMemo(() => clientMessages(clinic, client.id), [clinic.messages, client.id]);
   const [limit, setLimit] = useState(30);
@@ -968,7 +975,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
   const when = (at: string): string => (dateOf(at) === dateOf(now) ? formatTime(at) : formatDayShort(at));
 
   return (
-    <Screen title="Zprávy od kliniky" onBack={onBack} backLabel="Zpět na účet">
+    <Screen title={`Zprávy od ${words.business.gen}`} onBack={onBack} backLabel="Zpět na účet">
       {messages.length ? (
         <ul className="por-inbox">
           {messages.slice(0, limit).map((m) => (
@@ -979,7 +986,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
                 </span>
                 <span className="por-msg__body">
                   <span className="por-msg__top">
-                    <span className="por-msg__kind">{KIND_LABEL[m.kind] ?? 'Zpráva'}</span>
+                    <span className="por-msg__kind">{kindLabel[m.kind] ?? 'Zpráva'}</span>
                     <span className="por-msg__time tnum">{when(m.at)}</span>
                   </span>
                   <span className="por-msg__subject">{m.subject || 'SMS zpráva'}</span>
@@ -997,7 +1004,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
           Zobrazit starší ({messages.length - limit})
         </Button>
       )}
-      <Sheet open={!!open} onClose={() => setOpenId(null)} title={open ? KIND_LABEL[open.kind] ?? 'Zpráva' : ''}>
+      <Sheet open={!!open} onClose={() => setOpenId(null)} title={open ? kindLabel[open.kind] ?? 'Zpráva' : ''}>
         {open && (
           <article className="por-msgdetail">
             <h3 className="por-msgdetail__subject">{open.subject || 'SMS zpráva'}</h3>

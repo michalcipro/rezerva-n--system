@@ -27,7 +27,7 @@ import {
   therapistName,
 } from '../engine/selectors';
 import { dateOf } from '../engine/time';
-import { useClinic, useCommand, useNow } from '../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import {
   ActionBar,
   Badge,
@@ -121,6 +121,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const { client, go } = usePortal();
   const [policyOpen, setPolicyOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
@@ -169,7 +170,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
       ),
     },
     {
-      term: b.sessionId ? 'Lektor' : 'Terapeut',
+      term: b.sessionId ? 'Lektor' : words.Staff.nom,
       detail: (
         <span className="por-dd por-dd--row">
           <TherapistAvatar therapist={t} size="xs" />
@@ -298,7 +299,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
         <Callout tone="neutral">Lhůta pro výběr náhradního termínu uplynula {formatDayShort(makeup.validUntil)}.</Callout>
       )}
       {b.cancel && b.status !== 'confirmed' && b.status !== 'completed' && (
-        <Callout tone="neutral" icon="info" title={b.status === 'clinic_cancelled' ? 'Zrušila klinika' : b.cancel.excuse ? 'Omluveno' : 'Zrušeno'}>
+        <Callout tone="neutral" icon="info" title={b.status === 'clinic_cancelled' ? `${words.business.past('Zrušil')} ${words.business.nom}` : b.cancel.excuse ? 'Omluveno' : 'Zrušeno'}>
           {formatDateTimeShort(b.cancel.at)}
           {b.cancel.by === 'staff' && b.status !== 'clinic_cancelled' ? ' · na recepci' : ''}
           {b.cancel.reason ? ` · ${b.cancel.reason}` : ''}
@@ -342,7 +343,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
             <span>{explain(ev, b, clinic)}</span>
           </p>
           <button type="button" className="link por-terms__link" onClick={() => setPolicyOpen(true)}>
-            Storno podmínky kliniky
+            Storno podmínky {words.business.gen}
           </button>
         </section>
       )}
@@ -424,6 +425,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const { client, go } = usePortal();
   const svc = getService(clinic, b.serviceId);
   const cat = svc ? getCategory(clinic, svc.categoryId) : undefined;
@@ -586,7 +588,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
       <section className="por-stack por-stack--tight" aria-label="Kdy rušíte">
         <PolicyTimeline evaluation={ev} now={now} start={b.start} title="Kdy rušíte" />
         <button type="button" className="link por-terms__link" onClick={() => setPolicyOpen(true)}>
-          Storno podmínky kliniky
+          Storno podmínky {words.business.gen}
         </button>
       </section>
 
@@ -598,7 +600,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
 
       {awaitsQr(b) && choice !== 'reschedule' && (
         <Callout tone="neutral" icon={QR_ICON}>
-          Čekající QR platbu tím zrušíme. Pokud jste ji už odeslali, ozvěte se prosím klinice.
+          Čekající QR platbu tím zrušíme. Pokud jste ji už odeslali, ozvěte se prosím {words.business.dat}.
         </Callout>
       )}
 
@@ -615,7 +617,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
             onChange={(v) => setReason((cur) => (cur === v ? null : v))}
             options={REASONS.map((r) => ({ value: r, label: r }))}
           />
-          <Field label={`Zpráva pro ${b.sessionId ? 'lektora' : 'terapeuta'}`} optional>
+          <Field label={`Zpráva pro ${b.sessionId ? 'lektora' : words.staff.acc}`} optional>
             <Input size="lg" value={message} maxLength={200} onValueChange={setMessage} placeholder="Např. kdy by se vám hodil jiný termín" />
           </Field>
         </section>

@@ -5,7 +5,7 @@ import { cancelPaymentRequest, confirmPaymentRequest, creditBonusFor, notifyPaym
 import { formatDateTimeShort, formatMoney } from '../engine/format';
 import { isValidIban } from '../engine/qr';
 import { getBooking } from '../engine/selectors';
-import { useClinic, useCommand, useNow } from '../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import { dispatch } from '../store/store';
 import { Button, Callout, ConfirmDialog, Icon, cx, toast, type IconName } from '../ui';
 import { usePortal } from './context';
@@ -64,6 +64,7 @@ export function useQrActions(): {
   cancel: (requestId: Id) => boolean;
 } {
   const run = useCommand();
+  const words = useTerms();
   return {
     notify: (requestId) => run(notifyPaymentSent, { requestId }, { success: 'Děkujeme, platbu potvrdíme po připsání' }).ok,
     // Testovací verze: platbu „potvrdí banka“ – v ostrém provozu to udělá recepce podle výpisu.
@@ -73,7 +74,7 @@ export function useQrActions(): {
         toast(r.error, { tone: 'danger' });
         return false;
       }
-      toast(r.value.message, { tone: 'success', description: 'Test: peníze „dorazily“ a klinika platbu potvrdila.' });
+      toast(r.value.message, { tone: 'success', description: `Test: peníze „dorazily“ a ${words.business.nom} platbu ${words.business.past('potvrdil')}.` });
       return true;
     },
     cancel: (requestId) => run(cancelPaymentRequest, { requestId }, { success: 'QR platba je zrušená' }).ok,
@@ -83,6 +84,7 @@ export function useQrActions(): {
 /** Testovací tlačítko – v ostré verzi nebude. */
 export function QrTestZone({ requestId }: { requestId: Id }): JSX.Element {
   const { simulate } = useQrActions();
+  const words = useTerms();
   return (
     <div className="por-qrtest">
       <span className="por-qrtest__label">
@@ -92,7 +94,7 @@ export function QrTestZone({ requestId }: { requestId: Id }): JSX.Element {
       <Button size="sm" variant="secondary" full onClick={() => simulate(requestId)}>
         Simulovat připsání platby (test)
       </Button>
-      <span className="por-qrtest__note">Jako by peníze dorazily na účet a klinika platbu potvrdila.</span>
+      <span className="por-qrtest__note">Jako by peníze dorazily na účet a {words.business.nom} platbu {words.business.past('potvrdil')}.</span>
     </div>
   );
 }
@@ -100,6 +102,7 @@ export function QrTestZone({ requestId }: { requestId: Id }): JSX.Element {
 /** Tlačítko „Zaplatil(a) jsem“, po oznámení stav s časem. */
 export function NotifyAction({ request }: { request: PaymentRequest }): JSX.Element {
   const { notify } = useQrActions();
+  const words = useTerms();
   const sentRef = useRef<HTMLDivElement>(null);
   const [sentHere, setSentHere] = useState(false);
   // tlačítko zmizí – fokus přejde na potvrzení, aby se neztratil
@@ -112,7 +115,7 @@ export function NotifyAction({ request }: { request: PaymentRequest }): JSX.Elem
         <StateChip tone="success" icon="checkCircle">
           Oznámili jste odeslání · {formatDateTimeShort(request.clientNotifiedAt)}
         </StateChip>
-        <span className="por-qr__sent-text">Platbu potvrdíme, jakmile dorazí na účet kliniky.</span>
+        <span className="por-qr__sent-text">Platbu potvrdíme, jakmile dorazí na účet {words.business.gen}.</span>
       </div>
     );
   }
@@ -141,6 +144,7 @@ export interface QrRequestCardProps {
 export function QrRequestCard({ requestId, hint, withActions = true }: QrRequestCardProps): JSX.Element | null {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const r = clinic.paymentRequests.find((x) => x.id === requestId);
   if (!r) return null;
   if (r.status === 'paid') {
@@ -161,7 +165,7 @@ export function QrRequestCard({ requestId, hint, withActions = true }: QrRequest
     // klinika mezitím odebrala účet – QR by nevedl nikam
     return (
       <Callout tone="warning" title="Platební údaje teď nejsou k dispozici">
-        Platbu {formatMoney(r.amount)} (VS {r.vs}) zatím neposílejte a ozvěte se prosím klinice na{' '}
+        Platbu {formatMoney(r.amount)} (VS {r.vs}) zatím neposílejte a ozvěte se prosím {words.business.dat} na{' '}
         <a href={`mailto:${clinic.settings.senderEmail}`}>{clinic.settings.senderEmail}</a>.
       </Callout>
     );
@@ -207,6 +211,7 @@ export function QrRequestPanel({ requestId, title, hint, cancel }: QrRequestPane
   const clinic = useClinic();
   const now = useNow();
   const actions = useQrActions();
+  const words = useTerms();
   const r = clinic.paymentRequests.find((x) => x.id === requestId);
   const [open, setOpen] = useState(() => !r?.clientNotifiedAt);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -262,7 +267,7 @@ export function QrRequestPanel({ requestId, title, hint, cancel }: QrRequestPane
           message={
             <>
               {cancel.message}
-              {r.clientNotifiedAt ? ' Platbu jste už ale oznámili jako odeslanou – pokud odešla, ozvěte se prosím klinice.' : ''}
+              {r.clientNotifiedAt ? ` Platbu jste už ale oznámili jako odeslanou – pokud odešla, ozvěte se prosím ${words.business.dat}.` : ''}
             </>
           }
           confirmLabel={cancel.confirmLabel}
@@ -291,6 +296,7 @@ function PendingPaymentItem({ request: r }: { request: PaymentRequest }): JSX.El
   const now = useNow();
   const { go } = usePortal();
   const actions = useQrActions();
+  const words = useTerms();
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const bodyId = useId();
@@ -346,7 +352,7 @@ function PendingPaymentItem({ request: r }: { request: PaymentRequest }): JSX.El
             </strong>
             <br />
             {CANCEL_TEXT[r.purpose]}
-            {r.clientNotifiedAt ? ' Platbu jste ale oznámili jako odeslanou – pokud odešla, ozvěte se prosím klinice.' : ''}
+            {r.clientNotifiedAt ? ` Platbu jste ale oznámili jako odeslanou – pokud odešla, ozvěte se prosím ${words.business.dat}.` : ''}
           </>
         }
         confirmLabel="Zrušit platbu"

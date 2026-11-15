@@ -16,7 +16,7 @@ import { therapistName, therapistShort } from '../../engine/selectors';
 import { computeStats, type StatsCore, type StatsResult } from '../../engine/stats';
 import { addDays, daysBetween, dateOf, isValidLocalDate, weekdayOf } from '../../engine/time';
 import { ToneDot } from '../../components/domain';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import {
   Button,
@@ -218,6 +218,7 @@ export function StatsScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const today = dateOf(now);
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(today));
   useEffect(() => savePrefs(prefs), [prefs]);
@@ -572,7 +573,7 @@ export function StatsScreen(): JSX.Element {
   });
   const therapistCard = (
     <ChartCard
-      title="Obsazenost terapeutů"
+      title={`Obsazenost ${words.staffPl.gen}`}
       subtitle={category ? `Podíl pracovní doby věnovaný kategorii ${category.name}` : 'Obsazený čas z pracovní doby'}
       meta={
         <LegendItem colorClass="" mark="target">
@@ -580,10 +581,10 @@ export function StatsScreen(): JSX.Element {
         </LegendItem>
       }
       table={() => (
-        <Table density="compact" minWidth={480} caption="Obsazenost terapeutů">
+        <Table density="compact" minWidth={480} caption={`Obsazenost ${words.staffPl.gen}`}>
           <thead>
             <tr>
-              <th>Terapeut</th>
+              <th>{words.Staff.nom}</th>
               <th className="num">Obsazenost</th>
               <th className="num">Obsazeno</th>
               <th className="num">Pracovní doba</th>
@@ -609,7 +610,7 @@ export function StatsScreen(): JSX.Element {
       )}
     >
       <BarList
-        label="Obsazenost terapeutů"
+        label={`Obsazenost ${words.staffPl.gen}`}
         track
         max={1}
         target={{ value: 0.85, label: 'cíl' }}
@@ -1078,11 +1079,11 @@ export function StatsScreen(): JSX.Element {
         <div className="st-filters__row">
           <Select
             inline
-            prefix="Terapeut:"
-            aria-label="Terapeut"
+            prefix={`${words.Staff.nom}:`}
+            aria-label={words.Staff.nom}
             value={therapistId}
             onValueChange={(v) => setPrefs((p) => ({ ...p, therapistId: v }))}
-            options={[{ value: '', label: 'Všichni' }, ...therapists.map((t) => ({ value: t.id, label: therapistShort(t) }))]}
+            options={[{ value: '', label: words.staffPl.agree('Všichni', 'Všechny', 'Všechna') }, ...therapists.map((t) => ({ value: t.id, label: therapistShort(t) }))]}
           />
           <Select
             inline
@@ -1122,7 +1123,7 @@ export function StatsScreen(): JSX.Element {
               !dataStart
                 ? 'Statistiky se začnou plnit s prvními termíny. Rezervace vytvoříte v kalendáři.'
                 : filtered
-                  ? 'Pro vybraného terapeuta nebo kategorii tu nejsou žádné rezervace ani platby. Zkuste zrušit filtry nebo vybrat jiné období.'
+                  ? `Pro ${words.staff.agree('vybraného', 'vybranou', 'vybrané', 'vybraný')} ${words.staff.acc} nebo kategorii tu nejsou žádné rezervace ani platby. Zkuste zrušit filtry nebo vybrat jiné období.`
                   : 'Ve vybraném období nejsou žádné rezervace ani platby. Vyberte jiné období.'
             }
             action={

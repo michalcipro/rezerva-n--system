@@ -3,7 +3,7 @@ import type { Service } from '../../domain/types';
 import { upsertService } from '../../engine/commands';
 import { countLabel, formatDuration, formatMoney } from '../../engine/format';
 import { therapistName } from '../../engine/selectors';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { Button, Callout, Checkbox, Drawer, Field, Input, NumberInput, Segmented, Select, Switch, Textarea } from '../../ui';
 import { TherapistAvatar } from '../../components/domain';
 import { byOrder, clone, cx, deepEqual, durationOptions, validateService, type ServiceErrors } from './helpers';
@@ -15,6 +15,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
+  const words = useTerms();
   const [draft, setDraft] = useState<Service>(() => clone(initial));
   const [touched, setTouched] = useState<Partial<Record<keyof ServiceErrors, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -108,7 +109,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
           </Field>
           <FieldGroup
             label="Typ služby"
-            hint={draft.kind === 'group' ? 'Termíny skupinové lekce určuje rozvrh lekcí.' : 'Jeden klient, jeden terapeut.'}
+            hint={draft.kind === 'group' ? 'Termíny skupinové lekce určuje rozvrh lekcí.' : `Jeden klient, ${words.staff.agree('jeden', 'jedna', 'jedno')} ${words.staff.nom}.`}
           >
             <Segmented
               aria-label="Typ služby"
@@ -215,7 +216,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
           </div>
           {draft.therapistIds.length === 0 && (
             <Callout tone="warning" icon="alert" aria-live="polite">
-              Bez terapeuta si službu nikdo nezarezervuje – vyberte alespoň jednoho.
+              Bez {words.staff.gen} si službu nikdo nezarezervuje – vyberte alespoň {words.staff.agree('jednoho', 'jednu', 'jedno')}.
             </Callout>
           )}
         </section>
@@ -241,7 +242,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
               checked={draft.remote}
               onChange={(v) => set('remote', v)}
               label="Online konzultace (videohovor)"
-              description="Klient nepřichází na kliniku, místnost se neobsazuje."
+              description={`Klient nepřichází do ${words.business.gen}, místnost se neobsazuje.`}
             />
           </div>
           <Field label="Popis pro klienty" hint="Zobrazí se při online rezervaci. Stačí jedna až dvě věty." optional>

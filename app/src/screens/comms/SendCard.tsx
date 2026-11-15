@@ -4,7 +4,7 @@ import { countLabel, formatDateLong, formatDayShort, formatNumber, formatRelativ
 import { describeRule } from '../../engine/segments';
 import { scheduleCampaign, sendCampaign } from '../../engine/commands';
 import { addDays, combine, dateOf, isValidLocalDateTime, timeOf } from '../../engine/time';
-import { useCommand } from '../../store/hooks';
+import { useCommand, useTerms } from '../../store/hooks';
 import { Button, Callout, Card, CardHeader, ConfirmDialog, cx, Field, Icon, Input, Segmented } from '../../ui';
 import { campaignChecks, recipientsLabel, type CheckItem } from './lib';
 import type { CampaignDraft } from './CampaignEditor';
@@ -52,6 +52,7 @@ interface SendCardProps {
 /** Pravý sloupec dole: odeslat teď / naplánovat, kontrolní seznam, potvrzení. */
 export function SendCard({ campaign, draft, recipients, now, prepare }: SendCardProps): JSX.Element {
   const run = useCommand();
+  const words = useTerms();
   const scheduled = campaign.status === 'scheduled' && campaign.scheduledAt;
   const initial = campaign.scheduledAt ?? combine(addDays(dateOf(now), 1), '08:30');
   const [when, setWhen] = useState<'now' | 'later'>(scheduled ? 'later' : 'now');
@@ -61,8 +62,8 @@ export function SendCard({ campaign, draft, recipients, now, prepare }: SendCard
   const [confirm, setConfirm] = useState<'send' | 'schedule' | null>(null);
 
   const checks = useMemo(
-    () => campaignChecks({ subject: draft.subject, preheader: draft.preheader, blocks: draft.blocks }, recipients),
-    [draft.subject, draft.preheader, draft.blocks, recipients],
+    () => campaignChecks({ subject: draft.subject, preheader: draft.preheader, blocks: draft.blocks }, recipients, words),
+    [draft.subject, draft.preheader, draft.blocks, recipients, words],
   );
   const errors = checks.filter((c) => c.state === 'error');
   const warnings = checks.filter((c) => c.state === 'warn');

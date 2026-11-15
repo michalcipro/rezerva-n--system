@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import type { CampaignBlock } from '../../domain/types';
+import { useTerms } from '../../store/hooks';
 import { Button, Icon, IconButton, Menu, toast } from '../../ui';
 import { BLOCK_LABEL, BLOCK_ORDER, blockHasContent, insertAt, newBlock, type BlockType } from './lib';
 import { AutoTextarea, focusCaret } from './shared';
@@ -28,6 +29,7 @@ const NAME_TOKEN = '[jméno]';
  * duplikace, smazání) a pole ve stylu výsledného e-mailu.
  */
 export function BlockEditor({ value, onChange }: BlockEditorProps): JSX.Element {
+  const words = useTerms();
   const root = useRef<HTMLDivElement>(null);
   const fields = useRef(new Map<string, Field>());
   const lastField = useRef<string | null>(null);
@@ -315,7 +317,7 @@ export function BlockEditor({ value, onChange }: BlockEditorProps): JSX.Element 
                       type="url"
                       inputMode="url"
                       value={b.url}
-                      placeholder="https://… (prázdné = rezervace kliniky)"
+                      placeholder={`https://… (prázdné = rezervace ${words.business.gen})`}
                       onChange={(event) => setBlock(index, { ...b, url: event.target.value })}
                     />
                   </label>

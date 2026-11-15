@@ -20,6 +20,7 @@ import type {
   PaymentPurpose,
 } from '../../domain/types';
 import { countLabel, formatDayShort, formatMoney, formatPercent, formatTime } from '../../engine/format';
+import { templateName } from '../../engine/messages';
 import { evaluateCancellation } from '../../engine/policy';
 import { pendingRequestFor } from '../../engine/qr';
 import {
@@ -32,6 +33,7 @@ import {
   type PackageUsage,
 } from '../../engine/selectors';
 import { addDays, dateOf, daysBetween } from '../../engine/time';
+import { termsOf } from '../../engine/terms';
 import { VISIT_STATUSES } from '../../engine/visits';
 
 /** Cenu termínu platí klient u nás – na místě nebo QR převodem (ne permanentka, kredit, online…). */
@@ -561,12 +563,12 @@ export function messagesOfClient(s: ClinicState, clientId: Id): Message[] {
 }
 
 export function messageKindLabel(s: ClinicState, m: Message): string {
-  if (m.kind === 'manual') return 'Zpráva od kliniky';
+  if (m.kind === 'manual') return `Zpráva od ${termsOf(s).business.gen}`;
   if (m.kind === 'campaign') {
     const c = m.campaignId ? s.campaigns.find((x) => x.id === m.campaignId) : undefined;
     return c ? `Kampaň „${c.name}“` : 'Kampaň';
   }
-  return s.templates.find((t) => t.key === m.kind)?.name ?? 'Automatická zpráva';
+  return templateName(s.templates.find((t) => t.key === m.kind), termsOf(s)) ?? 'Automatická zpráva';
 }
 
 export function auditOfClient(s: ClinicState, clientId: Id): AuditEntry[] {

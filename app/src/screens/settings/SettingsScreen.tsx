@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
+import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, TermsSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
 import { formatIban, nextVs, parseAccount, qrReady } from '../../engine/qr';
 import { therapistName } from '../../engine/selectors';
+import {
+  BUSINESS_NOUNS,
+  BUSINESS_NOUN_IDS,
+  STAFF_NOUNS,
+  STAFF_NOUN_IDS,
+  businessNounId,
+  cap,
+  copyNoun,
+  makeTerms,
+  prep,
+  staffNounId,
+  type BusinessNounId,
+  type StaffNounId,
+} from '../../engine/terms';
 import { addDays, dateOf } from '../../engine/time';
 import { QrPaymentCard } from '../../components/payments';
-import { useClinic, useCommand, useNow } from '../../store/hooks';
+import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import {
   Badge,
@@ -62,6 +76,7 @@ const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'payments', label: 'Platby', icon: 'card' },
   { id: 'features', label: 'Funkce', icon: 'sliders' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
+  { id: 'terms', label: 'Názvosloví', icon: 'message' },
   { id: 'import', label: 'Import dat', icon: 'upload' },
 ];
 
@@ -91,6 +106,9 @@ let parkedDraft: SettingsDraft | null = null;
 export function SettingsScreen(): JSX.Element {
   const clinic = useClinic();
   const run = useCommand();
+  const words = useTerms();
+  // název sekce s údaji provozovny podle uloženého názvosloví („Klinika“, „Studio“…)
+  const labelOf = (id: AnchorId): string => (id === 'clinic' ? words.Business.nom : sectionLabel(id));
   const base = useMemo(() => settingsDraftOf(clinic.settings), [clinic.settings]);
   const [restored] = useState(() => parkedDraft !== null);
   const { draft, setDraft, reset, dirty } = useSyncedDraft<SettingsDraft>(base, parkedDraft);
@@ -161,6 +179,7 @@ export function SettingsScreen(): JSX.Element {
   const setReminders = (patch: Partial<ReminderSettings>): void => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }));
   const setPayments = (patch: Partial<PaymentsDraft>): void => setDraft((d) => ({ ...d, payments: { ...d.payments, ...patch } }));
   const setFeatures = (patch: Partial<FeatureSettings>): void => setDraft((d) => ({ ...d, features: { ...d.features, ...patch } }));
+  const setTerms = (patch: Partial<TermsSettings>): void => setDraft((d) => ({ ...d, terms: { ...d.terms, ...patch } }));
   const setText = (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string): void =>
     setDraft((d) => ({ ...d, [key]: value }));
 
@@ -168,7 +187,7 @@ export function SettingsScreen(): JSX.Element {
     if (errorKeys.length) {
       setShowErrors(true);
       const section = SECTION_OF_ERROR(errorKeys[0]);
-      toast.error('Nastavení nelze uložit', { description: `Opravte zvýrazněná pole (${sectionLabel(section)}).` });
+      toast.error('Nastavení nelze uložit', { description: `Opravte zvýrazněná pole (${labelOf(section)}).` });
       goTo(section);
       return;
     }
@@ -186,6 +205,7 @@ export function SettingsScreen(): JSX.Element {
       patch.payments = payments;
     }
     if (changed.includes('features')) patch.features = { ...clinic.settings.features, ...n.features };
+    if (changed.includes('terms')) patch.terms = n.terms;
     if (changed.includes('clinic')) {
       patch.clinicName = n.clinicName;
       patch.clinicTagline = n.clinicTagline;
@@ -196,16 +216,16 @@ export function SettingsScreen(): JSX.Element {
     if (r.ok) {
       setDraft(n);
       setShowErrors(false);
-      toast.success('Nastavení uloženo', { description: `Upraveno: ${changed.map(sectionLabel).join(', ')}.` });
+      toast.success('Nastavení uloženo', { description: `Upraveno: ${changed.map(labelOf).join(', ')}.` });
     }
   };
 
   return (
     <div className="page set-page set-settings-page">
-      <PageHeader title="Nastavení" subtitle="Pravidla online rezervací, storno podmínky, omluvenky, platby, funkce, údaje kliniky a import dat" />
+      <PageHeader title="Nastavení" subtitle={`Pravidla online rezervací, storno podmínky, omluvenky, platby, funkce, údaje ${words.business.gen}, názvosloví a import dat`} />
       {restored && dirty && (
         <Callout tone="info" title="Rozpracované změny">
-          Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(sectionLabel).join(', ')}). Uložte je, nebo je zahoďte.
+          Při posledním odchodu z Nastavení zůstaly neuložené změny ({changed.map(labelOf).join(', ')}). Uložte je, nebo je zahoďte.
         </Callout>
       )}
 
@@ -224,7 +244,7 @@ export function SettingsScreen(): JSX.Element {
                   }}
                 >
                   <Icon name={s.icon} size={16} />
-                  <span className="set-anchors__label">{s.label}</span>
+                  <span className="set-anchors__label">{labelOf(s.id)}</span>
                   {(changed as AnchorId[]).includes(s.id) && (
                     <span className="set-anchors__dot" title="Neuložené změny">
                       <span className="visually-hidden">(neuloženo)</span>
@@ -272,12 +292,16 @@ export function SettingsScreen(): JSX.Element {
             <PaymentsSection payments={draft.payments} onChange={setPayments} errors={visibleErrors} saved={clinic.settings.payments} />
           </Section>
 
-          <Section id="features" title="Funkce" subtitle="Funkce, které se v ostrém provozu zapínají vědomě – podle toho, co klinika potřebuje a má zajištěné.">
+          <Section id="features" title="Funkce" subtitle={`Funkce, které se v ostrém provozu zapínají vědomě – podle toho, co ${words.business.nom} potřebuje a má zajištěné.`}>
             <FeaturesSection features={draft.features} onChange={setFeatures} clinic={clinic} />
           </Section>
 
-          <Section id="clinic" title="Klinika" subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
+          <Section id="clinic" title={words.Business.nom} subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
             <ClinicSection draft={draft} onChange={setText} errors={visibleErrors} />
+          </Section>
+
+          <Section id="terms" title="Názvosloví" subtitle="Jak aplikace, klientský portál a zprávy říkají vaší provozovně a lidem, kteří poskytují služby.">
+            <TermsSection terms={draft.terms} onChange={setTerms} />
           </Section>
 
           <section id="set-sec-import" className="set-section" aria-labelledby="set-sec-import-h">
@@ -299,7 +323,7 @@ export function SettingsScreen(): JSX.Element {
             <>
               <span className="set-savebar__dot" aria-hidden="true" />
               <span>
-                Neuložené změny: <strong>{changed.map(sectionLabel).join(', ')}</strong>
+                Neuložené změny: <strong>{changed.map(labelOf).join(', ')}</strong>
               </span>
             </>
           ) : (
@@ -417,6 +441,7 @@ function BookingSection({
 }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const example = useMemo(() => compactExample(clinic, rules, now), [clinic, rules, now]);
 
   return (
@@ -506,8 +531,8 @@ function BookingSection({
         <Switch
           checked={rules.allowAnyTherapist}
           onChange={(v) => onChange({ allowAnyTherapist: v })}
-          label="Volba „Kdokoli z terapeutů“"
-          description="Klient nemusí vybírat konkrétního terapeuta – přidělíme toho, kdo je ten den méně vytížený."
+          label={`Volba „Kdokoli ${prep('z', words.staffPl.gen)}“`}
+          description={`Klient nemusí vybírat ${words.staff.agree('konkrétního', 'konkrétní', 'konkrétní', 'konkrétní')} ${words.staff.acc} – přidělíme ${words.staff.agree('toho, kdo', 'tu, která', 'to, které', 'ten, který')} je ten den méně ${words.staff.adj('vytížený')}.`}
         />
       </div>
       <div className="set-row set-row--switch">
@@ -944,6 +969,7 @@ function PaymentsSection({
 }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
+  const words = useTerms();
   const account = payments.accountNumber.trim();
   const parsed = account ? parseAccount(account) : null;
   const iban = parsed?.ok ? parsed.iban : null;
@@ -1057,7 +1083,7 @@ function PaymentsSection({
 
       {demo && (
         <Callout tone="warning" title="Ukázkový účet" className="set-pay__demo">
-          Ukázkový účet z testovacích dat – nahraďte ho skutečným účtem kliniky. Do té doby nese QR kód ve zprávě pro příjemce upozornění, aby nikdo neplatil doopravdy.
+          Ukázkový účet z testovacích dat – nahraďte ho skutečným účtem {words.business.gen}. Do té doby nese QR kód ve zprávě pro příjemce upozornění, aby nikdo neplatil doopravdy.
         </Callout>
       )}
 
@@ -1114,6 +1140,7 @@ function FeaturesSection({
   onChange: (patch: Partial<FeatureSettings>) => void;
   clinic: ClinicState;
 }): JSX.Element {
+  const words = useTerms();
   const noteCount = useMemo(() => clinic.clients.reduce((n, c) => n + c.notes.length, 0), [clinic.clients]);
   const qr = qrReady(clinic.settings.payments);
   return (
@@ -1123,13 +1150,13 @@ function FeaturesSection({
           checked={features.clinicalNotes}
           onChange={(v) => onChange({ clinicalNotes: v })}
           label="Klinické poznámky"
-          description="Terapeuti zapisují ke klientovi průběh terapie, nález a plán. Jde o zdravotní údaje – zvláštní kategorii osobních údajů podle čl. 9 GDPR. Zapněte je, jen když máte zajištěné zabezpečení a souhlasy klientů. V ostrém provozu jsou výchozí vypnuté."
+          description={`${words.StaffPl.nom} zapisují ke klientovi průběh terapie, nález a plán. Jde o zdravotní údaje – zvláštní kategorii osobních údajů podle čl. 9 GDPR. Zapněte je, jen když máte zajištěné zabezpečení a souhlasy klientů. V ostrém provozu jsou výchozí vypnuté.`}
         />
         <p className="set-footnote set-feature-note" aria-live="polite">
           <Icon name={features.clinicalNotes ? 'lock' : 'eyeOff'} size={14} />
           <span>
             {features.clinicalNotes
-              ? 'Poznámky vidí jen terapeuti a majitelka; recepce ne.'
+              ? `Poznámky vidí jen ${words.staffPl.nom} a majitel; recepce ne.`
               : noteCount
                 ? `Záložka Dokumentace a karta Klinická poznámka se skryjí. Uložené poznámky (${noteCount}) zůstanou v datech, jen je nikdo neuvidí a nové nepůjde zapsat.`
                 : 'Záložka Dokumentace a karta Klinická poznámka se skryjí a nové poznámky nepůjde zapsat.'}
@@ -1171,9 +1198,10 @@ function ClinicSection({
   onChange: (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string) => void;
   errors: SettingsErrors;
 }): JSX.Element {
+  const words = useTerms();
   return (
     <div className="set-rows">
-      <SettingRow label="Název kliniky" hint="Zobrazuje se v aplikaci, klientském portálu a v e-mailech." error={errors['clinic.clinicName']}>
+      <SettingRow label={`Název ${words.business.gen}`} hint="Zobrazuje se v aplikaci, klientském portálu a v e-mailech." error={errors['clinic.clinicName']}>
         <Input className="set-ctl-lg" value={draft.clinicName} maxLength={40} onValueChange={(v) => onChange('clinicName', v)} />
       </SettingRow>
       <SettingRow label="Podtitul" hint="Krátce, čemu se věnujete.">
@@ -1195,9 +1223,82 @@ function ClinicSection({
             <span className="set-mailpreview__from">
               <strong>{draft.senderName.trim() || 'Odesílatel'}</strong> <span className="muted">&lt;{draft.senderEmail.trim() || 'e-mail'}&gt;</span>
             </span>
-            <span className="set-mailpreview__subject">Připomínka: zítra v 9:00 · {draft.clinicName.trim() || 'Klinika'}</span>
+            <span className="set-mailpreview__subject">Připomínka: zítra v 9:00 · {draft.clinicName.trim() || words.Business.nom}</span>
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Názvosloví                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Hodnota výběru pro tvary uložené mimo katalog (např. přes API) – zůstanou, dokud nevyberete slovo z katalogu. */
+const CUSTOM_NOUN = 'vlastni';
+
+function TermsSection({ terms, onChange }: { terms: TermsSettings; onChange: (patch: Partial<TermsSettings>) => void }): JSX.Element {
+  const clinic = useClinic();
+  const businessId = businessNounId(terms.business);
+  const staffId = staffNounId(terms.staff);
+  const w = makeTerms(terms);
+  const name = clinic.settings.clinicName.trim();
+  const samples = [
+    `Vyberte ${w.staff.acc}`,
+    `Kdokoli ${prep('z', w.staffPl.gen)}`,
+    `Obsazenost ${w.staffPl.gen}`,
+    `${w.staff.adj('Nový')} ${w.staff.nom}`,
+    `Storno podmínky ${w.business.gen}`,
+    `Zrušeno ${w.business.ins}`,
+    `${w.business.adj('Celý')} ${w.business.nom} – zavřeno`,
+  ];
+  return (
+    <div className="set-rows">
+      <SettingRow label="Provozovna" hint="Jak se v aplikaci, klientském portálu a zprávách označuje váš podnik.">
+        <Select
+          className="set-ctl-md"
+          value={businessId ?? CUSTOM_NOUN}
+          onValueChange={(v) => {
+            if (v !== CUSTOM_NOUN) onChange({ business: copyNoun(BUSINESS_NOUNS[v as BusinessNounId]) });
+          }}
+          options={[
+            ...BUSINESS_NOUN_IDS.map((id) => ({ value: id, label: cap(BUSINESS_NOUNS[id].sg[0]) })),
+            ...(businessId ? [] : [{ value: CUSTOM_NOUN, label: `${cap(terms.business.sg[0])} (vlastní tvary)` }]),
+          ]}
+        />
+      </SettingRow>
+      <SettingRow label="Kdo poskytuje služby" hint="Jak se označuje člen týmu – v kalendáři, při online rezervaci i ve zprávách.">
+        <Select
+          className="set-ctl-md"
+          value={staffId ?? CUSTOM_NOUN}
+          onValueChange={(v) => {
+            if (v !== CUSTOM_NOUN) onChange({ staff: copyNoun(STAFF_NOUNS[v as StaffNounId]) });
+          }}
+          options={[
+            ...STAFF_NOUN_IDS.map((id) => ({ value: id, label: cap(STAFF_NOUNS[id].sg[0]) })),
+            ...(staffId ? [] : [{ value: CUSTOM_NOUN, label: `${cap(terms.staff.sg[0])} (vlastní tvary)` }]),
+          ]}
+        />
+      </SettingRow>
+      <div className="set-mailpreview" aria-live="polite">
+        <span className="set-mailpreview__label">Náhled</span>
+        <p className="set-terms-preview">
+          {w.Business.nom}
+          {name ? ` ${name}` : ''} {w.business.past('zrušil')} termín, protože {w.staff.nom} je {w.staff.adj('nemocný')}. Vyberte si prosím{' '}
+          {w.staff.agree('jiného', 'jinou', 'jiné', 'jiný')} {w.staff.acc}.
+        </p>
+        <span className="set-slots">
+          {samples.map((s) => (
+            <span key={s} className="set-slot">
+              {s}
+            </span>
+          ))}
+        </span>
+        <p className="set-footnote">
+          <Icon name="info" size={14} />
+          <span>Texty automatických zpráv a kampaní se nemění – upravíte je v Komunikaci (proměnné [klinika] a [terapeut] doplní název a jméno).</span>
+        </p>
       </div>
     </div>
   );

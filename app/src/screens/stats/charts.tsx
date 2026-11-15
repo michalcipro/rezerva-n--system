@@ -20,6 +20,7 @@ import {
   type RefObject,
 } from 'react';
 import { formatDuration, formatNumber, plural } from '../../engine/format';
+import { useTerms } from '../../store/hooks';
 import { Card, CardHeader, IconButton, cx } from '../../ui';
 import { HEAT_HOURS, heatLevel, niceScale, type HeatCell, type HourSlot } from './model';
 
@@ -910,6 +911,7 @@ interface HourlyChartProps {
 }
 
 export function HourlyChart({ slots, nowMinutes, label, height = 142 }: HourlyChartProps): JSX.Element {
+  const words = useTerms();
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const uid = useSvgId('sth');
   const n = slots.length;
@@ -1008,7 +1010,7 @@ export function HourlyChart({ slots, nowMinutes, label, height = 142 }: HourlyCh
               }
               note={
                 slots[active.index].available > 0
-                  ? `${slots[active.index].staff} ${plural(slots[active.index].staff, ['terapeut', 'terapeuti', 'terapeutů'])} v práci`
+                  ? `${slots[active.index].staff} ${plural(slots[active.index].staff, words.counts.staff)} v práci`
                   : 'Mimo pracovní dobu'
               }
             />
