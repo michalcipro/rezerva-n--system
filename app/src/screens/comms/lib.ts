@@ -1,6 +1,7 @@
 import type {
   Campaign,
   CampaignBlock,
+  Channel,
   ClinicState,
   Id,
   LocalDateTime,
@@ -9,6 +10,7 @@ import type {
   SegmentDefinition,
   TemplateKey,
 } from '../../domain/types';
+import { activeChannels, SMS_ENABLED } from '../../engine/channels';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, formatTime, plural } from '../../engine/format';
 import { bookingVars, TEMPLATE_VARIABLES, templateName, type TemplateVars } from '../../engine/messages';
 import { isGroupBooking } from '../../engine/policy';
@@ -489,9 +491,11 @@ export function variableLabel(key: string, words: Terms = termsOf(null)): string
   return TEMPLATE_VARIABLES.find((v) => v.key === key)?.label ?? EXTRA_VARIABLE_LABELS[key] ?? key;
 }
 
-export function channelsLabel(channels: readonly string[]): string {
-  if (!channels.length) return 'bez kanálu';
-  return channels.map((c) => (c === 'sms' ? 'SMS' : 'e-mail')).join(' + ');
+/** „e-mail + SMS“ – jen kanály, kterými zprávy opravdu odcházejí (vypnuté SMS se neuvádějí). */
+export function channelsLabel(channels: readonly Channel[]): string {
+  const active = activeChannels(channels);
+  if (!active.length) return 'bez kanálu';
+  return active.map((c) => (c === 'sms' ? 'SMS' : 'e-mail')).join(' + ');
 }
 
 /** Krátký popis, kdy se zpráva posílá (s ohledem na nastavení kliniky). */
@@ -541,23 +545,25 @@ export interface TemplateIssue {
   text: string;
 }
 
-/** Upozornění k šabloně: nevyplnitelné proměnné, prázdné texty zapnutých kanálů. */
+/** Upozornění k šabloně: nevyplnitelné proměnné, prázdné texty zapnutých kanálů (text SMS jen se zapnutými SMS). */
 export function templateIssues(key: TemplateKey, d: Pick<MessageTemplate, 'subject' | 'body' | 'smsBody' | 'channels'>): TemplateIssue[] {
   const issues: TemplateIssue[] = [];
   const allowed = templateVariableKeys(key);
+  const channels = activeChannels(d.channels);
+  const texts = SMS_ENABLED ? [d.subject, d.body, d.smsBody] : [d.subject, d.body];
   const bad = new Set<string>();
-  for (const text of [d.subject, d.body, d.smsBody]) for (const t of tokensIn(text)) if (!allowed.includes(t)) bad.add(t);
+  for (const text of texts) for (const t of tokensIn(text)) if (!allowed.includes(t)) bad.add(t);
   if (bad.size) {
     const list = [...bad].map((t) => `[${t}]`).join(', ');
     issues.push({ id: 'vars', text: `${list} se u této zprávy nevyplní a klient by ji viděl doslova.` });
   }
-  if ([d.subject, d.body, d.smsBody].some((t) => CURLY_RE.test(t))) {
+  if (texts.some((t) => CURLY_RE.test(t))) {
     issues.push({ id: 'curly', text: 'Proměnné pište do hranatých závorek, např. [jméno].' });
   }
-  if (!d.channels.length) issues.push({ id: 'channels', text: 'Není zapnutý žádný kanál – zpráva se nikomu neodešle.' });
-  if (d.channels.includes('email') && !d.body.trim()) issues.push({ id: 'email', text: 'Text e-mailu je prázdný – e-mail se neodešle.' });
-  if (d.channels.includes('email') && !d.subject.trim()) issues.push({ id: 'subject', text: 'Chybí předmět e-mailu.' });
-  if (d.channels.includes('sms') && !d.smsBody.trim()) issues.push({ id: 'sms', text: 'Text SMS je prázdný – SMS se neodešle.' });
+  if (!channels.length) issues.push({ id: 'channels', text: 'Není zapnutý žádný kanál – zpráva se nikomu neodešle.' });
+  if (channels.includes('email') && !d.body.trim()) issues.push({ id: 'email', text: 'Text e-mailu je prázdný – e-mail se neodešle.' });
+  if (channels.includes('email') && !d.subject.trim()) issues.push({ id: 'subject', text: 'Chybí předmět e-mailu.' });
+  if (channels.includes('sms') && !d.smsBody.trim()) issues.push({ id: 'sms', text: 'Text SMS je prázdný – SMS se neodešle.' });
   return issues;
 }
 
@@ -653,8 +659,10 @@ export function kindLabel(kind: Message['kind'], templates: readonly MessageTemp
 }
 
 /** Rada, jak napravit neodeslanou zprávu. */
-export function skipAdvice(reason: string | undefined): string {
+export function skipAdvice(reason: string | undefined, channel: Channel = 'email'): string {
   const r = reason ?? '';
+  // SMS ze starších dat (chybějící souhlas, telefon…) – SMS se už neposílají
+  if (channel === 'sms' && !SMS_ENABLED) return 'Je-li zpráva pořád potřeba, pošlete ji klientovi e-mailem.';
   if (r.includes('SMS')) return 'Souhlas se SMS zaznamenáte v detailu klienta (záložka Souhlasy) – jen pokud ho klient skutečně udělil.';
   if (r.includes('obchodních')) return 'Obchodní sdělení smí dostat jen klient, který k tomu dal souhlas. Klient si ho může zapnout v portálu.';
   if (r.includes('telefon') || r.includes('e-mail')) return 'Doplňte kontakt v detailu klienta.';

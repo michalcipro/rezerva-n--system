@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import type { Id } from '../../domain/types';
+import { SMS_ENABLED } from '../../engine/channels';
 import { createClient } from '../../engine/commands';
 import { useCommand } from '../../store/hooks';
 import { Button, Checkbox, Dialog, Field, Input } from '../../ui';
@@ -132,7 +133,7 @@ export function NewClientDialog({
           {touched && errors.gdpr && <span className="st-form__error">{errors.gdpr}</span>}
           <Checkbox label="Vedení zdravotní dokumentace" checked={form.health} onChange={(v) => set('health', v)} />
           <Checkbox label="Obchodní sdělení e-mailem" checked={form.marketingEmail} onChange={(v) => set('marketingEmail', v)} />
-          <Checkbox label="Připomínky a zprávy SMS" checked={form.sms} onChange={(v) => set('sms', v)} />
+          {SMS_ENABLED && <Checkbox label="Připomínky a zprávy SMS" checked={form.sms} onChange={(v) => set('sms', v)} />}
         </fieldset>
       </form>
     </Dialog>

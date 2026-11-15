@@ -3,7 +3,7 @@
 > **Interní postup Nexum Care s.r.o.** pro zavedení nové provozovny na platformu [NÁZEV PLATFORMY]. Stav k 15. 11. 2026.
 > Smlouvy: [`../legal/licencni-smlouva.md`](../legal/licencni-smlouva.md), [`../legal/smlouva-o-zpracovani.md`](../legal/smlouva-o-zpracovani.md). Ceny: [`cenik-a-licence.md`](cenik-a-licence.md). Technické kroky v účtech poskytovatelů: [`../DEPLOY.md`](../DEPLOY.md).
 >
-> **NC** = úkol Nexum Care, **Z** = úkol zákazníka (provozovny). Odhad celkového času Nexum Care: 4–8 hodin (základní onboarding), 8–16 hodin (s importem dat, vlastní doménou a SMS); čekání na DNS a schválení odesílatele SMS trvá až 2 týdny.
+> **NC** = úkol Nexum Care, **Z** = úkol zákazníka (provozovny). Odhad celkového času Nexum Care: 4–8 hodin (základní onboarding), 8–16 hodin (s importem dat a vlastní doménou); počítejte i s čekáním na změny DNS.
 
 ## Přehled
 
@@ -11,7 +11,7 @@
 |---|---|---|
 | Příprava | 0 Kvalifikace a nabídka · 1 Smlouvy · 2 Faktura | 2–3 týdny před spuštěním |
 | Zřízení | 3 Prostředí · 4 Šablona oboru a moduly · 5 Vzhled · 6 Adresa | po zaplacení onboardingu |
-| Nastavení | 7 Služby a pravidla · 8 Import dat · 9 Právní texty · 10 E-maily · 11 SMS · 12 Fio · 13 Přístupy týmu | souběžně, 1–2 týdny |
+| Nastavení | 7 Služby a pravidla · 8 Import dat · 9 Právní texty · 10 E-maily · 11 Bez SMS · 12 Fio · 13 Přístupy týmu | souběžně, 1–2 týdny |
 | Spuštění | 14 Test · 15 Školení · 16 Spuštění | 1–2 týdny jen tým, potom klienti |
 | Provoz | 17 Po spuštění · 18 Obnova licence a připomínky · 19 Ukončení spolupráce | průběžně |
 
@@ -19,7 +19,7 @@
 
 - [ ] **NC** Obor a druh služeb: **zdravotní** (provozovna je poskytovatelem zdravotních služeb s oprávněním krajského úřadu), **nezdravotní** (živnost – masáže, wellness, fitness, kosmetika), nebo obojí. Určuje variantu Z / N právních textů a nastavení odstoupení u permanentek.
 - [ ] **NC** Počet provozoven a Pracovníků s vlastním rozvrhem, počet lidí na recepci → tarif.
-- [ ] **NC** Moduly: skupinové lekce, permanentky, kredit, kampaně; platby (na místě, QR; platba kartou online se nenabízí); párování plateb Fio; SMS.
+- [ ] **NC** Moduly: skupinové lekce, permanentky, kredit, kampaně; platby (na místě, QR; platba kartou online se nenabízí); párování plateb Fio. Zprávy klientům jen e-mailem – SMS Platforma neposílá.
 - [ ] **NC** Odkud jsou data: stávající systém (Reservio, Reservanto, Excel…), formát exportu, počet klientů, permanentky a kredity v běhu.
 - [ ] **NC** Adresa: vlastní doména (např. `rezervace.provozovna.cz`), nebo `[DOMÉNA PLATFORMY]/<označení>`.
 - [ ] **NC** Varianta licence: A (měsíčně / ročně), nebo B (B1 / B2); zkouška – cesta A (ukázková data) nebo B (zkušební období ve smlouvě); cílové datum spuštění.
@@ -80,7 +80,7 @@ V obou variantách:
 - [ ] **Z** Podklady: služby (název, délka, cena, rezerva po službě, kdo je poskytuje, zda jen pro nové klienty), permanentky (vstupy, služby, cena, platnost, omluvenky), skupinové lekce (rozvrh, kapacita), místnosti, tým, pracovní doba, pauzy a nepřítomnosti.
 - [ ] **NC** U zdravotních služeb neutrální názvy, které se objeví ve zprávách (údaje o zdraví – `../legal/texty-v-aplikaci.md`, část E4).
 - [ ] **Z + NC** Storno podmínky, omluvenky, čekací listina, pravidla online rezervací (předstih, horizont, počet rezervací), připomínky a platby (číslo účtu pro QR, splatnost). **Každé číslo musí odpovídat obchodním podmínkám provozovny** – tabulka „Nastavitelné hodnoty“ v `../legal/README.md`.
-- [ ] **NC** Komunikace → Šablony: projít texty se zákazníkem; SMS šablony nechat vypnuté do schválení odesílatele (krok 11); kampaně jen se souhlasy.
+- [ ] **NC** Komunikace → Šablony: projít texty e-mailů se zákazníkem; kampaně jen se souhlasy.
 
 ## 8. Import dat
 
@@ -109,12 +109,9 @@ V obou variantách:
 - [ ] **NC** Přihlašovací kódy (Supabase Auth, SMTP Brevo) odcházejí z ověřené domény a obsahují `{{ .Token }}` (`DEPLOY.md`, krok 2).
 - [ ] **NC** Test doručení potvrzení rezervace na Gmail, Seznam a Outlook – nesmí padat do spamu.
 
-## 11. SMS
+## 11. Bez SMS
 
-- [ ] **Z** Odsouhlasit cenu SMS (Příloha 1) a k čemu se SMS posílají (připomínky, změny termínů, čekací listina).
-- [ ] **NC** Registrovat odesílatele (Sender ID, nejvýše 11 znaků, např. název provozovny bez diakritiky) v Brevo pro Českou republiku – schválení trvá zhruba 2 týdny; do té doby SMS šablony vypnuté.
-- [ ] **NC** Dobít kredit SMS a nastavit měsíční vyúčtování zákazníkovi.
-- [ ] **NC** Zkušební SMS na telefon zákazníka; ověřit, že šablony nemají zbytečně diakritiku (70 místo 160 znaků na část).
+- [ ] **NC** S klienty se komunikuje jen e-mailem – SMS Platforma neposílá (platí pro celou Platformu, nejde zapnout jednomu zákazníkovi). Odesílatel SMS (Sender ID) ani kredit SMS se nezřizují a SMS se neúčtují; telefon klienta slouží jen provozovně k domluvě.
 
 ## 12. Párování plateb Fio (volitelně)
 
@@ -134,7 +131,7 @@ V obou variantách:
 
 - [ ] Zkušební rezervace v portálu na telefonu i počítači; zrušení zdarma, pozdní zrušení s poplatkem, omluvenka a náhradní termín, čekací listina.
 - [ ] QR platba malou částkou a potvrzení přijaté platby.
-- [ ] Připomínka termínu (testovací klient), SMS, pokud jsou zapnuté.
+- [ ] Připomínka termínu e-mailem (testovací klient).
 - [ ] Nákup permanentky online a odstoupení od smlouvy (jen nezdravotní služby).
 - [ ] Export údajů klienta a anonymizace na testovacím klientovi.
 - [ ] Odkazy na obchodní podmínky a informace o zpracování v registraci a v průvodci rezervací.
@@ -163,7 +160,7 @@ V obou variantách:
 
 ## 17. Po spuštění
 
-- [ ] **Den 14:** kontrolní hovor – co nefunguje, doručitelnost e-mailů a SMS, dotazy recepce.
+- [ ] **Den 14:** kontrolní hovor – co nefunguje, doručitelnost e-mailů, dotazy recepce.
 - [ ] **Den 30:** projít statistiky a nastavení, sebrat zpětnou vazbu a náměty na úpravy (Příloha 4), požádat o referenci (jen se souhlasem).
 - [ ] Potvrdit dokončení onboardingu e-mailem (článek 6.3).
 
@@ -176,7 +173,7 @@ V obou variantách:
 | 30 dní před koncem roku provozu (B) | faktura Poplatku za provoz | NC |
 | po splatnosti | upomínky a omezení podle `cenik-a-licence.md`, část 10 (ochranná lhůta → jen pro čtení → pozastavení) | NC |
 | 7 dní před koncem zkoušky | připomínka konce zkušebního období | NC |
-| měsíčně | vyúčtování SMS a e-mailů nad limit | NC |
+| měsíčně | vyúčtování e-mailů nad limit | NC |
 | zhruba každých 5 měsíců | obnova tokenu Fio (platí nejvýše 180 dní) | Z, připomíná NC |
 | 30 dní před změnou | oznámení nového dalšího zpracovatele (smlouva o zpracování, článek 7.2) | NC |
 | při změně storno pravidel nebo ceníku | nová verze obchodních podmínek s datem účinnosti, archiv starých verzí | Z |
@@ -188,7 +185,7 @@ V obou variantách:
 - [ ] Potvrdit přijetí výpovědi nebo odstoupení e-mailem s datem skončení smlouvy.
 - [ ] Nabídnout pomoc s přechodem (přechodné období) a **úplný export zdarma** (JSON a CSV s popisem struktury) do 10 pracovních dnů od žádosti (článek 18 licenční smlouvy).
 - [ ] Po skončení **exportní lhůta 60 dní**: majitel má přístup jen pro čtení, portál ukazuje kontakt na provozovnu.
-- [ ] Odebrat vlastní doménu z nastavení, zrušit odesílatele SMS; zákazník zneplatní token Fio a upraví DNS.
+- [ ] Odebrat vlastní doménu z nastavení; zákazník zneplatní token Fio a upraví DNS.
 - [ ] **Výmaz** do 30 dní po exportní lhůtě, ze záloh nejpozději po 30 dnech; poslat potvrzení o výmazu.
 - [ ] Označení `/<označení>` nepřidělovat jinému zákazníkovi 12 měsíců.
 
@@ -203,7 +200,7 @@ Co si o každém zákazníkovi vést (např. v tabulce zákazníků):
 | smlouvy | licenční smlouva č. [ČÍSLO] ze dne [DATUM]; smlouva o zpracování ze dne [DATUM], verze Přílohy 1 [DATUM] |
 | kontakty | oprávněná osoba k pokynům, kontakt pro incidenty, fakturace |
 | druh služeb | zdravotní / nezdravotní / obojí (varianta Z / N) |
-| adresa a odesílatelé | doména nebo `/<označení>`; odesílací e-mail; Sender ID |
+| adresa a odesílatel | doména nebo `/<označení>`; odesílací e-mail |
 | Fio | ano / ne; konec platnosti tokenu |
 | právní texty | verze a datum účinnosti zveřejněných obchodních podmínek a informací o zpracování |
 | slevy | výše a datum konce |

@@ -166,12 +166,14 @@ describe('hodnoty ze souboru', () => {
 
 describe('mapování sloupců', () => {
   it('rozpozná české i anglické názvy bez ohledu na velikost písmen a diakritiku', () => {
+    // souhlas se SMS se s vypnutými SMS nemapuje – sloupec se přijme a ignoruje
     const cz = mapHeaders('clients', ['JMÉNO', 'prijmeni', 'E-mail', 'Telefonní číslo', 'Datum narození', 'Souhlas e-mail/marketing', 'souhlas SMS', 'Štítky', 'Poznámka', 'Barva očí']);
-    expect(cz.columns).toEqual({ firstName: 0, lastName: 1, email: 2, phone: 3, birthDate: 4, marketingEmail: 5, sms: 6, tags: 7, note: 8 });
-    expect(cz.ignored).toEqual(['Barva očí']);
+    expect(cz.columns).toEqual({ firstName: 0, lastName: 1, email: 2, phone: 3, birthDate: 4, marketingEmail: 5, tags: 7, note: 8 });
+    expect(cz.ignored).toEqual(['souhlas SMS', 'Barva očí']);
     expect(cz.errors).toEqual([]);
     const en = mapHeaders('clients', ['First name', 'Last name', 'Email', 'Phone', 'Date of birth', 'Marketing consent', 'SMS consent', 'Tags', 'Note']);
-    expect(Object.keys(en.columns)).toHaveLength(9);
+    expect(Object.keys(en.columns)).toHaveLength(8);
+    expect(en.ignored).toEqual(['SMS consent']);
     expect(mapHeaders('packages', ['e-mail', 'PERMANENTKA', 'Zbývá vstupů', 'Platí do']).errors).toEqual([]);
     expect(mapHeaders('credits', ['Telefon', 'Kredit (Kč)']).columns).toEqual({ phone: 0, amount: 1 });
   });
@@ -191,6 +193,7 @@ describe('mapování sloupců', () => {
     const s = createBaseState('2026-01-01');
     const clients = readImportFile('clients', importTemplateCsv('clients', s));
     expect(clients.errors).toEqual([]);
+    expect(clients.header).not.toContain('Souhlas SMS');
     expect(summarizeChecks(checkClientRows(s, clients.rows, 'skip', NOW))).toMatchObject({ total: 2, created: 2, errors: 0, warnings: 0 });
     // Petr ze šablony (telefon 603 987 654) už v ukázkové klinice je
     expect(checkClientRows(setup().s, clients.rows, 'skip', NOW)[1]).toMatchObject({ action: 'skip', matchedBy: 'phone' });
@@ -233,9 +236,11 @@ describe('import klientů', () => {
     expect(summarizeChecks(checks)).toEqual({ total: 6, created: 2, updated: 0, skipped: 2, errors: 2, warnings: 3 });
   });
 
-  it('založí klienty: souhlas GDPR vždy se zdrojem importu, obchodní sdělení a SMS jen podle souboru; nic neodešle', () => {
+  it('založí klienty: souhlas GDPR vždy se zdrojem importu, obchodní sdělení jen podle souboru, sloupec SMS ignoruje; nic neodešle', () => {
     const { s } = setup();
     const file = readImportFile('clients', CLIENTS_CSV);
+    expect(file.errors).toEqual([]);
+    expect(file.map.ignored).toEqual(['Souhlas SMS']);
     const r = run(s, importClients, { rows: file.rows, onDuplicate: 'skip' }, reception());
     expect(r.value).toMatchObject({ created: 2, updated: 0, skipped: 2, errors: 2 });
     expect(r.value.failed.map((f) => f.row)).toEqual([3, 6]);
@@ -256,7 +261,8 @@ describe('import klientů', () => {
     const karel = r.state.clients.find((c) => c.lastName === 'Dvořák')!;
     expect(karel).toMatchObject({ firstName: 'Karel', email: '', phone: '+420 602 111 222', birthDate: null });
     expect(karel.consents.marketingEmail).toBeNull();
-    expect(karel.consents.sms).toEqual({ at: NOW, source: IMPORT_SOURCE });
+    // soubor uvádí souhlas se SMS, ale SMS se nepoužívají – nový souhlas nevznikne
+    expect(karel.consents.sms).toBeNull();
     expect(r.state.clients).toHaveLength(4);
     expect(r.state.messages).toHaveLength(0);
     // historie změn: každý nový klient + souhrn importu
@@ -314,7 +320,8 @@ describe('import klientů', () => {
     expect(r.value).toMatchObject({ created: 1, errors: 0 });
     const ota = r.state.clients.find((c) => c.lastName === 'Číselný')!;
     expect(ota).toMatchObject({ phone: '+420 777 123 456', tags: [], birthDate: null });
-    expect(ota.consents.sms).not.toBeNull();
+    // souhlas se SMS ze vstupu se s vypnutými SMS ignoruje
+    expect(ota.consents.sms).toBeNull();
     expect(ota.consents.marketingEmail).toBeNull();
     expect(tryRun(s, importClients, { rows: 'x' as unknown as ClientImportRow[], onDuplicate: 'skip' }, owner())).toMatch(/žádné řádky/);
   });

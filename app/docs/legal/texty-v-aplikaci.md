@@ -14,7 +14,7 @@
 
 **Kde:** formulář pro založení účtu (ostrá verze s přihlášením).
 
-Pole: Jméno · Příjmení · E-mail · Telefon *(nepovinné – „pro SMS připomínky“)* · Datum narození *(nepovinné – „pomůže nám odlišit klienty se stejným jménem“)*
+Pole: Jméno · Příjmení · E-mail · Telefon *(nepovinné – „pro domluvu změn termínu“)* · Datum narození *(nepovinné – „pomůže nám odlišit klienty se stejným jménem“)*
 
 **Zaškrtávací políčka:**
 
@@ -24,13 +24,10 @@ Pole: Jméno · Příjmení · E-mail · Telefon *(nepovinné – „pro SMS př
 
    *Volitelně místo věty:* ☐ „Seznámil/a jsem se s [Informacemi o zpracování osobních údajů].“ – jde jen o potvrzení, že klient informace dostal, **ne o souhlas se zpracováním**.
 
-2. ☐ **Chci dostávat SMS připomínky termínů.** *(nepovinné)*
-   > SMS posíláme jen k vašim termínům: připomínku před termínem, změnu nebo zrušení termínu a nabídku uvolněného termínu z čekací listiny. Nejde o reklamu. Bez SMS vám vše pošleme e-mailem. Volbu můžete kdykoli změnit v účtu.
-
-3. ☐ **Chci dostávat novinky a nabídky kliniky e-mailem.** *(nepovinné)*
+2. ☐ **Chci dostávat novinky a nabídky kliniky e-mailem.** *(nepovinné)*
    > Občas (nejvýše [2×] měsíčně) vám pošleme tipy na cvičení, novinky a akce kliniky. Souhlas můžete kdykoli odvolat odkazem v každém e-mailu nebo v účtu.
 
-   *[VARIANTA – zákaznická výjimka, vyžaduje úpravu systému:]* místo políčka 3 zobrazit
+   *[VARIANTA – zákaznická výjimka, vyžaduje úpravu systému:]* místo políčka 2 zobrazit
    ☐ **Nechci dostávat novinky a nabídky kliniky e-mailem.**
    > Jako našemu klientovi vám můžeme občas poslat nabídku našich obdobných služeb. Pokud o to nestojíte, zaškrtněte políčko. Odhlásit se můžete i později v každém e-mailu.
 
@@ -43,7 +40,6 @@ Tlačítko: **Vytvořit účet**
 ### A2. Založení klienta na recepci (administrace)
 
 - ☐ **Klient dostal informace o zpracování osobních údajů a souhlasí s obchodními podmínkami** *(v tištěné podobě nebo odkazem e-mailem)*. *(povinné pro personál)*
-- ☐ **SMS připomínky termínů** – stejný popis jako výše.
 - ☐ **Novinky a nabídky e-mailem** – nápověda pro personál: „Zaškrtněte jen tehdy, když klient souhlas výslovně udělil. Do karty se uloží datum a zdroj ‚recepce‘.“
 
 ### A3. Účet → Souhlasy a soukromí
@@ -51,7 +47,6 @@ Tlačítko: **Vytvořit účet**
 | Položka | Zapnuto | Vypnuto |
 |---|---|---|
 | Údaje pro rezervace *(zamčeno)* | „Zpracováváme je, protože bez nich vám nemůžeme rezervace a služby poskytovat. Nejde o souhlas, proto se nedá vypnout přepínačem. Účet a údaje můžete nechat zrušit (níže).“ | – |
-| SMS zprávy | „Připomínky termínů a nabídky z čekací listiny vám posíláme i SMS na {telefon}.“ | „Servisní zprávy vám posíláme jen e-mailem.“ |
 | Novinky a nabídky e-mailem | „Posíláme vám novinky a nabídky. Souhlas udělen {datum} ({zdroj}).“ | „Novinky a nabídky vám neposíláme.“ |
 
 > **Pro Nexum Care:** Přepínač „Zdravotní dokumentace“ (souhlas `health`) při vypnutých klinických poznámkách skrýt. Je-li klinika poskytovatelem zdravotních služeb, nestojí zdravotnická dokumentace na souhlasu, ale na zákonné povinnosti.
@@ -219,7 +214,7 @@ Systém dnes do zprávy dává příjmení klienta a označení platby, např. n
 | Kde | Text |
 |---|---|
 | Poznámka k rezervaci – nápověda | „Nepovinné. Napište jen to, co potřebujeme k objednání – podrobnosti o zdravotním stavu probereme osobně. Poznámku uvidí jen personál kliniky.“ Ukázka v políčku: „Např. jde o první návštěvu, preferuji terapeutku.“ *(dnešní ukázka „Např. bolest kolene po běhu“ k uvádění zdravotních údajů přímo vybízí)* |
-| Zápis na čekací listinu | „Zapíšeme vás na čekací listinu. Když se místo uvolní, pošleme vám nabídku e-mailem [a SMS]. Nabídka platí [2 hodiny] a termín získá ten, kdo potvrdí první. Zápis je zdarma a nezávazný.“ |
+| Zápis na čekací listinu | „Zapíšeme vás na čekací listinu. Když se místo uvolní, pošleme vám nabídku e-mailem. Nabídka platí [2 hodiny] a termín získá ten, kdo potvrdí první. Zápis je zdarma a nezávazný.“ |
 | Zrušení v bezplatné lhůtě | „Zrušit termín {služba} {datum}? Zrušení je zdarma. {Zaplacenou částku vrátíme na kredit. / Vstup se vrátí na permanentku.}“ |
 | Pozdní zrušení | „Bezplatná lhůta skončila {storno_do}. Při zrušení teď platí storno {pct} % = {částka} {(uhradíme z kreditu)}. {Můžete místo toho použít omluvenku – zbývá {zbývá} z {celkem}.}“ |
 | Omluvenka | „Omluvit termín bez poplatku? Spotřebujete 1 omluvenku (zbude vám {zbývá}). {Náhradní termín si vyberte do {náhrada_do}.}“ |

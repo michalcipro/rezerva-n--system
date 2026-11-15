@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { downloadFile, downloadNotice } from '../../app/download';
 import type { ClinicState } from '../../domain/types';
+import { SMS_ENABLED } from '../../engine/channels';
 import { toCsv } from '../../engine/importer';
 import { clientName, getClient, getService, getTherapist, therapistName } from '../../engine/selectors';
 import { pragueNow } from '../../engine/time';
@@ -44,11 +45,13 @@ function csvFiles(s: ClinicState): { name: string; rows: (string | number)[][] }
     const c = id ? getClient(s, id) : undefined;
     return c ? clientName(c) : id ?? '';
   };
+  // sloupec se souhlasem SMS jen se zapnutými SMS (starší souhlas je v JSON exportu a v exportu osobních údajů klienta)
+  const sms = (value: string): string[] => (SMS_ENABLED ? [value] : []);
   return [
     {
       name: 'klienti',
       rows: [
-        ['ID', 'Jméno', 'Příjmení', 'E-mail', 'Telefon', 'Datum narození', 'Štítky', 'Klientem od', 'Souhlas GDPR', 'Souhlas zdravotní', 'Souhlas e-mail marketing', 'Souhlas SMS'],
+        ['ID', 'Jméno', 'Příjmení', 'E-mail', 'Telefon', 'Datum narození', 'Štítky', 'Klientem od', 'Souhlas GDPR', 'Souhlas zdravotní', 'Souhlas e-mail marketing', ...sms('Souhlas SMS')],
         ...s.clients.map((c) => [
           c.id,
           c.firstName,
@@ -61,7 +64,7 @@ function csvFiles(s: ClinicState): { name: string; rows: (string | number)[][] }
           c.consents.gdpr?.at ?? '',
           c.consents.health?.at ?? '',
           c.consents.marketingEmail?.at ?? '',
-          c.consents.sms?.at ?? '',
+          ...sms(c.consents.sms?.at ?? ''),
         ]),
       ],
     },

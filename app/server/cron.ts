@@ -1,4 +1,5 @@
 import type { Actor, ClinicState, Message } from '../src/domain/types';
+import { SMS_OFF_REASON, channelEnabled } from '../src/engine/channels';
 import { MAX_DELIVERY_ATTEMPTS, confirmPaymentRequest, queuedMessages, recordDeliveries, type DeliveryResult } from '../src/engine/commands';
 import { clientName, getClient } from '../src/engine/selectors';
 import { addDays, dateOf } from '../src/engine/time';
@@ -8,7 +9,8 @@ import { FioError, fetchFioTransactions, matchBankPayments, renderEmailHtml, typ
 
 /**
  * Úlohy automatiky po spuštění procesů enginu (POST /api/cron každých 5 minut):
- *  - odeslání zpráv ve frontě (e-maily, SMS) a zápis výsledku,
+ *  - odeslání zpráv ve frontě (e-maily) a zápis výsledku; SMS ze starších dat se s vypnutými SMS
+ *    (src/engine/channels.ts) neodešle a označí se jako neodeslaná s důvodem,
  *  - párování příchozích plateb z Fio s čekajícími QR platbami.
  */
 
@@ -73,6 +75,11 @@ export function deliveryJob(cfg: DeliveryConfig): (ctx: CronContext) => Promise<
     const results: DeliveryResult[] = [];
     let stopped: string | null = null;
     for (const m of queue) {
+      if (!channelEnabled(m.channel)) {
+        // SMS, která zůstala ve frontě ze starších dat: platforma posílá jen e-maily
+        results.push({ messageId: m.id, ok: false, skipReason: SMS_OFF_REASON });
+        continue;
+      }
       let r: SendResult;
       try {
         r = await sendOne(cfg, clinicId, s, m);
@@ -94,7 +101,7 @@ export function deliveryJob(cfg: DeliveryConfig): (ctx: CronContext) => Promise<
       log('Výsledek odeslání se nepodařilo zapsat', { error: saved.error });
       return { messages: { error: saved.error } };
     }
-    const value = saved.value as { sent: number; failed: number } | null;
+    const value = saved.value as { sent: number; failed: number; skipped: number } | null;
     return { messages: { ...(value ?? { sent: 0, failed: 0 }), stopped } };
   };
 }

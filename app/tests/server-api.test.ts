@@ -168,7 +168,8 @@ describe('API platformy', () => {
     expect(bad.status).toBe(400);
     const reg = await call<SessionInfo>('POST', '/register', {
       as: 'petr',
-      body: { firstName: 'Petr', lastName: 'Svoboda', phone: '+420 602 000 111', consents: { gdpr: true, health: false, marketingEmail: true, sms: false } },
+      // starší verze aplikace může poslat i souhlas se SMS – SMS jsou vypnuté, souhlas nevznikne
+      body: { firstName: 'Petr', lastName: 'Svoboda', phone: '+420 602 000 111', consents: { gdpr: true, health: false, marketingEmail: true, sms: true } },
     });
     expect(reg.status).toBe(200);
     expect(reg.body).toMatchObject({ role: 'client', name: 'Petr Svoboda' });
@@ -176,6 +177,7 @@ describe('API platformy', () => {
     const petr = state.clients.find((c) => c.email === 'petr@example.cz')!;
     expect(petr.source).toBe('online');
     expect(petr.consents.marketingEmail).not.toBeNull();
+    expect(petr.consents.sms).toBeNull();
   });
 
   it('klient vidí jen svůj pohled bez cizích údajů', async () => {

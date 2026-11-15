@@ -8,6 +8,7 @@ import type {
   MessageTemplate,
   TemplateKey,
 } from '../domain/types';
+import { activeChannels } from './channels';
 import { formatDayShort, formatMoney, formatTime } from './format';
 import { newId } from './ids';
 import { getClient, getPackage, getRoom, getService, getTherapist, therapistName } from './selectors';
@@ -274,7 +275,8 @@ export interface QueueInput {
 }
 
 /**
- * Vytvoří zprávy podle šablony (e-mail / SMS) a uloží je do odeslaných.
+ * Vytvoří zprávy podle šablony a uloží je do odeslaných – jen kanály, které platforma používá
+ * (SMS jsou vypnuté přepínačem v engine/channels.ts, i když je šablona ze starších dat má zapnuté).
  * Respektuje zapnutí šablony a souhlasy klienta. Vrací vytvořené zprávy.
  */
 export function queueTemplateMessage(draft: ClinicState, input: QueueInput): Message[] {
@@ -285,7 +287,7 @@ export function queueTemplateMessage(draft: ClinicState, input: QueueInput): Mes
   const vars: TemplateVars = { klinika: draft.settings.clinicName, jméno: client.firstName, příjmení: client.lastName, ...input.vars };
   const created: Message[] = [];
   const marketing = MARKETING_TEMPLATES.includes(input.key);
-  for (const channel of tpl.channels) {
+  for (const channel of activeChannels(tpl.channels)) {
     const body = channel === 'sms' ? tpl.smsBody : tpl.body;
     if (!body) continue;
     let skipReason: string | undefined;

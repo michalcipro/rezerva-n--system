@@ -1,6 +1,9 @@
 /**
  * Brevo (dříve Sendinblue) – transakční e-maily a SMS přes REST API v3.
  *
+ * Platforma posílá klientům jen e-maily: SMS jsou vypnuté přepínačem SMS_ENABLED (src/engine/channels.ts)
+ * a automatika `sendSms` nevolá. Kód pro SMS (bod 4 a odesílání níže) zůstává pro případné pozdější zapnutí.
+ *
  * Nastavení (podle dokumentace Brevo, ověřeno 11/2026):
  *  1. API klíč (začíná `xkeysib-`): Brevo → menu účtu vpravo nahoře → Settings → SMTP & API → záložka
  *     „API keys & MCP“ (dříve „API Keys“) → „Generate a new API key“. Klíč se zobrazí jen jednou; uložte ho

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Client, Id, LocalDate, LocalDateTime } from '../../domain/types';
 import { availableSlots, nextAvailableDate, type Slot, type SlotCheck } from '../../engine/availability';
+import { SMS_ENABLED } from '../../engine/channels';
 import { createClient } from '../../engine/commands';
 import { countLabel, formatDayShort, formatMoney, formatTime, formatTimeRange } from '../../engine/format';
 import { moduleOn } from '../../engine/modules';
@@ -317,7 +318,7 @@ function QuickClientForm({
         />
         <Checkbox checked={health} onChange={setHealth} label="Souhlas s vedením zdravotní dokumentace" />
         <Checkbox checked={marketingEmail} onChange={setMarketingEmail} label="Obchodní sdělení e-mailem" />
-        <Checkbox checked={sms} onChange={setSms} label="SMS zprávy (připomínky termínů)" />
+        {SMS_ENABLED && <Checkbox checked={sms} onChange={setSms} label="SMS zprávy (připomínky termínů)" />}
       </div>
       <div className="cal-quick__actions">
         <Button

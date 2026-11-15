@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import type { Channel, Client, ClientPackage, MoneyMethod } from '../../domain/types';
+import { SMS_ENABLED } from '../../engine/channels';
 import {
   adjustCredit,
   cancelPackage,
@@ -104,15 +105,15 @@ export function SendMessageDialog({ client, open, onClose }: { client: Client; o
   const words = useTerms();
   const formId = useId();
   const canEmail = !!client.email;
-  const canSms = !!client.phone;
-  const [channel, setChannel] = useState<Channel>(canEmail ? 'email' : 'sms');
+  const canSms = SMS_ENABLED && !!client.phone;
+  const [channel, setChannel] = useState<Channel>(canEmail || !canSms ? 'email' : 'sms');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [tried, setTried] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setChannel(canEmail ? 'email' : 'sms');
+    setChannel(canEmail || !canSms ? 'email' : 'sms');
     setSubject(`Zpráva ${prep('z', words.business.gen)} ${clinic.settings.clinicName}`);
     setBody(`Dobrý den, ${client.firstName},\n\n`);
     setTried(false);
@@ -140,22 +141,26 @@ export function SendMessageDialog({ client, open, onClose }: { client: Client; o
       onClose={onClose}
       title={`Zpráva pro ${client.firstName} ${client.lastName}`}
       description="Zprávy se v prototypu reálně neodesílají – uloží se do komunikace klienta."
-      footer={<DialogFooter onClose={onClose} submitLabel={channel === 'email' ? 'Odeslat e-mail' : 'Odeslat SMS'} formId={formId} />}
+      footer={<DialogFooter onClose={onClose} submitLabel={channel === 'email' ? 'Odeslat e-mail' : 'Odeslat SMS'} formId={formId} disabled={!canEmail && !canSms} />}
     >
       <form id={formId} className="cli-form" onSubmit={submit} noValidate>
         {!canEmail && !canSms ? (
-          <Callout tone="danger">Klient nemá e-mail ani telefon. Doplňte kontakt v jeho údajích.</Callout>
+          <Callout tone="danger">
+            {SMS_ENABLED ? 'Klient nemá e-mail ani telefon. Doplňte kontakt v jeho údajích.' : 'Klient nemá e-mail – zprávy posíláme jen e-mailem. Doplňte ho v jeho údajích.'}
+          </Callout>
         ) : (
           <>
-            <Segmented
-              aria-label="Kanál"
-              value={channel}
-              onChange={setChannel}
-              options={[
-                { value: 'email', label: 'E-mail', icon: 'mail', disabled: !canEmail },
-                { value: 'sms', label: 'SMS', icon: 'smartphone', disabled: !canSms },
-              ]}
-            />
+            {SMS_ENABLED && (
+              <Segmented
+                aria-label="Kanál"
+                value={channel}
+                onChange={setChannel}
+                options={[
+                  { value: 'email', label: 'E-mail', icon: 'mail', disabled: !canEmail },
+                  { value: 'sms', label: 'SMS', icon: 'smartphone', disabled: !canSms },
+                ]}
+              />
+            )}
             <p className="cli-to tnum">
               Komu: <strong>{channel === 'email' ? client.email || '—' : client.phone || '—'}</strong>
             </p>

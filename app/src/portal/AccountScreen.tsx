@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ClientConsents, ClientPackage, Id, LedgerEntry, Message } from '../domain/types';
 import { ClientAvatar } from '../components/domain';
+import { SMS_ENABLED } from '../engine/channels';
 import { createPaymentRequest, creditBonusFor, sellPackage, setConsent, topUpCredit, updateClient, withdrawalInfo, withdrawFromPackage } from '../engine/commands';
 import {
   countLabel,
@@ -100,7 +101,7 @@ function AccountRoot(): JSX.Element {
   }, [clinic, client.id, today]);
   const go = (v: AccountView): void => setAccountView(v);
   const purchase = onlinePurchase(clinic);
-  const consentCount = [client.consents.health, client.consents.marketingEmail, client.consents.sms].filter(Boolean).length;
+  const consentCount = [client.consents.health, client.consents.marketingEmail, ...(SMS_ENABLED ? [client.consents.sms] : [])].filter(Boolean).length;
   // vypnuté moduly (Nastavení → Moduly): bez nákupu a dobití, dosavadní zůstatky zůstávají vidět
   const mod = modulesOf(clinic);
   const showPackages = mod.packages || stats.active > 0;
@@ -276,7 +277,7 @@ function ProfileView({ onBack }: { onBack: () => void }): JSX.Element {
         <Field label="E-mail" error={touched ? errors.email ?? errors.contact : undefined} hint="Sem posíláme potvrzení a připomínky.">
           <Input size="lg" type="email" inputMode="email" value={form.email} onValueChange={set('email')} autoComplete="email" />
         </Field>
-        <Field label="Telefon" hint="Pro SMS připomínky a nabídky uvolněných termínů.">
+        <Field label="Telefon" hint="Pro domluvu změn termínu.">
           <Input size="lg" type="tel" inputMode="tel" value={form.phone} onValueChange={set('phone')} autoComplete="tel" />
         </Field>
         <Field label="Datum narození" optional>
@@ -299,7 +300,10 @@ const consentRows = (words: Terms): { key: Exclude<keyof ClientConsents, 'gdpr'>
     on: `${words.Staff.nom} si vede poznámky o průběhu terapie.`,
     off: `Bez souhlasu si ${words.staff.nom} nemůže vést poznámky o vašem zdravotním stavu.`,
   },
-  { key: 'sms', label: 'SMS zprávy', on: 'Připomínky termínů a nabídky uvolněných termínů.', off: 'Připomínky a nabídky dostanete jen e-mailem.' },
+  // souhlas se SMS jen se zapnutými SMS (starší zůstává v datech a v exportu osobních údajů)
+  ...(SMS_ENABLED
+    ? [{ key: 'sms' as const, label: 'SMS zprávy', on: 'Připomínky termínů a nabídky uvolněných termínů.', off: 'Připomínky a nabídky dostanete jen e-mailem.' }]
+    : []),
   {
     key: 'marketingEmail',
     label: 'Novinky a nabídky e-mailem',
@@ -1014,7 +1018,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
                     <span className="por-msg__kind">{kindLabel[m.kind] ?? 'Zpráva'}</span>
                     <span className="por-msg__time tnum">{when(m.at)}</span>
                   </span>
-                  <span className="por-msg__subject">{m.subject || 'SMS zpráva'}</span>
+                  <span className="por-msg__subject">{m.subject || (m.channel === 'sms' ? 'SMS zpráva' : 'Bez předmětu')}</span>
                   <span className="por-msg__snippet">{m.body.replace(/\s+/g, ' ').slice(0, 140)}</span>
                 </span>
               </button>
@@ -1032,7 +1036,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
       <Sheet open={!!open} onClose={() => setOpenId(null)} title={open ? kindLabel[open.kind] ?? 'Zpráva' : ''}>
         {open && (
           <article className="por-msgdetail">
-            <h3 className="por-msgdetail__subject">{open.subject || 'SMS zpráva'}</h3>
+            <h3 className="por-msgdetail__subject">{open.subject || (open.channel === 'sms' ? 'SMS zpráva' : 'Bez předmětu')}</h3>
             <span className="por-msgdetail__meta tnum">
               <Icon name={open.channel === 'sms' ? 'smartphone' : 'mail'} size={14} />
               {open.channel === 'sms' ? `SMS na ${client.phone}` : `E-mail na ${client.email}`} · {formatDateTimeShort(open.at)}
@@ -1044,7 +1048,7 @@ function InboxView({ onBack }: { onBack: () => void }): JSX.Element {
       {!messages.length && (
         <Callout tone="neutral" icon="info">
           Zprávy posíláme na {client.email || 'váš e-mail'}
-          {client.phone ? ` a ${client.phone}` : ''}.
+          {SMS_ENABLED && client.phone ? ` a ${client.phone}` : ''}.
         </Callout>
       )}
     </Screen>

@@ -142,7 +142,7 @@ function CancelForm({ bookingId, onClose, initialOption }: { bookingId: Id; onCl
               <ChoiceChips aria-label="Důvod zrušení" value={reasonChip} onChange={(v) => setReasonChip(v === reasonChip ? null : v)} options={REASONS.map((r) => ({ value: r, label: r }))} />
             </div>
           </Field>
-          <Field label="Poznámka k důvodu" optional hint={isClinic ? 'Klient dostane omluvnou zprávu s tímto důvodem.' : 'Klient dostane potvrzení zrušení e-mailem nebo SMS podle svých souhlasů.'}>
+          <Field label="Poznámka k důvodu" optional hint={isClinic ? 'Klient dostane omluvnou zprávu s tímto důvodem.' : 'Klient dostane potvrzení zrušení e-mailem.'}>
             <Textarea value={reasonText} onValueChange={setReasonText} rows={2} placeholder={isClinic ? `Např. nemoc ${words.staff.gen}` : 'Např. horečka, doloží potvrzení'} />
           </Field>
         </div>

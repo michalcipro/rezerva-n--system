@@ -37,7 +37,7 @@ Rezervační systém (webovou aplikaci a klientský portál, dále „Platforma�
 - **Údaje o klientském účtu:** přihlašovací e-mail, údaje o přihlášení (čas, IP adresa, zařízení). Heslo ukládáme jen v podobě, ze které ho nelze zpětně zjistit.
 - **Rezervace a docházka:** služba, Pracovník (terapeut, trenér, lektor, kosmetička…), datum a čas, způsob rezervace (online, recepce, telefon), stav termínu (proběhl, zrušen, omluven, nedostavení), čas a způsob zrušení, omluvenky, náhradní termíny, zápisy na čekací listinu, vaše poznámka k rezervaci.
 - **Platby a předplacené služby:** ceny, způsob a stav plateb, [kredit a jeho pohyby, bonusy,] [permanentky,] storno poplatky, platební výzvy (variabilní symbol, splatnost). U bankovních převodů údaje z výpisu z našeho účtu: jméno a číslo účtu plátce, částka, variabilní symbol, zpráva pro příjemce a datum platby.
-- **Komunikace:** odeslané e-maily a SMS a informace o jejich doručení, vaše volba SMS, souhlas s obchodními sděleními a odhlášení (kdy a jakým způsobem).
+- **Komunikace:** odeslané e-maily a informace o jejich doručení, souhlas s obchodními sděleními a odhlášení (kdy a jakým způsobem).
 - **Interní poznámky** personálu k organizaci služeb (např. „preferuje ranní termíny“).
 - **Technické a bezpečnostní údaje:** záznamy o tom, kdo, kdy a jakou akci v systému provedl, IP adresa a údaje o prohlížeči při používání aplikace.
 - **Údaje o zdraví** – viz část 5.
@@ -51,7 +51,7 @@ Do rezervačního systému neukládáme rodné číslo, údaje o zdravotní poji
 | Účel | Jaké údaje | Právní základ | Jak dlouho |
 |---|---|---|---|
 | Vedení klientského účtu, rezervace a poskytnutí služeb, včetně storno pravidel, omluvenek, náhradních termínů a čekací listiny | identifikační a kontaktní údaje, rezervace a docházka, poznámka k rezervaci | plnění smlouvy – čl. 6 odst. 1 písm. b) GDPR; **[VARIANTA Z]** u zdravotních služeb také čl. 9 odst. 2 písm. h) GDPR (část 5) | po dobu trvání účtu; od poslední rezervace nebo platby ještě [3 roky] (obecná promlčecí lhůta), potom údaje anonymizujeme |
-| Servisní zprávy – potvrzení, připomínky e-mailem a SMS, nabídky z čekací listiny, upozornění na náhrady a permanentky, platební údaje | kontaktní údaje, údaje o termínu | plnění smlouvy – čl. 6 odst. 1 písm. b) GDPR | záznam o odeslané zprávě [12 měsíců] |
+| Servisní zprávy – potvrzení, připomínky e-mailem, nabídky z čekací listiny, upozornění na náhrady a permanentky, platební údaje | kontaktní údaje, údaje o termínu | plnění smlouvy – čl. 6 odst. 1 písm. b) GDPR | záznam o odeslané zprávě [12 měsíců] |
 | Platby, kredit a permanentky; účetnictví [a daně] | platební údaje, identifikační údaje | plnění smlouvy a právní povinnost – čl. 6 odst. 1 písm. b) a c) GDPR (zákon č. 563/1991 Sb., o účetnictví[; zákon č. 235/2004 Sb., o DPH]) | účetní záznamy 5 let od konce účetního období (§ 31 zákona o účetnictví)[; daňové doklady 10 let od konce zdaňovacího období (§ 35 zákona o DPH)] |
 | Párování QR plateb s výpisem z našeho bankovního účtu [je-li zapnuto] | údaje z bankovního výpisu (část 3) | oprávněný zájem na rychlém a spolehlivém přiřazení plateb – čl. 6 odst. 1 písm. f) GDPR | jako účetní záznamy |
 | Vymáhání pohledávek a obrana právních nároků (např. neuhrazené poplatky, spory) | údaje o příslušné rezervaci, platbě a komunikaci | oprávněný zájem – čl. 6 odst. 1 písm. f) GDPR; u údajů o zdraví čl. 9 odst. 2 písm. f) GDPR | [3 roky] od vzniku nároku, popř. do skončení sporu |
@@ -69,7 +69,7 @@ Do rezervačního systému neukládáme rodné číslo, údaje o zdravotní poji
 
 ## 5. Údaje o zdraví
 
-5.1 Údaje o zdraví patří mezi zvláštní kategorie osobních údajů (čl. 9 GDPR). Může jít i o údaje, ze kterých lze zdravotní stav jen odvodit – například už to, že si rezervujete určitou zdravotní službu (třeba fyzioterapii pánevního dna), nebo co napíšete do poznámky k rezervaci (např. úraz, těhotenství, alergie). Proto s takovými údaji zacházíme jako s citlivými: přístup k nim má jen náš personál vázaný mlčenlivostí a do e-mailů a SMS dáváme jen nezbytné údaje o termínu.
+5.1 Údaje o zdraví patří mezi zvláštní kategorie osobních údajů (čl. 9 GDPR). Může jít i o údaje, ze kterých lze zdravotní stav jen odvodit – například už to, že si rezervujete určitou zdravotní službu (třeba fyzioterapii pánevního dna), nebo co napíšete do poznámky k rezervaci (např. úraz, těhotenství, alergie). Proto s takovými údaji zacházíme jako s citlivými: přístup k nim má jen náš personál vázaný mlčenlivostí a do e-mailů dáváme jen nezbytné údaje o termínu.
 
 5.2 **[VARIANTA Z]** U [fyzioterapie] a dalších zdravotních služeb zpracováváme údaje o zdraví za účelem poskytování zdravotní péče a řízení zdravotních služeb – čl. 9 odst. 2 písm. h) a odst. 3 GDPR. Naši zdravotničtí pracovníci jsou vázáni povinnou mlčenlivostí (§ 51 zákona č. 372/2011 Sb., o zdravotních službách).
 
@@ -79,20 +79,20 @@ Do rezervačního systému neukládáme rodné číslo, údaje o zdravotní poji
 
 5.5 **Poznámka k rezervaci** je nepovinná. Pište do ní jen to, co je pro objednání opravdu potřeba; podrobnosti o zdravotním stavu probereme osobně. Poznámku vidí jen náš personál.
 
-5.6 **Údaje o zdraví nepoužíváme k marketingu.** Novinky a nabídky necílíme podle toho, jaké zdravotní služby využíváte nebo co jste nám o svém zdraví sdělili, a v e-mailech ani SMS neuvádíme diagnózy.
+5.6 **Údaje o zdraví nepoužíváme k marketingu.** Novinky a nabídky necílíme podle toho, jaké zdravotní služby využíváte nebo co jste nám o svém zdraví sdělili, a v e-mailech neuvádíme diagnózy.
 
 > **Pro Provozovnu:** Pokud by se klinické poznámky v systému zapnuly (`settings.features.clinicalNotes`), je nutné předem upravit tento dokument, smlouvu o zpracování (čl. 3.3) a posoudit, zda nejde o zdravotnickou dokumentaci podle vyhlášky č. 444/2024 Sb. (náležitosti zápisů, podpis, doba uchování). Zdravotní dotazníky (varianta N) v systému nevyplňujte do poznámek – vedou se mimo něj.
 
 > **K ověření právníkem:**
 > - **[VARIANTA Z]** Zda je provozovna poskytovatelem zdravotních služeb pro všechny fyzioterapeutické a přístrojové služby; pokud ne, chybí pro údaje o zdraví z rezervací právní základ podle čl. 9 odst. 2 písm. h) GDPR a bylo by nutné jiné řešení (výslovný souhlas, minimalizace).
 > - **[VARIANTA N]** Nahodilé zdravotní údaje v poznámkách (alergie na kosmetické přípravky, úrazy u tréninku) – zda postačí minimalizace a čl. 9 odst. 2 písm. a) GDPR, nebo je nutné poznámky omezit technicky.
-> - Odvozené zdravotní údaje: SDEU C-184/20 (OT, 1. 8. 2022 – údaje, které zvláštní kategorii odhalují nepřímo) a C-21/23 (Lindenapotheke, 4. 10. 2024 – objednávky léčiv jako údaje o zdraví). Dopad na názvy služeb v rezervacích, v SMS a e-mailech a ve „zprávě pro příjemce“ u QR platby, kterou zpracovávají banky.
+> - Odvozené zdravotní údaje: SDEU C-184/20 (OT, 1. 8. 2022 – údaje, které zvláštní kategorii odhalují nepřímo) a C-21/23 (Lindenapotheke, 4. 10. 2024 – objednávky léčiv jako údaje o zdraví). Dopad na názvy služeb v rezervacích, v e-mailech a ve „zprávě pro příjemce“ u QR platby, kterou zpracovávají banky.
 > - Vyhláška č. 444/2024 Sb. nahradila od 1. 1. 2025 vyhlášku č. 98/2012 Sb. Ověřit dobu uchování dokumentace pro ambulantní fyzioterapii v příloze č. 3.
 
 ## 6. Odkud údaje máme a které jsou povinné
 
 - Údaje získáváme **od vás** (registrace, rezervace, komunikace), **od našeho personálu** (zápis docházky a plateb), **z výpisu z našeho bankovního účtu** (při platbě převodem) [a od vašeho zákonného zástupce].
-- **Povinné** jsou jméno, příjmení a e-mail nebo telefon – bez nich vám rezervaci nemůžeme vytvořit. Telefon potřebujeme jen pro SMS. Datum narození a poznámka k rezervaci jsou nepovinné.
+- **Povinné** jsou jméno, příjmení a e-mail nebo telefon – bez nich vám rezervaci nemůžeme vytvořit. Telefon použijeme jen k domluvě o vašich termínech. Datum narození a poznámka k rezervaci jsou nepovinné.
 - **Datum narození** používáme k rozlišení Klientů se stejným jménem [a – jen pokud jste souhlasili s obchodními sděleními – k zaslání přání k narozeninám].
 
 ## 7. Komu údaje předáváme
@@ -106,7 +106,7 @@ Do rezervačního systému neukládáme rodné číslo, údaje o zdravotní poji
 | Nexum Care s.r.o., Česká republika – provozovatel Platformy | provoz, správa a podpora rezervačního systému | v EU (viz níže) | – |
 | Supabase (Supabase Pte. Ltd., Singapur; technická podpora Supabase, Inc., USA) – další zpracovatel Nexum Care | databáze, přihlašování do účtu, zálohy | EU – datové centrum ve Frankfurtu nad Mohanem (Německo) | vzdálený přístup podpory a provozu, technická a provozní data; standardní smluvní doložky |
 | Cloudflare, Inc., USA – další zpracovatel Nexum Care | hosting webové aplikace a doručování obsahu; zpracovává IP adresu a technické údaje o požadavku (aplikace sama osobní údaje neobsahuje) | globální síť datových center, včetně USA | EU–US Data Privacy Framework a standardní smluvní doložky |
-| Brevo SAS, Francie – další zpracovatel Nexum Care | odesílání e-mailů a SMS | EU | SMS doručují telekomunikační partneři Brevo, některé zpracování probíhá i mimo EU; standardní smluvní doložky, popř. EU–US Data Privacy Framework |
+| Brevo SAS, Francie – další zpracovatel Nexum Care | odesílání e-mailů | EU | případně u dalších zpracovatelů Brevo; standardní smluvní doložky, popř. EU–US Data Privacy Framework |
 
 **Samostatní správci**, kterým údaje předáváme nebo od kterých je získáváme:
 

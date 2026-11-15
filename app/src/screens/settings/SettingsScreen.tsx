@@ -3,6 +3,7 @@ import { BrandingSection, LegalTextsSection } from './BrandingLegal';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, ModuleSettings, PaymentSettings, ReminderSettings, TermsSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
+import { activeChannels } from '../../engine/channels';
 import { updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
 import { formatIban, nextVs, parseAccount, qrReady } from '../../engine/qr';
@@ -957,7 +958,7 @@ function RemindersSection({
   clinic: ClinicState;
 }): JSX.Element {
   const tpl = clinic.templates.find((t) => t.key === 'reminder');
-  const channels = tpl ? tpl.channels.map((c) => (c === 'email' ? 'e-mail' : 'SMS')).join(' + ') : '';
+  const channels = tpl ? activeChannels(tpl.channels).map((c) => (c === 'email' ? 'e-mail' : 'SMS')).join(' + ') || 'bez kanálu' : '';
   return (
     <div className="set-rows">
       <div className="set-row set-row--switch">
@@ -982,7 +983,7 @@ function RemindersSection({
       <div className="set-row">
         <div className="set-row__text">
           <span className="set-row__label">Text připomínky</span>
-          <span className="set-row__hint">Předmět, text e-mailu a SMS upravíte v Komunikaci → Automatické zprávy.</span>
+          <span className="set-row__hint">Předmět a text e-mailu upravíte v Komunikaci → Automatické zprávy.</span>
         </div>
         <div className="set-row__control">
           <Button variant="secondary" size="sm" iconRight="arrowRight" onClick={() => navigate({ name: 'komunikace' })}>

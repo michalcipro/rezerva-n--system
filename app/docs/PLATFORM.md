@@ -77,7 +77,7 @@ nebo už skončila – podklad pro fakturu a prodloužení (adresu konzole v e-m
 3. S majitelem (nebo za něj přes podporu): Nastavení → Vzhled, Názvosloví, Moduly, Platby (číslo účtu),
    Služby a ceník, Tým a směny (+ přístupy pro recepci a tým), Storno podmínky, Šablony zpráv, Právní texty.
 4. Import dat ze stávajícího systému (Nastavení → Import dat).
-5. Volitelně: token Fio (konzole), vlastní doména, SMS odesílatel.
+5. Volitelně: token Fio (konzole), vlastní doména.
 Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](business/onboarding-zakaznika.md).
 
 ## Technika
@@ -91,10 +91,12 @@ Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](busine
 - **E-maily** odcházejí z jedné ověřené adresy platformy (`MAIL_FROM`) se jménem provozovny jako odesílatele
   a s odpovědí na e-mail provozovny (Nastavení → Provozovna). Přihlašovací kódy posílá Supabase Auth se
   společnou šablonou platformy.
+- **SMS se nepoužívají** – s klienty se komunikuje jen e-mailem. Kód pro SMS zůstává vypnutý přepínačem
+  `SMS_ENABLED` v `src/engine/channels.ts` (platí pro celou platformu, není to nastavení provozovny).
 - **Instalace jen pro jednoho zákazníka** (např. doživotní licence s vlastním hostingem) je stejný kód:
   stačí jedna provozovna – adresa bez `/<slug>` pak vede přímo na ni.
 
 ## Proměnné prostředí
 Server: viz [DEPLOY.md](DEPLOY.md) krok 3 (`PLATFORM_ADMIN_EMAILS`, `SECRETS_KEY`, `CRON_SECRET`, `ALLOWED_ORIGINS`,
-`PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`). Web: `VITE_API_URL`,
+`PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`; `SMS_SENDER` se nepoužívá – SMS platforma neposílá). Web: `VITE_API_URL`,
 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, volitelně `VITE_PLATFORM_NAME` (název platformy v konzoli).

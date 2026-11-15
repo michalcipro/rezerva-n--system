@@ -104,7 +104,7 @@ function history(): { s: ClinicState; id: string } {
   s = run(s, markCompleted, { bookingId: b.value }, reception(T1)).state;
   // ostrý provoz: zpráva čeká ve frontě na odeslání
   s = run(s, updateSettings, { messaging: { deliver: true } }, owner(T1)).state;
-  s = run(s, sendManualMessage, { clientId: id, channel: 'sms', subject: '', body: 'Zdeňko, nezapomeňte na cviky.' }, reception(T1)).state;
+  s = run(s, sendManualMessage, { clientId: id, channel: 'email', subject: 'Cviky', body: 'Zdeňko, nezapomeňte na cviky.' }, reception(T1)).state;
   return { s, id };
 }
 
@@ -114,11 +114,11 @@ describe('export osobních údajů (GDPR)', () => {
     const x = clientDataExport(s, id, { now: T1 })!;
     expect(x['O exportu']).toMatchObject({ Vytvořeno: T1, 'Správce osobních údajů': 'pohyb' });
     expect(x.Klient).toMatchObject({ ID: id, Jméno: 'Zdeňka', Příjmení: 'Unikátová', 'E-mail': 'zdenka.unikatova@example.cz', Telefon: '+420 731 555 019', 'Datum narození': '1984-06-17', Štítky: ['VIP-unikat'], 'Interní poznámka': 'Volat po 16. hodině', Anonymizováno: null });
+    // souhlas se SMS (formulář ho poslal) nevznikl – SMS jsou vypnuté, export ho bez staršího souhlasu neuvádí
     expect(x.Souhlasy.map((c) => [c.Souhlas, c.Stav])).toEqual([
       ['Zpracování osobních údajů', 'udělen'],
       ['Zdravotní dokumentace', 'udělen'],
       ['Obchodní sdělení e-mailem', 'udělen'],
-      ['SMS zprávy', 'udělen'],
     ]);
     expect(x.Rezervace).toHaveLength(bookingsOfClient(s, id).length);
     expect(x.Rezervace).toHaveLength(4);
@@ -141,6 +141,18 @@ describe('export osobních údajů (GDPR)', () => {
     // celý export se dá uložit jako JSON
     expect(JSON.parse(JSON.stringify(x))).toEqual(x);
     expect(clientDataExportFilename({ firstName: 'Zdeňka', lastName: 'Unikátová' }, T1)).toBe('osobni-udaje-unikatova-zdenka-2026-11-10.json');
+  });
+
+  it('starší souhlas se SMS a starší SMS zůstávají v exportu jako historie', () => {
+    const { s, id } = history();
+    const legacy = produce(s, (d) => {
+      const c = d.clients.find((x) => x.id === id)!;
+      c.consents.sms = { at: '2025-05-01T10:00', source: 'online formulář' };
+      d.messages.push({ id: 'm_sms_starsi', clientId: id, channel: 'sms', kind: 'reminder', subject: '', body: 'Připomínka termínu.', at: '2025-05-02T09:00', status: 'sent' });
+    });
+    const x = clientDataExport(legacy, id, { now: T1 })!;
+    expect(x.Souhlasy.find((c) => c.Souhlas === 'SMS zprávy')).toEqual({ Souhlas: 'SMS zprávy', Stav: 'udělen', 'Udělen dne': '2025-05-01T10:00', Zdroj: 'online formulář' });
+    expect(x.Zprávy.find((m) => m.Text === 'Připomínka termínu.')).toMatchObject({ Kanál: 'SMS', Stav: 'odesláno' });
   });
 
   it('bez klinických poznámek pro recepci; neznámý klient = null; stažení se zapíše do historie', () => {

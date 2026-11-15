@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Channel, Client, ClinicState, Id, Message, MessageTemplate } from '../../domain/types';
+import { SMS_ENABLED } from '../../engine/channels';
 import { MAX_DELIVERY_ATTEMPTS, sendManualMessage } from '../../engine/commands';
 import { countLabel, formatDateLong, formatNumber, formatSlot, formatTime, plural } from '../../engine/format';
 import { getBooking, getClient, getService } from '../../engine/selectors';
@@ -137,7 +138,7 @@ function StatusCallout({ m, deliver }: { m: Message; deliver: boolean }): JSX.El
     default:
       return (
         <Callout tone="warning" title="Neodesláno">
-          <strong>{m.skipReason ?? 'Důvod nebyl zaznamenán.'}</strong> {skipAdvice(m.skipReason)}
+          <strong>{m.skipReason ?? 'Důvod nebyl zaznamenán.'}</strong> {skipAdvice(m.skipReason, m.channel)}
         </Callout>
       );
   }
@@ -373,7 +374,7 @@ function ComposeDialog({
 
   const client = picked ? getClient(clinic, picked) : undefined;
   const canEmail = !!client?.email;
-  const canSms = !!client?.phone;
+  const canSms = SMS_ENABLED && !!client?.phone;
   useEffect(() => {
     if (!client) return;
     if (channel === 'email' && !canEmail && canSms) setChannel('sms');
@@ -419,20 +420,27 @@ function ComposeDialog({
         <ClientPicker clinic={clinic} value={client} onChange={setPicked} />
         {client && (
           <>
-            <div className="com-compose__channel">
-              <span className="field__label" id="com-compose-channel">
-                Kanál
-              </span>
-              <Segmented
-                aria-label="Kanál zprávy"
-                value={channel}
-                onChange={setChannel}
-                options={[
-                  { value: 'email', label: 'E-mail', icon: 'mail', disabled: !canEmail },
-                  { value: 'sms', label: 'SMS', icon: 'smartphone', disabled: !canSms },
-                ]}
-              />
-            </div>
+            {SMS_ENABLED && (
+              <div className="com-compose__channel">
+                <span className="field__label" id="com-compose-channel">
+                  Kanál
+                </span>
+                <Segmented
+                  aria-label="Kanál zprávy"
+                  value={channel}
+                  onChange={setChannel}
+                  options={[
+                    { value: 'email', label: 'E-mail', icon: 'mail', disabled: !canEmail },
+                    { value: 'sms', label: 'SMS', icon: 'smartphone', disabled: !canSms },
+                  ]}
+                />
+              </div>
+            )}
+            {!SMS_ENABLED && !canEmail && (
+              <Callout tone="warning" title="Klient nemá e-mail">
+                Zprávy klientům posíláme e-mailem. Doplňte e-mail v detailu klienta.
+              </Callout>
+            )}
             {channel === 'sms' && !client.consents.sms && (
               <Callout tone="warning" title="Bez souhlasu se SMS">
                 Klient nedal souhlas se SMS. Pošlete jen nezbytnou informaci k jeho termínu, nebo raději použijte e-mail.
@@ -543,9 +551,11 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
         <span>
           <strong>{formatNumber(totals.email)}</strong> {plural(totals.email, ['e-mail', 'e-maily', 'e-mailů'])}
         </span>
-        <span>
-          <strong>{formatNumber(totals.sms)}</strong> SMS
-        </span>
+        {SMS_ENABLED && (
+          <span>
+            <strong>{formatNumber(totals.sms)}</strong> SMS
+          </span>
+        )}
         {totals.queued > 0 && (
           <span>
             <button type="button" className="link com-outbox__statlink" onClick={() => set({ status: 'queued' })}>
@@ -579,17 +589,19 @@ export function OutboxTab({ filter, onFilterChange, composeOpen, composeClientId
             value={filter.q}
             onValueChange={(q) => set({ q })}
           />
-          <Segmented
-            size="sm"
-            aria-label="Kanál"
-            value={filter.channel}
-            onChange={(channel) => set({ channel })}
-            options={[
-              { value: 'all', label: 'Vše' },
-              { value: 'email', label: 'E-mail' },
-              { value: 'sms', label: 'SMS' },
-            ]}
-          />
+          {SMS_ENABLED && (
+            <Segmented
+              size="sm"
+              aria-label="Kanál"
+              value={filter.channel}
+              onChange={(channel) => set({ channel })}
+              options={[
+                { value: 'all', label: 'Vše' },
+                { value: 'email', label: 'E-mail' },
+                { value: 'sms', label: 'SMS' },
+              ]}
+            />
+          )}
           <Select
             size="sm"
             inline

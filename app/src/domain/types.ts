@@ -123,6 +123,7 @@ export interface ClientConsents {
   gdpr: ConsentRecord | null;
   health: ConsentRecord | null;
   marketingEmail: ConsentRecord | null;
+  /** Souhlas se SMS – s vypnutými SMS (engine/channels.ts) nový nevzniká, starší zůstává jako historie. */
   sms: ConsentRecord | null;
 }
 
@@ -410,6 +411,7 @@ export type TemplateKey =
   | 'payment_received'
   | 'withdrawal_received';
 
+/** Kanál zprávy. SMS platforma nepoužívá (přepínač SMS_ENABLED v engine/channels.ts) – jsou jen ve starších datech. */
 export type Channel = 'email' | 'sms';
 
 export interface MessageTemplate {

@@ -39,6 +39,7 @@ import type {
   TermsSettings,
 } from '../domain/types';
 import { checkBookingSlot } from './availability';
+import { channelEnabled, SMS_ENABLED, SMS_OFF_REASON } from './channels';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
 import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage, type TemplateVars } from './messages';
@@ -170,6 +171,7 @@ export interface CreateClientInput {
   birthDate?: LocalDate | null;
   tags?: string[];
   source?: Client['source'];
+  /** `sms` se zapíše jen se zapnutými SMS (engine/channels.ts) – jinak nový souhlas se SMS nevzniká. */
   consents: { gdpr: boolean; health: boolean; marketingEmail: boolean; sms: boolean };
   internalNote?: string;
   demo?: boolean;
@@ -203,7 +205,7 @@ export const createClient: Command<CreateClientInput, Id> = (d, input, ctx) => {
       gdpr: rec(input.consents.gdpr),
       health: rec(input.consents.health),
       marketingEmail: rec(input.consents.marketingEmail),
-      sms: rec(input.consents.sms),
+      sms: SMS_ENABLED ? rec(input.consents.sms) : null,
     },
     notes: [],
     internalNote: input.internalNote ?? '',
@@ -257,6 +259,8 @@ export const setConsent: Command<{ clientId: Id; key: keyof ClientConsents; valu
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== c.id) return fail('Nemáte oprávnění.');
   if (c.anonymizedAt) return fail(ANONYMIZED);
   if (input.key === 'gdpr' && !input.value) return fail(`Souhlas se zpracováním údajů nutných pro rezervace nelze odebrat. Pro výmaz účtu kontaktujte ${termsOf(d).business.acc}.`);
+  // nový souhlas se SMS nevzniká; starší jde odvolat
+  if (input.key === 'sms' && input.value && !SMS_ENABLED) return fail(SMS_OFF_REASON);
   c.consents[input.key] = input.value
     ? { at: ctx.now, source: ctx.actor.role === 'client' ? 'klientský účet' : 'recepce' }
     : null;
@@ -1767,6 +1771,7 @@ export const sendManualMessage: Command<{ clientId: Id; channel: Channel; subjec
   if (!c) return fail('Klient neexistuje.');
   if (c.anonymizedAt) return fail(ANONYMIZED);
   if (!input.body.trim()) return fail('Zpráva je prázdná.');
+  if (!channelEnabled(input.channel)) return fail(SMS_OFF_REASON);
   if (input.channel === 'email' && !c.email) return fail('Klient nemá e-mail.');
   if (input.channel === 'sms' && !c.phone) return fail('Klient nemá telefon.');
   const msg = addManualMessage(d, { clientId: c.id, channel: input.channel, subject: input.subject.trim(), body: input.body.trim(), now: ctx.now });
@@ -1784,19 +1789,29 @@ export interface DeliveryResult {
   error?: string;
   /** Chyba, u které nemá smysl zkoušet znovu (neplatné číslo, odmítnutá adresa…). */
   permanent?: boolean;
+  /** Server zprávu záměrně neodeslal (např. SMS ze starších dat) – zpráva se označí jako neodeslaná s tímto důvodem. */
+  skipReason?: string;
 }
 
 /** Po třech neúspěšných pokusech se zpráva označí jako neodeslaná. */
 export const MAX_DELIVERY_ATTEMPTS = 3;
 
 /** Zapíše výsledek odeslání zpráv, které server převzal z fronty. */
-export const recordDeliveries: Command<{ results: DeliveryResult[] }, { sent: number; failed: number }> = (d, input, ctx) => {
+export const recordDeliveries: Command<{ results: DeliveryResult[] }, { sent: number; failed: number; skipped: number }> = (d, input, ctx) => {
   if (!isStaff(ctx)) return fail('Doručení zpráv zapisuje server.');
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
   for (const r of input.results) {
     const m = d.messages.find((x) => x.id === r.messageId);
     if (!m || (m.status !== 'queued' && m.status !== 'failed')) continue;
+    if (r.skipReason) {
+      m.status = 'skipped';
+      m.skipReason = r.skipReason;
+      m.error = undefined;
+      skipped++;
+      continue;
+    }
     m.attempts = (m.attempts ?? 0) + 1;
     if (r.ok) {
       m.status = 'sent';
@@ -1809,7 +1824,7 @@ export const recordDeliveries: Command<{ results: DeliveryResult[] }, { sent: nu
       if (m.status === 'failed') failed++;
     }
   }
-  return ok({ sent, failed });
+  return ok({ sent, failed, skipped });
 };
 
 /** Zprávy čekající na odeslání (nejstarší první). */

@@ -27,6 +27,8 @@ src/
     stats.ts             computeStats (KPI, grafy, heatmapa, trend), daySummary
     segments.ts          evaluateSegment, segmentFunnel, describeRule, RULE_TYPES, defaultRule, campaignPlainText
     messages.ts          šablony zpráv, renderTemplate, TEMPLATE_VARIABLES, paymentLabel
+    channels.ts          kanály zpráv: SMS_ENABLED (přepínač platformy – SMS vypnuté, s klienty jen e-mailem),
+                         channelEnabled, activeChannels, SMS_OFF_REASON
     qr.ts                QR Platba (SPAYD): parseAccount (číslo účtu → IBAN, kontrola vah), buildSpayd,
                          paymentSpayd, nextVs (variabilní symbol RRMM + pořadí), qrReady,
                          pendingPaymentRequests, pendingRequestFor
@@ -80,7 +82,7 @@ if (r.ok) onClose();
 
 | Příkaz | Vstup | Výsledek |
 |---|---|---|
-| createClient | firstName, lastName, email, phone, birthDate?, tags?, source?, consents{gdpr,health,marketingEmail,sms}, internalNote? | id |
+| createClient | firstName, lastName, email, phone, birthDate?, tags?, source?, consents{gdpr,health,marketingEmail,sms – zapíše se jen se zapnutými SMS}, internalNote? | id |
 | updateClient | clientId, patch{…} | – |
 | setConsent | clientId, key, value | – |
 | addClinicalNote | clientId, text | id |

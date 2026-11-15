@@ -10,6 +10,7 @@ import type {
   MoneyMethod,
   Service,
 } from '../domain/types';
+import { SMS_ENABLED } from './channels';
 import {
   cancelBooking,
   confirmPaymentRequest,
@@ -158,7 +159,8 @@ export function generateDemoState(now: LocalDateTime, opts: DemoOptions = {}): C
         phone: `+420 ${between(601, 799)} ${String(between(0, 999)).padStart(3, '0')} ${String(between(0, 999)).padStart(3, '0')}`,
         tags: chance(0.75) ? [pick(TAGS), ...(chance(0.35) ? [pick(TAGS)] : [])].filter((t, i, a) => a.indexOf(t) === i) : [],
         source: pick(['online', 'online', 'recepce', 'telefon', 'doporučení'] as const),
-        consents: { gdpr: true, health: chance(0.92), marketingEmail: chance(0.72), sms: chance(0.86) },
+        // losuje se vždy, ať se ukázková data neposunou; souhlas se SMS jen se zapnutými SMS
+        consents: { gdpr: true, health: chance(0.92), marketingEmail: chance(0.72), sms: chance(0.86) && SMS_ENABLED },
         demo: true,
       },
       at(createdAt),
