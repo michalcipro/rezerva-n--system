@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CreditBonusRule, Id, PackageTemplate } from '../../domain/types';
 import { updateSettings, upsertPackageTemplate } from '../../engine/commands';
 import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, plural } from '../../engine/format';
+import { modulesOf } from '../../engine/modules';
 import { clientName, getService } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -56,7 +57,11 @@ export function PackagesScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
   const today = dateOf(now);
-  const [tab, setTab] = useState<Tab>('templates');
+  // vypnuté moduly (Nastavení → Moduly): obrazovka ukazuje jen zapnutou část – permanentky, nebo kredit
+  const mod = modulesOf(clinic);
+  const available: Tab[] = [...(mod.packages ? (['templates', 'sold'] as const) : []), ...(mod.credit ? (['credit'] as const) : [])];
+  const [tabChoice, setTab] = useState<Tab>(available[0] ?? 'templates');
+  const tab: Tab = available.includes(tabChoice) ? tabChoice : (available[0] ?? 'templates');
   const [soldFilter, setSoldFilter] = useState<SoldFilter>('active');
   const [edit, setEdit] = useState<PackageTemplate | null>(null);
 
@@ -81,16 +86,23 @@ export function PackagesScreen(): JSX.Element {
   return (
     <div className="page set-page">
       <PageHeader
-        title="Permanentky a kredity"
-        subtitle={`${countLabel(templates.filter((t) => t.active).length, ['permanentka', 'permanentky', 'permanentek'])} v nabídce · ${countLabel(activeRows.length, ['aktivní u klientů', 'aktivní u klientů', 'aktivních u klientů'])}`}
+        title={mod.packages && mod.credit ? 'Permanentky a kredity' : mod.packages ? 'Permanentky' : 'Kredit'}
+        subtitle={
+          mod.packages
+            ? `${countLabel(templates.filter((t) => t.active).length, ['permanentka', 'permanentky', 'permanentek'])} v nabídce · ${countLabel(activeRows.length, ['aktivní u klientů', 'aktivní u klientů', 'aktivních u klientů'])}`
+            : `Kredit u ${countLabel(creditClients, ['klienta', 'klientů', 'klientů'])} · bonusy za dobití`
+        }
         actions={
-          <Button variant="primary" icon="plus" onClick={() => setEdit(newPackageTemplate(clinic))}>
-            Nová permanentka
-          </Button>
+          mod.packages ? (
+            <Button variant="primary" icon="plus" onClick={() => setEdit(newPackageTemplate(clinic))}>
+              Nová permanentka
+            </Button>
+          ) : undefined
         }
       />
 
       <div className="kpi-grid set-kpis" role="group" aria-label="Souhrn permanentek a kreditů">
+        {mod.packages && (
         <KpiTile
           icon="ticket"
           label="Aktivní permanentky"
@@ -112,14 +124,17 @@ export function PackagesScreen(): JSX.Element {
             )
           }
         />
+        )}
+        {mod.packages && (
         <KpiTile
           icon="layers"
           label="Nevyčerpané vstupy"
           value={formatNumber(openEntries)}
           hint={`v hodnotě ${formatMoney(openValue)}`}
         />
-        <KpiTile icon="wallet" label="Kredity klientů" value={formatMoney(credit)} hint={`u ${countLabel(creditClients, ['klienta', 'klientů', 'klientů'])}`} />
-        <KpiTile icon="receipt" label="Celkový závazek" value={formatMoney(openValue + credit)} hint="předplaceno, zatím nečerpáno" />
+        )}
+        {mod.credit && <KpiTile icon="wallet" label="Kredity klientů" value={formatMoney(credit)} hint={`u ${countLabel(creditClients, ['klienta', 'klientů', 'klientů'])}`} />}
+        {mod.packages && mod.credit && <KpiTile icon="receipt" label="Celkový závazek" value={formatMoney(openValue + credit)} hint="předplaceno, zatím nečerpáno" />}
       </div>
 
       <Tabs<Tab>
@@ -129,10 +144,10 @@ export function PackagesScreen(): JSX.Element {
         value={tab}
         onChange={setTab}
         items={[
-          { id: 'templates', label: 'Nabídka', count: templates.length },
-          { id: 'sold', label: 'Prodané', count: rows.length },
-          { id: 'credit', label: 'Kredit a bonusy' },
-        ]}
+          { id: 'templates' as const, label: 'Nabídka', count: templates.length },
+          { id: 'sold' as const, label: 'Prodané', count: rows.length },
+          { id: 'credit' as const, label: 'Kredit a bonusy' },
+        ].filter((t) => available.includes(t.id))}
       />
 
       {tab === 'templates' && (

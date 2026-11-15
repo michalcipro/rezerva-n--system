@@ -3,6 +3,7 @@ import type { ClientPackage, MakeupRight } from '../domain/types';
 import { TherapistAvatar } from '../components/domain';
 import { leaveWaitlist } from '../engine/commands';
 import { countLabel, formatDate, formatDateLong, formatDayShort, formatMoney, formatTimeRange } from '../engine/format';
+import { modulesOf } from '../engine/modules';
 import { pendingRequestFor } from '../engine/qr';
 import {
   activePackages,
@@ -93,6 +94,10 @@ export function HomeScreen(): JSX.Element {
   const unread = !!data.latestMessage && data.latestMessage > (inboxSeen(client.id) ?? '');
   const excusesOn = clinic.settings.policy.excuses.enabled;
   const qrOn = qrAvailable(clinic);
+  // vypnuté moduly (Nastavení → Moduly): nic se nenabízí, zůstatek klienta ale zůstává vidět
+  const mod = modulesOf(clinic);
+  const showPackages = mod.packages || data.packages.length > 0;
+  const showCredit = mod.credit || data.credit !== 0;
 
   return (
     <Screen
@@ -212,13 +217,16 @@ export function HomeScreen(): JSX.Element {
         </section>
       )}
 
+      {(showPackages || showCredit || excusesOn) && (
       <section className="por-stack por-stack--tight" aria-labelledby="por-bal-title">
         <SectionTitle
           id="por-bal-title"
           action={
-            <button type="button" className="link por-sect__link" onClick={() => openAccount('permanentky')}>
-              Permanentky
-            </button>
+            showPackages ? (
+              <button type="button" className="link por-sect__link" onClick={() => openAccount('permanentky')}>
+                Permanentky
+              </button>
+            ) : undefined
           }
         >
           Zůstatky
@@ -227,15 +235,17 @@ export function HomeScreen(): JSX.Element {
           {data.packages.map((p) => (
             <PackageTile key={p.id} pkg={p} />
           ))}
+          {showCredit && (
           <div className="por-tile">
             <span className="por-tile__label">Kredit</span>
             <span className="por-tile__num tnum">{formatMoney(data.credit)}</span>
-            {purchase.any && (
+            {purchase.any && mod.credit && (
               <Button size="sm" variant="secondary" icon="plus" className="por-tile__btn" onClick={() => openAccount('kredit', 'topup')}>
                 Dobít
               </Button>
             )}
           </div>
+          )}
           {excusesOn && (
             <div className="por-tile">
               <span className="por-tile__label">Omluvenky</span>
@@ -248,7 +258,7 @@ export function HomeScreen(): JSX.Element {
               </span>
             </div>
           )}
-          {!data.packages.length && (
+          {!data.packages.length && mod.packages && (
             <button type="button" className="por-tile por-tile--cta" onClick={() => openAccount('permanentky', 'buy')}>
               <span className="por-tile__label">Permanentka</span>
               <span className="por-tile__cta-text">Ušetřete s permanentkou</span>
@@ -259,6 +269,7 @@ export function HomeScreen(): JSX.Element {
           )}
         </div>
       </section>
+      )}
 
       <GroupSchedule />
 

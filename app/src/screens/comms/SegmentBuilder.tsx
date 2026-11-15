@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import type { Client, ClinicState, SegmentDefinition, SegmentRule } from '../../domain/types';
 import { countLabel, formatNumber, plural } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { defaultRule, describeRule, RULE_TYPES } from '../../engine/segments';
 import { getClient } from '../../engine/selectors';
 import { Avatar, Button, Card, CardHeader, cssVars, cx, Field, Icon, IconButton, Menu, NumberInput, Segmented, Select } from '../../ui';
@@ -14,6 +15,13 @@ function ruleText(clinic: ClinicState, rule: SegmentRule): string {
 }
 
 const days = (n: number): string => plural(n, ['den', 'dny', 'dní']);
+
+/** Podmínky vypnutých modulů (Nastavení → Moduly) se do segmentu nenabízejí. */
+function ruleModuleOn(clinic: ClinicState, type: SegmentRule['type']): boolean {
+  if (type === 'has_active_package' || type === 'package_expiring') return moduleOn(clinic, 'packages');
+  if (type === 'credit_balance_gt') return moduleOn(clinic, 'credit');
+  return true;
+}
 
 /** Pole pro parametry jednoho pravidla podle jeho typu. */
 function RuleFields({
@@ -32,7 +40,7 @@ function RuleFields({
       <Select
         size="sm"
         value={rule.type}
-        options={RULE_TYPES.map((t) => ({ value: t.type, label: t.label }))}
+        options={RULE_TYPES.filter((t) => t.type === rule.type || ruleModuleOn(clinic, t.type)).map((t) => ({ value: t.type, label: t.label }))}
         onValueChange={(v) => onChange(defaultRule(clinic, v as SegmentRule['type']))}
       />
     </Field>
@@ -184,7 +192,7 @@ function RuleRow({ clinic, rule, count, list, editing, editable, tags, onToggle,
   );
 }
 
-function AddRule({ label, onAdd }: { label: string; onAdd: (type: SegmentRule['type']) => void }): JSX.Element {
+function AddRule({ clinic, label, onAdd }: { clinic: ClinicState; label: string; onAdd: (type: SegmentRule['type']) => void }): JSX.Element {
   return (
     <Menu
       align="start"
@@ -194,7 +202,7 @@ function AddRule({ label, onAdd }: { label: string; onAdd: (type: SegmentRule['t
           {label}
         </Button>
       }
-      items={RULE_TYPES.map((t) => ({ id: t.type, label: t.label, onSelect: () => onAdd(t.type) }))}
+      items={RULE_TYPES.filter((t) => ruleModuleOn(clinic, t.type)).map((t) => ({ id: t.type, label: t.label, onSelect: () => onAdd(t.type) }))}
     />
   );
 }
@@ -296,7 +304,7 @@ export function SegmentBuilder({ clinic, segment, onChange, insight, onShowRecip
             )}
           </div>
           {renderRows('rules', insight.ruleCounts)}
-          {editable && <AddRule label="Přidat podmínku" onAdd={(type) => add('rules', type)} />}
+          {editable && <AddRule clinic={clinic} label="Přidat podmínku" onAdd={(type) => add('rules', type)} />}
 
           {(editable || segment.exclude.length > 0) && (
             <>
@@ -304,7 +312,7 @@ export function SegmentBuilder({ clinic, segment, onChange, insight, onShowRecip
                 <span>Vyloučit</span>
               </div>
               {renderRows('exclude', insight.excludeCounts)}
-              {editable && <AddRule label="Vyloučit skupinu" onAdd={(type) => add('exclude', type)} />}
+              {editable && <AddRule clinic={clinic} label="Vyloučit skupinu" onAdd={(type) => add('exclude', type)} />}
             </>
           )}
 

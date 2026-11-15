@@ -1,6 +1,8 @@
 import type { ClinicState, Id } from '../../domain/types';
 import { countLabel, formatMoney, formatNumber } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { getTherapist, therapistName } from '../../engine/selectors';
+import { useClinic } from '../../store/hooks';
 import type { VisitSummary } from '../../engine/visits';
 import { TherapistAvatar } from '../../components/domain';
 import { Badge, Icon, Table, cx } from '../../ui';
@@ -33,6 +35,10 @@ const MONEY_COLUMNS: Column[] = [
 ];
 
 const COLUMNS: Column[] = [TOTAL, ...COUNT_COLUMNS, ...MONEY_COLUMNS];
+
+/** Bez sloupců vypnutých modulů (Nastavení → Moduly). */
+const shownColumns = (clinic: ClinicState, cols: Column[]): Column[] =>
+  cols.filter((c) => (c.key !== 'package' || moduleOn(clinic, 'packages')) && (c.key !== 'credit' || moduleOn(clinic, 'credit')));
 
 const VSTUP: [string, string, string] = ['vstup', 'vstupy', 'vstupů'];
 
@@ -93,12 +99,13 @@ export function EmployeeSummary(props: EmployeeSummaryProps): JSX.Element {
 }
 
 function SummaryTable({ clinic, rows, totals, selected, onSelect }: EmployeeSummaryProps): JSX.Element {
+  const cols = shownColumns(clinic, COLUMNS);
   return (
     <Table caption="Vstupy podle zaměstnanců a zdroje platby" hover={!!onSelect} minWidth={TABLE_MIN_WIDTH - 20} wrapperClassName="vis-emp-table">
       <thead>
         <tr>
           <th scope="col">Zaměstnanec</th>
-          {COLUMNS.map((c) => (
+          {cols.map((c) => (
             <th key={c.key} scope="col" className={cx('num', c.money && 'vis-th-wrap')}>
               {c.label}
             </th>
@@ -130,7 +137,7 @@ function SummaryTable({ clinic, rows, totals, selected, onSelect }: EmployeeSumm
                   )}
                 </span>
               </td>
-              {COLUMNS.map((c) => (
+              {cols.map((c) => (
                 <td key={c.key} className="num">
                   <CellValue col={c} s={s} />
                 </td>
@@ -143,7 +150,7 @@ function SummaryTable({ clinic, rows, totals, selected, onSelect }: EmployeeSumm
         <tfoot>
           <tr>
             <td>Celkem</td>
-            {COLUMNS.map((c) => (
+            {cols.map((c) => (
               <td key={c.key} className="num">
                 <CellValue col={c} s={totals} />
               </td>
@@ -201,10 +208,11 @@ function SummaryCards({ clinic, rows, totals, selected, onSelect }: EmployeeSumm
 }
 
 function CardStats({ s }: { s: VisitSummary }): JSX.Element {
+  const clinic = useClinic();
   return (
     <>
       <span className="vis-ecard__grid">
-        {COUNT_COLUMNS.map((c) => (
+        {shownColumns(clinic, COUNT_COLUMNS).map((c) => (
           <span key={c.key} className="vis-ecard__stat">
             <span className="vis-ecard__label">{c.label}</span>
             <span className="vis-ecard__value">

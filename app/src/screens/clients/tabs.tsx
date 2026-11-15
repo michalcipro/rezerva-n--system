@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Booking, Client, ClientConsents, ClientPackage, Id, LocalDateTime, MakeupRight } from '../../domain/types';
 import { addClinicalNote, setConsent } from '../../engine/commands';
 import { countLabel, formatDate, formatDateTimeShort, formatDayShort, formatMoney, formatTime } from '../../engine/format';
+import { modulesOf } from '../../engine/modules';
 import { pendingPaymentRequests } from '../../engine/qr';
 import { bookingsOfClient, getBooking, getService, getTherapist, packageUsage, packagesOfClient, therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
@@ -180,7 +181,8 @@ export function FinanceTab({
   onExtend: (p: ClientPackage) => void;
   onCancelPkg: (p: ClientPackage) => void;
   onTopUp?: () => void;
-  onAdjust: () => void;
+  /** Bez úpravy kreditu (vypnutý modul). */
+  onAdjust?: () => void;
   onSettle: (i: DebtItem) => void;
   onWaive: (i: DebtItem) => void;
   onBookMakeup: (m: MakeupRight) => void;
@@ -199,12 +201,15 @@ export function FinanceTab({
   const pendingQr = useMemo(() => pendingPaymentRequests(clinic, client.id), [clinic, client.id]);
   const ledgerPage = usePaged(ledger, 15, client.id);
   const payPage = usePaged(payments, 15, client.id);
+  // vypnutý modul (Nastavení → Moduly): bez nabídky; dosavadní permanentky a pohyby kreditu zůstávají vidět
+  const mod = modulesOf(clinic);
 
   return (
     <div className="cli-stack">
       <DebtPanel items={debts} onSettle={onSettle} onWaive={onWaive} />
       <PendingQrCard requests={pendingQr} />
 
+      {(mod.packages || packages.length > 0) && (
       <Card padding="none" as="section" aria-label="Permanentky">
         <CardHeader
           divided
@@ -230,7 +235,9 @@ export function FinanceTab({
           </ul>
         )}
       </Card>
+      )}
 
+      {(mod.credit || credit !== 0 || ledger.length > 0) && (
       <Card padding="none" as="section" aria-label="Kredit">
         <CardHeader
           divided
@@ -243,9 +250,11 @@ export function FinanceTab({
                   Dobít
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={onAdjust}>
-                Upravit
-              </Button>
+              {onAdjust && (
+                <Button size="sm" variant="ghost" onClick={onAdjust}>
+                  Upravit
+                </Button>
+              )}
             </>
           }
         />
@@ -295,6 +304,7 @@ export function FinanceTab({
           </>
         )}
       </Card>
+      )}
 
       <Card padding="none" as="section" aria-label="Platby">
         <CardHeader divided title="Platby" meta={<span className="tnum">útrata celkem {formatMoney(spent)}</span>} />

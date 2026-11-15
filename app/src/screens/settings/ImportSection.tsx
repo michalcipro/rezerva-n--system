@@ -28,6 +28,7 @@ import {
   type RowAction,
   type RowIssue,
 } from '../../engine/importer';
+import { moduleOn } from '../../engine/modules';
 import { downloadFile, downloadNotice } from '../../app/download';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { Badge, Button, Callout, ChoiceChips, ConfirmDialog, Icon, RadioCards, Table, Textarea, toast, cx, type BadgeTone } from '../../ui';
@@ -39,6 +40,9 @@ import './set-import.css';
 /* ------------------------------------------------------------------ */
 
 const KINDS: readonly ImportKind[] = ['clients', 'packages', 'credits'];
+
+/** Kroky importu podle zapnutých modulů (Nastavení → Moduly) – permanentky a kredity jen se zapnutým modulem. */
+const kindsOf = (clinic: ClinicState): ImportKind[] => KINDS.filter((k) => k === 'clients' || moduleOn(clinic, k === 'packages' ? 'packages' : 'credit'));
 
 const STEP: Record<ImportKind, { title: string; sub: string; intro: string; noun: [string, string, string] }> = {
   clients: {
@@ -88,7 +92,10 @@ function checkRows(kind: ImportKind, file: ImportFile<ImportKind>, clinic: Clini
 
 /** Import dat ze stávajícího systému: Klienti → Permanentky → Kredity. */
 export function ImportSection(): JSX.Element {
-  const [kind, setKind] = useState<ImportKind>('clients');
+  const kinds = kindsOf(useClinic());
+  const [kindChoice, setKind] = useState<ImportKind>('clients');
+  const kind: ImportKind = kinds.includes(kindChoice) ? kindChoice : 'clients';
+  const next = kinds[kinds.indexOf(kind) + 1];
   const [steps, setSteps] = useState<Record<ImportKind, StepState>>({ clients: EMPTY_STEP, packages: EMPTY_STEP, credits: EMPTY_STEP });
   const panelId = useId();
   const update = (k: ImportKind, patch: Partial<StepState>): void => setSteps((s) => ({ ...s, [k]: { ...s[k], ...patch } }));
@@ -96,7 +103,7 @@ export function ImportSection(): JSX.Element {
   return (
     <div className="set-imp">
       <ol className="set-imp-steps" aria-label="Kroky importu">
-        {KINDS.map((k, i) => {
+        {kinds.map((k, i) => {
           const done = steps[k].result;
           const current = k === kind;
           return (
@@ -129,7 +136,7 @@ export function ImportSection(): JSX.Element {
           kind={kind}
           state={steps[kind]}
           onState={(patch) => update(kind, patch)}
-          onNext={kind !== 'credits' ? () => setKind(KINDS[KINDS.indexOf(kind) + 1]) : undefined}
+          onNext={next ? () => setKind(next) : undefined}
         />
       </div>
     </div>
@@ -784,7 +791,9 @@ function Preview({
 }
 
 function ResultCallout({ kind, result, onNext, onAgain }: { kind: ImportKind; result: ImportResult; onNext?: () => void; onAgain: () => void }): JSX.Element {
-  const next = onNext ? STEP[KINDS[KINDS.indexOf(kind) + 1]].title : null;
+  const kinds = kindsOf(useClinic());
+  const nextKind = kinds[kinds.indexOf(kind) + 1];
+  const next = onNext && nextKind ? STEP[nextKind].title : null;
   return (
     <Callout
       tone="success"

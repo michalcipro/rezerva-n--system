@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Id } from '../../domain/types';
+import type { Id, ModuleSettings } from '../../domain/types';
 import { countLabel, formatDayShort, formatMoney, formatNumber, formatRelative, formatTime } from '../../engine/format';
+import { modulesOf } from '../../engine/modules';
 import { useClinic, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
 import { Avatar, Badge, Button, Card, EmptyState, Icon, IconButton, Input, PageHeader, Select, Table, cx, type IconName } from '../../ui';
@@ -62,7 +63,15 @@ export function ClientsScreen(): JSX.Element {
   const rows = useMemo(() => buildClientRows(clinic, now), [clinic, now]);
   const tags = useMemo(() => allTags(clinic), [clinic]);
 
-  const availableFilters = perms.finance ? FINANCE_FILTERS : BASIC_FILTERS;
+  const mod = modulesOf(clinic);
+  // filtry vypnutých modulů (Nastavení → Moduly) se nenabízejí
+  const availableFilters = useMemo(
+    () =>
+      (perms.finance ? FINANCE_FILTERS : BASIC_FILTERS).filter(
+        (f) => (f !== 'package' || mod.packages) && (f !== 'credit' || mod.credit) && (f !== 'noMarketing' || mod.marketing),
+      ),
+    [perms.finance, mod.packages, mod.credit, mod.marketing],
+  );
   const activeKey = state.filters.filter((f) => availableFilters.includes(f)).join(',');
   const activeFilters = useMemo(() => (activeKey ? (activeKey.split(',') as ClientFilter[]) : []), [activeKey]);
   const sort: ClientSort = !perms.finance && state.sort === 'spent' ? 'lastVisit' : state.sort;
@@ -105,7 +114,7 @@ export function ClientsScreen(): JSX.Element {
   const subtitle =
     rows.length === 0
       ? 'Evidence klientů kliniky'
-      : `${countLabel(rows.length, ['klient', 'klienti', 'klientů'])} · ${formatNumber(totals.withPkg)} s aktivní permanentkou · ${formatNumber(totals.fresh)} ${totals.fresh === 1 ? 'nový' : 'nových'} za 30 dní`;
+      : `${countLabel(rows.length, ['klient', 'klienti', 'klientů'])}${mod.packages ? ` · ${formatNumber(totals.withPkg)} s aktivní permanentkou` : ''} · ${formatNumber(totals.fresh)} ${totals.fresh === 1 ? 'nový' : 'nových'} za 30 dní`;
 
   return (
     <div className="page cli-list">
@@ -218,7 +227,7 @@ export function ClientsScreen(): JSX.Element {
         ) : compact ? (
           <ul className="cli-mlist">
             {pageRows.map((r) => (
-              <MobileRow key={r.client.id} row={r} finance={perms.finance} now={now} onOpen={open} />
+              <MobileRow key={r.client.id} row={r} finance={perms.finance} now={now} onOpen={open} mod={mod} />
             ))}
           </ul>
         ) : (
@@ -227,8 +236,8 @@ export function ClientsScreen(): JSX.Element {
               <tr>
                 <SortTh label="Klient" sortKey="name" sort={sort} dir={state.dir} onSort={setSort} />
                 <th scope="col">Kontakt</th>
-                <th scope="col">Aktivní permanentka</th>
-                {perms.finance && (
+                {mod.packages && <th scope="col">Aktivní permanentka</th>}
+                {perms.finance && mod.credit && (
                   <th scope="col" className="num">
                     Kredit
                   </th>
@@ -241,7 +250,7 @@ export function ClientsScreen(): JSX.Element {
             </thead>
             <tbody>
               {pageRows.map((r) => (
-                <ClientTableRow key={r.client.id} row={r} finance={perms.finance} now={now} onOpen={open} />
+                <ClientTableRow key={r.client.id} row={r} finance={perms.finance} now={now} onOpen={open} mod={mod} />
               ))}
             </tbody>
           </Table>
@@ -333,7 +342,7 @@ function PackageCell({ row }: { row: ClientRow }): JSX.Element {
   );
 }
 
-function ClientTableRow({ row, finance, now, onOpen }: { row: ClientRow; finance: boolean; now: string; onOpen: (id: Id) => void }): JSX.Element {
+function ClientTableRow({ row, finance, now, onOpen, mod }: { row: ClientRow; finance: boolean; now: string; onOpen: (id: Id) => void; mod: ModuleSettings }): JSX.Element {
   const c = row.client;
   return (
     <tr data-clickable="" onClick={() => onOpen(c.id)}>
@@ -377,10 +386,12 @@ function ClientTableRow({ row, finance, now, onOpen }: { row: ClientRow; finance
           <span className="cli-cell-sub cli-contact__email">{c.email || 'bez e-mailu'}</span>
         </span>
       </td>
-      <td>
-        <PackageCell row={row} />
-      </td>
-      {finance && <td className="num">{row.credit > 0 ? formatMoney(row.credit) : <span className="muted">—</span>}</td>}
+      {mod.packages && (
+        <td>
+          <PackageCell row={row} />
+        </td>
+      )}
+      {finance && mod.credit && <td className="num">{row.credit > 0 ? formatMoney(row.credit) : <span className="muted">—</span>}</td>}
       <td className="nowrap">
         {row.lastVisit ? (
           <>
@@ -409,9 +420,9 @@ function ClientTableRow({ row, finance, now, onOpen }: { row: ClientRow; finance
   );
 }
 
-function MobileRow({ row, finance, now, onOpen }: { row: ClientRow; finance: boolean; now: string; onOpen: (id: Id) => void }): JSX.Element {
+function MobileRow({ row, finance, now, onOpen, mod }: { row: ClientRow; finance: boolean; now: string; onOpen: (id: Id) => void; mod: ModuleSettings }): JSX.Element {
   const c = row.client;
-  const pkg = row.packages[0];
+  const pkg = mod.packages ? row.packages[0] : undefined;
   return (
     <li>
       <button type="button" className="cli-mrow" onClick={() => onOpen(c.id)}>
@@ -429,7 +440,7 @@ function MobileRow({ row, finance, now, onOpen }: { row: ClientRow; finance: boo
           <span className="cli-mrow__sub tnum">
             {row.next ? `Příští ${formatDayShort(row.next.start)} ${formatTime(row.next.start)}` : row.lastVisit ? `Naposledy ${formatRelative(row.lastVisit, now)}` : 'Bez návštěvy'}
             {pkg ? ` · ${pkg.pkg.name} ${pkg.usage.free}/${pkg.usage.total}` : ''}
-            {finance && row.credit > 0 ? ` · kredit ${formatMoney(row.credit)}` : ''}
+            {finance && mod.credit && row.credit > 0 ? ` · kredit ${formatMoney(row.credit)}` : ''}
           </span>
           <Alerts row={row} finance={finance} />
         </span>

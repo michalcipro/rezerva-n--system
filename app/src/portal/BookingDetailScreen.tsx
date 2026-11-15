@@ -16,6 +16,7 @@ import {
   formatTimeRange,
 } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
+import { moduleOn } from '../engine/modules';
 import {
   clientCredit,
   getBooking,
@@ -153,7 +154,9 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
   const pkg = b.payment.packageId ? getPackage(clinic, b.payment.packageId) : undefined;
   const pkgUsage = pkg ? packageUsage(clinic, pkg, dateOf(now)) : undefined;
   const canReschedule =
-    !!ev && future && !client.blocked && !svc?.newClientsOnly && (ev.phase === 'free' || ev.excuse.allowed) && b.payment.method !== 'makeup';
+    !!ev && future && !client.blocked && !svc?.newClientsOnly && (ev.phase === 'free' || ev.excuse.allowed) && b.payment.method !== 'makeup' &&
+    // vypnuté skupinové lekce (Nastavení → Moduly): přihlášku na lekci jde jen zrušit
+    (svc?.kind !== 'group' || moduleOn(clinic, 'groups'));
   const place = placeLabel(clinic, b);
 
   const items = [
@@ -432,7 +435,8 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const options = ev.options.filter((o) => !o.staffOnly);
   const forfeit = ev.isGroup || (b.payment.method === 'package' && clinic.settings.policy.packageLateHandling === 'forfeit_entry');
   const canReschedule =
-    !client.blocked && !svc?.newClientsOnly && b.payment.method !== 'makeup' && b.start > now && (ev.phase === 'free' || ev.excuse.allowed);
+    !client.blocked && !svc?.newClientsOnly && b.payment.method !== 'makeup' && b.start > now && (ev.phase === 'free' || ev.excuse.allowed) &&
+    (svc?.kind !== 'group' || moduleOn(clinic, 'groups'));
   const fallbackChoice = options.find((o) => o.recommended)?.kind ?? options[0]?.kind ?? (canReschedule ? 'reschedule' : null);
   const [picked, setChoice] = useState<string | null>(fallbackChoice);
   // volby se mohou s časem změnit (např. uplyne lhůta omluvenky) – vybraná musí stále existovat
@@ -442,7 +446,8 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const [message, setMessage] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
-  const credit = clientCredit(clinic, client.id);
+  // s vypnutým kreditem (Nastavení → Moduly) se poplatek ze zůstatku nestrhává
+  const credit = moduleOn(clinic, 'credit') ? clientCredit(clinic, client.id) : 0;
 
   const feeAside = (kind: CancelOptionKind, amount: number): string => {
     if (amount <= 0) return 'zdarma';

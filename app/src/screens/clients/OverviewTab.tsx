@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Booking, Client, Id, LocalDateTime } from '../../domain/types';
 import { countLabel, formatDayShort, formatTime, formatTimeRange } from '../../engine/format';
 import { isAnonymized } from '../../engine/gdpr';
+import { moduleOn } from '../../engine/modules';
 import {
   getRoom,
   getService,
@@ -413,7 +414,10 @@ export function PolicyCard(): JSX.Element {
         ))}
       </div>
       <ul className="cli-policy-lines">
-        {policyLines(policy).map((l, i) => (
+        {/* vypnuté moduly (Nastavení → Moduly): bez řádků pro permanentky a skupinové lekce */}
+        {policyLines(policy)
+          .filter((l) => (l.strong !== 'Permanentka:' || moduleOn(clinic, 'packages')) && (l.strong !== 'Skupinové lekce:' || moduleOn(clinic, 'groups')))
+          .map((l, i) => (
           <li key={i}>
             <strong>{l.strong}</strong> {l.text}
           </li>

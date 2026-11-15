@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Id, LocalDate } from '../../domain/types';
 import { downloadFile, downloadNotice } from '../../app/download';
 import { countLabel, formatMoney, formatNumber, formatPercent, plural } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { pendingPaymentRequests } from '../../engine/qr';
 import { clientName, getClient, getTherapist, therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
@@ -212,7 +213,10 @@ export function VisitsScreen(): JSX.Element {
   );
   const kindOptions: ChoiceOption<KindFilter>[] = [
     { value: 'all', label: chipLabel('Vše', kindTotal) },
-    ...VISIT_KINDS.map((k) => ({ value: k, label: chipLabel(VISIT_KIND_LABEL[k], kindCounts[k]) })),
+    ...VISIT_KINDS
+      // zdroj platby vypnutého modulu (Nastavení → Moduly) jen tehdy, když v období nějaké vstupy má
+      .filter((k) => kindCounts[k] > 0 || ((k !== 'package' || moduleOn(clinic, 'packages')) && (k !== 'credit' || moduleOn(clinic, 'credit'))))
+      .map((k) => ({ value: k, label: chipLabel(VISIT_KIND_LABEL[k], kindCounts[k]) })),
   ];
 
   const lockedName = locked ? therapistName(getTherapist(clinic, locked)) : '';
@@ -371,8 +375,8 @@ export function VisitsScreen(): JSX.Element {
         </span>
         <StatLine
           items={[
-            ['permanentka', formatNumber(T.byKind.package)],
-            ['kredit', formatNumber(T.byKind.credit)],
+            (moduleOn(clinic, 'packages') || T.byKind.package > 0) && ['permanentka', formatNumber(T.byKind.package)],
+            (moduleOn(clinic, 'credit') || T.byKind.credit > 0) && ['kredit', formatNumber(T.byKind.credit)],
             prepaidMakeups(T) > 0 && ['náhrada', formatNumber(prepaidMakeups(T))],
           ]}
         />

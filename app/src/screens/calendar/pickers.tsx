@@ -3,6 +3,7 @@ import type { Client, Id, LocalDate, LocalDateTime } from '../../domain/types';
 import { availableSlots, nextAvailableDate, type Slot, type SlotCheck } from '../../engine/availability';
 import { createClient } from '../../engine/commands';
 import { countLabel, formatDayShort, formatMoney, formatTime, formatTimeRange } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import {
   activePackages,
   clientCredit,
@@ -92,8 +93,9 @@ export function ClientSummaryCard({ client, onChange }: { client: Client; onChan
   const clinic = useClinic();
   const now = useNow();
   const today = dateOf(now);
-  const credit = clientCredit(clinic, client.id);
-  const packages = activePackages(clinic, client.id, today);
+  // vypnuté moduly (Nastavení → Moduly): permanentky a kredit se nenabízejí
+  const credit = moduleOn(clinic, 'credit') ? clientCredit(clinic, client.id) : 0;
+  const packages = moduleOn(clinic, 'packages') ? activePackages(clinic, client.id, today) : [];
   const makeups = openMakeups(clinic, client.id, now);
   const fresh = isNewClient(clinic, client.id);
   return (

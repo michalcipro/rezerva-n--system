@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Service } from '../../domain/types';
 import { upsertService } from '../../engine/commands';
 import { countLabel, formatDuration, formatMoney } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { therapistName } from '../../engine/selectors';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { Button, Callout, Checkbox, Drawer, Field, Input, NumberInput, Segmented, Select, Switch, Textarea } from '../../ui';
@@ -106,6 +107,8 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
               onValueChange={(v) => set('categoryId', v)}
             />
           </Field>
+          {/* bez skupinových lekcí (Nastavení → Moduly) jen individuální služby */}
+          {(moduleOn(clinic, 'groups') || initial.kind === 'group') && (
           <FieldGroup
             label="Typ služby"
             hint={draft.kind === 'group' ? 'Termíny skupinové lekce určuje rozvrh lekcí.' : 'Jeden klient, jeden terapeut.'}
@@ -121,6 +124,7 @@ export function ServiceEditor({ initial, onClose }: { initial: Service; onClose:
               ]}
             />
           </FieldGroup>
+          )}
           {draft.kind === 'group' && (
             <Field label="Kapacita lekce" error={err('capacity')} hint="Výchozí počet míst; v rozvrhu lze upravit pro každou lekci.">
               <NumberInput

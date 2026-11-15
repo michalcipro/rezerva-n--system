@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ClinicState, Id, Therapist } from '../../domain/types';
 import { setServiceTherapists, upsertTherapist } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatMoney, formatTime } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { therapistName } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -76,9 +77,9 @@ export function TherapistEditor({
   const lessons = useMemo(
     () =>
       clinic.groupTemplates
-        .filter((g) => g.therapistId === initial.id && g.active && (!g.validTo || g.validTo >= dateOf(now)))
+        .filter((g) => moduleOn(clinic, 'groups') && g.therapistId === initial.id && g.active && (!g.validTo || g.validTo >= dateOf(now)))
         .sort((a, b) => a.weekday - b.weekday || (a.start < b.start ? -1 : 1)),
-    [clinic.groupTemplates, initial.id, now],
+    [clinic, initial.id, now],
   );
 
   const weekValidation = validateWeek(t);
@@ -134,8 +135,10 @@ export function TherapistEditor({
   };
 
   const categories = [...clinic.categories].sort(byOrder);
+  // vypnuté skupinové lekce (Nastavení → Moduly): skupinové služby se nenabízejí (přiřazení zůstává)
+  const groupsOn = moduleOn(clinic, 'groups');
   const servicesOf = (catId: string) =>
-    clinic.services.filter((s) => s.categoryId === catId && (s.active || serviceIds.includes(s.id))).sort(byOrder);
+    clinic.services.filter((s) => s.categoryId === catId && (s.active || serviceIds.includes(s.id)) && (groupsOn || s.kind !== 'group')).sort(byOrder);
 
   return (
     <Drawer

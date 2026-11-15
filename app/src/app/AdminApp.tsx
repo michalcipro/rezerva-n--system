@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ActorRole } from '../domain/types';
+import type { ActorRole, ClinicState } from '../domain/types';
+import { MODULE_OFF, moduleOn } from '../engine/modules';
 import { clientName } from '../engine/selectors';
 import { CalendarScreen, NewBookingDialog } from '../screens/calendar';
 import { ClientDetailScreen, ClientsScreen } from '../screens/clients';
@@ -54,6 +55,13 @@ const ACCESS: Record<ActorRole, NavId[]> = {
   therapist: ['prehled', 'kalendar', 'skupiny', 'klienti', 'vstupy'],
   client: [],
 };
+
+/** Položky patřící k vypnutelnému modulu (Nastavení → Moduly) – vypnutý modul v menu není. */
+function navModuleOn(clinic: ClinicState, id: NavId): boolean {
+  if (id === 'skupiny') return moduleOn(clinic, 'groups');
+  if (id === 'permanentky') return moduleOn(clinic, 'packages') || moduleOn(clinic, 'credit');
+  return true;
+}
 
 const ROLE_LABEL: Record<ActorRole, string> = { owner: 'majitelka', reception: 'recepce', therapist: 'terapeut', client: 'klient' };
 
@@ -157,9 +165,12 @@ export function AdminApp(): JSX.Element {
   const route = session.route;
   const activeNav: NavId = route.name === 'klient' ? 'klienti' : route.name;
   const canSee = allowed.includes(activeNav);
+  const moduleOff = !navModuleOn(clinic, activeNav);
 
-  const nav = NAV.filter((n) => allowed.includes(n.id)).map((n) => ({
+  const nav = NAV.filter((n) => allowed.includes(n.id) && navModuleOn(clinic, n.id)).map((n) => ({
     ...n,
+    // jen jedna ze dvou částí zapnutá: „Permanentky“, nebo „Kredit“
+    label: n.id === 'permanentky' && !moduleOn(clinic, 'credit') ? 'Permanentky' : n.id === 'permanentky' && !moduleOn(clinic, 'packages') ? 'Kredit' : n.label,
     count: n.id === 'klienti' ? clinic.clients.length : undefined,
   }));
 
@@ -173,6 +184,17 @@ export function AdminApp(): JSX.Element {
         text={SERVER_MODE ? 'Statistiky a nastavení vidí jen majitel kliniky.' : 'Statistiky a nastavení vidí jen majitelka. Přepněte roli v testovacím panelu nebo pokračujte do kalendáře.'}
         action={<Button variant="primary" onClick={() => navigate({ name: 'kalendar' })}>Otevřít kalendář</Button>}
       />
+      </div>
+    );
+  } else if (moduleOff) {
+    screen = (
+      <div className="page">
+        <EmptyState
+          icon="layers"
+          title="Tato část je vypnutá"
+          text={`${activeNav === 'skupiny' ? MODULE_OFF.groups : 'Permanentky i kredit jsou v nastavení vypnuté.'} Zapnout je lze v Nastavení → Moduly.`}
+          action={<Button variant="primary" onClick={() => navigate({ name: 'kalendar' })}>Otevřít kalendář</Button>}
+        />
       </div>
     );
   } else {

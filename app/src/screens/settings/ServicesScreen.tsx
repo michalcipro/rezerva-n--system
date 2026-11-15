@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Category, GroupTemplate, Service, Therapist, Weekday } from '../../domain/types';
 import { upsertCategory, upsertService } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatMoney, formatPercent, formatTime } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { getCategory, getRoom, getService, getTherapist, therapistShort } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
@@ -51,7 +52,10 @@ export function ServicesScreen(): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const [tab, setTab] = useState<Tab>('catalog');
+  // vypnuté skupinové lekce (Nastavení → Moduly): bez rozvrhu a skupinových služeb
+  const groupsOn = moduleOn(clinic, 'groups');
+  const [tabChoice, setTab] = useState<Tab>('catalog');
+  const tab: Tab = groupsOn ? tabChoice : 'catalog';
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(true);
   const [editService, setEditService] = useState<Service | null>(null);
@@ -59,7 +63,7 @@ export function ServicesScreen(): JSX.Element {
   const [editTemplate, setEditTemplate] = useState<GroupTemplate | null>(null);
 
   const categories = useMemo(() => [...clinic.categories].sort(byOrder), [clinic.categories]);
-  const services = useMemo(() => [...clinic.services].sort(byOrder), [clinic.services]);
+  const services = useMemo(() => clinic.services.filter((s) => groupsOn || s.kind !== 'group').sort(byOrder), [clinic.services, groupsOn]);
   const activeCount = services.filter((s) => s.active).length;
   const lessonsPerWeek = clinic.groupTemplates.filter((t) => t.active && (!t.validTo || t.validTo >= dateOf(now))).length;
 
@@ -86,7 +90,7 @@ export function ServicesScreen(): JSX.Element {
     <div className="page set-page">
       <PageHeader
         title="Služby a ceník"
-        subtitle={`${countLabel(activeCount, ['aktivní služba', 'aktivní služby', 'aktivních služeb'])} v ${countLabel(categories.length, ['kategorii', 'kategoriích', 'kategoriích'])} · ${countLabel(lessonsPerWeek, ['skupinová lekce', 'skupinové lekce', 'skupinových lekcí'])} týdně`}
+        subtitle={`${countLabel(activeCount, ['aktivní služba', 'aktivní služby', 'aktivních služeb'])} v ${countLabel(categories.length, ['kategorii', 'kategoriích', 'kategoriích'])}${groupsOn ? ` · ${countLabel(lessonsPerWeek, ['skupinová lekce', 'skupinové lekce', 'skupinových lekcí'])} týdně` : ''}`}
         actions={
           tab === 'catalog' ? (
             <>
@@ -113,7 +117,7 @@ export function ServicesScreen(): JSX.Element {
         onChange={setTab}
         items={[
           { id: 'catalog', label: 'Ceník služeb', count: services.length },
-          { id: 'schedule', label: 'Rozvrh skupinových lekcí', count: clinic.groupTemplates.length },
+          ...(groupsOn ? [{ id: 'schedule' as const, label: 'Rozvrh skupinových lekcí', count: clinic.groupTemplates.length }] : []),
         ]}
       />
 
@@ -163,7 +167,7 @@ export function ServicesScreen(): JSX.Element {
                 isLast={ci === categories.length - 1}
                 onEditCategory={() => setEditCategory(cat)}
                 onMoveCategory={(dir) => moveCategory(ci, dir)}
-                onAdd={() => openNewService(cat.id, list.length > 0 && list.every((x) => x.kind === 'group') ? 'group' : 'individual')}
+                onAdd={() => openNewService(cat.id, groupsOn && list.length > 0 && list.every((x) => x.kind === 'group') ? 'group' : 'individual')}
                 onEdit={(s) => setEditService(s)}
                 onDuplicate={(s) => setEditService({ ...s, id: '', name: `${s.name} (kopie)`, order: 0 })}
               />

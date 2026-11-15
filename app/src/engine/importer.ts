@@ -27,6 +27,7 @@ import { fail, ok } from './commands';
 import { countLabel, formatDate, formatMoney } from './format';
 import { isAnonymized } from './gdpr';
 import { newId } from './ids';
+import { MODULE_OFF, moduleOn } from './modules';
 import { addDays, dateOf, pad2 } from './time';
 
 /* ------------------------------------------------------------------ */
@@ -1214,6 +1215,7 @@ export const importClients: Command<ImportClientsInput, ImportResult> = (d, inpu
  */
 export const importPackages: Command<{ rows: PackageImportRow[] }, ImportResult> = (d, input, ctx) => {
   if (!canImport(ctx)) return fail(DENIED);
+  if (!moduleOn(d, 'packages')) return fail(MODULE_OFF.packages);
   const guard = rowsGuard(input?.rows);
   if (guard) return fail(guard);
   const checks = checkPackageRows(d, input.rows, ctx.now);
@@ -1265,6 +1267,7 @@ export const importPackages: Command<{ rows: PackageImportRow[] }, ImportResult>
  */
 export const importCredits: Command<{ rows: CreditImportRow[] }, ImportResult> = (d, input, ctx) => {
   if (!canImport(ctx)) return fail(DENIED);
+  if (!moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   const guard = rowsGuard(input?.rows);
   if (guard) return fail(guard);
   const checks = checkCreditRows(d, input.rows);

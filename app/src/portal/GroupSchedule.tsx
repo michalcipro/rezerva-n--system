@@ -3,6 +3,7 @@ import type { Client, ClinicState, Id, LocalDate, LocalDateTime } from '../domai
 import { availableSlots } from '../engine/availability';
 import { countLabel, formatDateLong, formatDuration, formatTime, plural } from '../engine/format';
 import { groupSessionsOverview, type GroupSessionOverview } from '../engine/groups';
+import { moduleOn } from '../engine/modules';
 import { bookingsOfClient, getClient, getTherapist, therapistName } from '../engine/selectors';
 import { addDays, dateOf, daysBetween, diffMinutes } from '../engine/time';
 import { useClinic, useNow } from '../store/hooks';
@@ -102,7 +103,8 @@ export function GroupSchedule({ days = 7 }: GroupScheduleProps = {}): JSX.Elemen
   const end = addDays(today, span);
 
   const data = useMemo(() => scheduleData(clinic, client, today, end, now), [clinic, client, today, end, now]);
-  if (!data.hasServices) return null;
+  // vypnuté skupinové lekce (Nastavení → Moduly): rozvrh se neukazuje
+  if (!data.hasServices || !moduleOn(clinic, 'groups')) return null;
 
   const go = (route: PortalRoute): void => (portal ? portal.go(route) : navigatePortal(route));
   const title = span === 7 ? 'Skupinové lekce tento týden' : `Skupinové lekce na ${countLabel(span, ['den', 'dny', 'dní'])}`;

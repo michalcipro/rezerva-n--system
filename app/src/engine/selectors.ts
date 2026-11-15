@@ -16,6 +16,7 @@ import type {
   Service,
   Therapist,
 } from '../domain/types';
+import { moduleOn } from './modules';
 import { addDays, addMinutes, combine, dateOf, diffMinutes, weekdayOf } from './time';
 
 /* ------------------------------------------------------------------ */
@@ -161,6 +162,8 @@ export function sessionId(templateId: Id, date: LocalDate): Id {
 }
 
 export function sessionsOnDate(s: ClinicState, date: LocalDate): GroupSession[] {
+  // vypnuté skupinové lekce: rozvrh se negeneruje (lekce neblokují čas, nenabízejí se ani se neukazují)
+  if (!moduleOn(s, 'groups')) return [];
   const wd = weekdayOf(date);
   const out: GroupSession[] = [];
   for (const t of s.groupTemplates) {

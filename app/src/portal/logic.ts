@@ -37,6 +37,7 @@ import {
 } from '../engine/format';
 import type { IconName } from '../ui';
 import { paymentLabel } from '../engine/messages';
+import { moduleOn } from '../engine/modules';
 import { evaluateCancellation, type CancellationEvaluation } from '../engine/policy';
 import {
   bookingsOfClient,
@@ -171,8 +172,9 @@ export function activeTherapistsFor(s: ClinicState, service: Service): Therapist
 export function bookableServices(s: ClinicState, clientId: Id): Service[] {
   const fresh = isNewClient(s, clientId);
   const catOrder = (svc: Service): number => getCategory(s, svc.categoryId)?.order ?? 99;
+  const groupsOn = moduleOn(s, 'groups');
   return s.services
-    .filter((svc) => svc.active && svc.onlineBookable && (!svc.newClientsOnly || fresh))
+    .filter((svc) => svc.active && svc.onlineBookable && (!svc.newClientsOnly || fresh) && (groupsOn || svc.kind !== 'group'))
     .filter((svc) => activeTherapistsFor(s, svc).length > 0)
     .sort((a, b) => catOrder(a) - catOrder(b) || a.order - b.order);
 }
@@ -337,7 +339,8 @@ export function paymentOptions(
     });
   }
 
-  for (const p of eligiblePackages(s, q.clientId, q.serviceId, dateOf(q.start), today)) {
+  // permanentka a kredit jen se zapnutým modulem (Nastavení → Moduly); engine je jinak odmítne
+  for (const p of moduleOn(s, 'packages') ? eligiblePackages(s, q.clientId, q.serviceId, dateOf(q.start), today) : []) {
     const u = packageUsage(s, p, today);
     out.push({
       key: 'package:' + p.id,
@@ -354,7 +357,7 @@ export function paymentOptions(
   }
 
   const balance = clientCredit(s, q.clientId);
-  if (balance > 0) {
+  if (balance > 0 && moduleOn(s, 'credit')) {
     const enough = balance >= price;
     out.push({
       key: 'credit',
@@ -700,6 +703,9 @@ export interface PolicyItem {
 export function clinicPolicy(settings: Settings): PolicyItem[] {
   const p = settings.policy;
   const r = settings.bookingRules;
+  // vypnuté moduly (Nastavení → Moduly): bez pravidel pro permanentky, skupinové lekce a kredit
+  const mod = { settings };
+  const packagesOn = moduleOn(mod, 'packages');
   const items: PolicyItem[] = [];
   items.push({
     icon: 'calendarX',
@@ -716,16 +722,18 @@ export function clinicPolicy(settings: Settings): PolicyItem[] {
     text:
       tierText.charAt(0).toUpperCase() +
       tierText.slice(1) +
-      '. ' +
-      (p.packageLateHandling === 'forfeit_entry'
-        ? 'U permanentky při pozdním zrušení propadá vstup.'
-        : 'U permanentky se vstup vrací a účtuje se storno poplatek.'),
+      '.' +
+      (!packagesOn
+        ? ''
+        : p.packageLateHandling === 'forfeit_entry'
+          ? ' U permanentky při pozdním zrušení propadá vstup.'
+          : ' U permanentky se vstup vrací a účtuje se storno poplatek.'),
   });
   items.push({
     icon: 'userX',
     title: 'Nedostavení',
     text:
-      `Když nepřijdete bez omluvy, účtuje se ${formatPercent(p.noShowFeePct)} ceny (u permanentky propadá vstup).` +
+      `Když nepřijdete bez omluvy, účtuje se ${formatPercent(p.noShowFeePct)} ceny${packagesOn ? ' (u permanentky propadá vstup)' : ''}.` +
       (p.blockAfterNoShows > 0 ? ` Po ${p.blockAfterNoShows} nedostaveních během 90 dní se online rezervace pozastaví.` : ''),
   });
   if (p.excuses.enabled) {
@@ -734,18 +742,22 @@ export function clinicPolicy(settings: Settings): PolicyItem[] {
       title: 'Omluvenky při nemoci',
       text:
         `Po lhůtě můžete termín omluvit bez poplatku ${p.excuses.deadlineHoursBefore > 0 ? `nejpozději ${p.excuses.deadlineHoursBefore} h před začátkem` : 'až do začátku'}. ` +
-        `K permanentce máte obvykle ${countLabel(p.excuses.perPackage, ['omluvenku', 'omluvenky', 'omluvenek'])}, bez permanentky ${countLabel(p.excuses.perClientCount, ['omluvenku', 'omluvenky', 'omluvenek'])} za ${countLabel(p.excuses.perClientMonths, ['měsíc', 'měsíce', 'měsíců'])}. ` +
+        (packagesOn
+          ? `K permanentce máte obvykle ${countLabel(p.excuses.perPackage, ['omluvenku', 'omluvenky', 'omluvenek'])}, bez permanentky ${countLabel(p.excuses.perClientCount, ['omluvenku', 'omluvenky', 'omluvenek'])} za ${countLabel(p.excuses.perClientMonths, ['měsíc', 'měsíce', 'měsíců'])}. `
+          : `Máte ${countLabel(p.excuses.perClientCount, ['omluvenku', 'omluvenky', 'omluvenek'])} za ${countLabel(p.excuses.perClientMonths, ['měsíc', 'měsíce', 'měsíců'])}. `) +
         `Za předplacený termín si pak vyberete náhradní do ${countLabel(p.excuses.makeupDays, ['dne', 'dnů', 'dnů'])}.`,
     });
   }
   if (p.graceFirstLateCancel) {
     items.push({ icon: 'gift', title: 'První pozdní zrušení', text: 'První pozdní zrušení za 12 měsíců je bez poplatku.' });
   }
-  items.push({
-    icon: 'users',
-    title: 'Skupinové lekce',
-    text: `Z lekce se odhlásíte zdarma nejpozději ${p.groupCancelHours} h předem, potom vstup propadá.`,
-  });
+  if (moduleOn(mod, 'groups')) {
+    items.push({
+      icon: 'users',
+      title: 'Skupinové lekce',
+      text: `Z lekce se odhlásíte zdarma nejpozději ${p.groupCancelHours} h předem, potom vstup propadá.`,
+    });
+  }
   items.push({
     icon: 'clock',
     title: 'Online rezervace',
@@ -759,7 +771,7 @@ export function clinicPolicy(settings: Settings): PolicyItem[] {
     });
   }
   const bonus = [...settings.creditBonus].filter((b) => b.pct > 0).sort((a, b) => a.minTopup - b.minTopup);
-  if (bonus.length) {
+  if (bonus.length && moduleOn(mod, 'credit')) {
     items.push({
       icon: 'coins',
       title: 'Bonus za dobití kreditu',

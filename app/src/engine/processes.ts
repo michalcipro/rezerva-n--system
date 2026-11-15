@@ -3,6 +3,7 @@ import { deliverCampaign, offerFreedSlot, ok } from './commands';
 import { countLabel, formatDate, formatDayShort } from './format';
 import { newId } from './ids';
 import { bookingVars, queueTemplateMessage } from './messages';
+import { moduleOn } from './modules';
 import { getService, packageUsage } from './selectors';
 import { addDays, addHours, addMinutes, dateOf, daysBetween } from './time';
 
@@ -23,6 +24,9 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
   const report: ProcessReport = { completed: 0, reminders: 0, expiredMakeups: 0, expiredOffers: 0, campaigns: 0 };
   const now = ctx.now;
   const systemCtx: Ctx = { now, actor: { role: 'owner', name: 'Systém' } };
+  // vypnuté moduly (Nastavení → Moduly): bez obchodních sdělení a bez upozornění k permanentkám
+  const marketingOn = moduleOn(d, 'marketing');
+  const packagesOn = moduleOn(d, 'packages');
 
   // 1) Proběhlé termíny → docházka (pokud je zapnuto)
   if (d.settings.bookingRules.autoCompletePast) {
@@ -39,7 +43,7 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
         b.payment.settledBy = method;
       }
       // poděkování po návštěvě jen u čerstvě skončených termínů
-      if (!b.followUpSentAt && b.end > addHours(now, -24) && addHours(b.end, 2) <= now) {
+      if (marketingOn && !b.followUpSentAt && b.end > addHours(now, -24) && addHours(b.end, 2) <= now) {
         queueTemplateMessage(d, { key: 'after_visit', clientId: b.clientId, now, bookingId: b.id, vars: bookingVars(d, b) });
         b.followUpSentAt = now;
       }
@@ -99,7 +103,7 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
   // 5) Permanentky: poslední vstupy a konec platnosti
   const today = dateOf(now);
   for (const p of d.packages) {
-    if (p.cancelled) continue;
+    if (p.cancelled || !packagesOn) continue;
     const u = packageUsage(d, p, today);
     if (u.expired) continue;
     if (!p.lowNoticeAt && u.free <= 2 && u.free > 0 && u.reserved === 0) {
@@ -123,8 +127,8 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
   }
 
   // 6) Obchodní sdělení podle šablon (jen se souhlasem; ve výchozím stavu vypnuté)
-  const reactivationOn = d.templates.some((t) => t.key === 'reactivation' && t.enabled);
-  const birthdayOn = d.templates.some((t) => t.key === 'birthday' && t.enabled);
+  const reactivationOn = marketingOn && d.templates.some((t) => t.key === 'reactivation' && t.enabled);
+  const birthdayOn = marketingOn && d.templates.some((t) => t.key === 'birthday' && t.enabled);
   if (reactivationOn || birthdayOn) {
     const lastVisit = new Map<string, string>();
     const hasUpcoming = new Set<string>();
@@ -149,9 +153,9 @@ export const runProcesses: Command<Record<string, never>, ProcessReport> = (d, _
     }
   }
 
-  // 7) Naplánované kampaně
+  // 7) Naplánované kampaně (s vypnutým marketingem čekají)
   for (const c of d.campaigns) {
-    if (c.status === 'scheduled' && c.scheduledAt && c.scheduledAt <= now) {
+    if (marketingOn && c.status === 'scheduled' && c.scheduledAt && c.scheduledAt <= now) {
       deliverCampaign(d, systemCtx, c);
       report.campaigns++;
     }
