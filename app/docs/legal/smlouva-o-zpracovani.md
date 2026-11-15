@@ -3,19 +3,20 @@
 uzavřená podle čl. 28 odst. 3 nařízení Evropského parlamentu a Rady (EU) 2016/679, obecného nařízení o ochraně osobních údajů („GDPR“)
 
 > **PRACOVNÍ NÁVRH K PRÁVNÍ KONTROLE – NEPODEPISOVAT BEZ POSOUZENÍ ADVOKÁTEM.**
-> Návrh připravil Nexum Care s.r.o. jako podklad k jednání s klinikou. Nejde o právní radu.
-> Stav právních předpisů a smluvních podmínek poskytovatelů ověřován k 13. 11. 2026.
+> Návrh připravil Nexum Care s.r.o. jako provozovatel platformy [NÁZEV PLATFORMY]. Jde o vzor pro všechny zákazníky platformy (provozovny) bez ohledu na obor; místa, která se liší podle druhu služeb, jsou označena **[VARIANTA Z]** (provozovna poskytuje zdravotní služby, např. fyzioterapii) a **[VARIANTA N]** (jen nezdravotní služby, např. masáže, wellness, fitness, kosmetika). Nejde o právní radu.
+> Stav právních předpisů a smluvních podmínek poskytovatelů ověřován k 13. 11. 2026; úpravy pro platformní model 15. 11. 2026.
 >
 > - Údaje v [hranatých závorkách] doplní smluvní strany.
+> - U variant Z a N ponechte text, který odpovídá službám provozovny; provozovna se zdravotními i nezdravotními službami se řídí variantou Z.
 > - Bloky „K ověření právníkem“ a „Poznámka“ jsou vysvětlivky k návrhu. Před podpisem je odstraňte.
 
 ## Smluvní strany
 
-**[NÁZEV KLINIKY]**\
+**[NÁZEV PROVOZOVNY]** *(obchodní firma nebo jméno a příjmení podnikatele, který provozovnu provozuje)*\
 IČO [IČO], se sídlem [SÍDLO], zapsaná [v obchodním rejstříku vedeném … / v živnostenském rejstříku],\
 zastoupená [JMÉNO, FUNKCE],\
 e-mail [E-MAIL], telefon [TELEFON]\
-(dále jen „**Správce**“)
+(dále jen „**Správce**“; v Hlavní smlouvě „Zákazník“)
 
 a
 
@@ -24,15 +25,17 @@ IČO 29616484, DIČ CZ29616484, se sídlem Plzeňská 3352/156, Smíchov, 150 00
 zapsaná v obchodním rejstříku vedeném Městským soudem v Praze, oddíl C, vložka [DOPLNIT],\
 zastoupená [JMÉNO], jednatelem,\
 e-mail [E-MAIL NEXUM CARE], telefon [TELEFON NEXUM CARE]\
-(dále jen „**Zpracovatel**“)
+(dále jen „**Zpracovatel**“; v Hlavní smlouvě „Poskytovatel“)
 
 (Správce a Zpracovatel společně dále jen „smluvní strany“)
 
 ## Preambule
 
-(A) Smluvní strany uzavřely dne [DATUM] smlouvu [o dodávce a provozu rezervačního systému / NÁZEV SMLOUVY] (dále jen „**Hlavní smlouva**“), na jejímž základě Zpracovatel Správci dodává a provozuje webový rezervační systém pro klienty Správce, zahrnující administraci pro personál a klientský portál (dále jen „**Systém**“).
+(A) Smluvní strany uzavřely dne [DATUM] Licenční smlouvu a smlouvu o poskytování služeb platformy [NÁZEV PLATFORMY] č. [ČÍSLO SMLOUVY] (dále jen „**Hlavní smlouva**“), na jejímž základě Zpracovatel Správci poskytuje a provozuje webovou platformu pro rezervace a správu klientů Správce, zahrnující administraci pro personál a klientský portál (dále jen „**Platforma**“).
 
-(B) Při plnění Hlavní smlouvy zpracovává Zpracovatel pro Správce osobní údaje. Smluvní strany proto uzavírají tuto smlouvu, která upravuje podmínky tohoto zpracování v souladu s čl. 28 GDPR a zákonem č. 110/2019 Sb., o zpracování osobních údajů.
+(B) Zpracovatel provozuje Platformu pro více správců (provozoven různých oborů) na společné infrastruktuře. Data každého správce jsou logicky oddělena a Zpracovatel je jiným správcům nezpřístupňuje.
+
+(C) Při plnění Hlavní smlouvy zpracovává Zpracovatel pro Správce osobní údaje. Smluvní strany proto uzavírají tuto smlouvu, která upravuje podmínky tohoto zpracování v souladu s čl. 28 GDPR a zákonem č. 110/2019 Sb., o zpracování osobních údajů.
 
 ## Článek 1 – Pojmy
 
@@ -44,25 +47,27 @@ e-mail [E-MAIL NEXUM CARE], telefon [TELEFON NEXUM CARE]\
 
 1.4 „**Pokynem**“ se rozumí doložený pokyn Správce podle článku 4.
 
+1.5 „**Klientem**“ se rozumí klient nebo zájemce o služby Správce; ostatní pojmy s velkým počátečním písmenem mají význam podle Hlavní smlouvy.
+
 ## Článek 2 – Předmět, povaha a účel zpracování
 
 2.1 Zpracovatel zpracovává osobní údaje pro Správce v rozsahu a za účelem plnění Hlavní smlouvy, zejména při:
 
-a) provozu, hostingu a správě Systému (databáze, přihlašování uživatelů, serverové rozhraní, webová aplikace a klientský portál);
+a) provozu, hostingu a správě Platformy (databáze, přihlašování uživatelů, serverové rozhraní, webová aplikace a klientský portál);
 
-b) evidenci klientů, rezervací, docházky, čekací listiny, omluvenek a náhradních termínů, permanentek, kreditu, plateb a poplatků podle nastavení, které provede Správce;
+b) evidenci Klientů, rezervací, docházky, čekací listiny, omluvenek a náhradních termínů a – podle modulů, které Správce zapne – skupinových lekcí, permanentek, kreditu, plateb a poplatků, a to podle nastavení, které provede Správce;
 
 c) odesílání servisních zpráv a – na pokyn Správce – obchodních sdělení e-mailem a SMS;
 
 d) vytváření platebních údajů pro QR platby a – je-li to zapnuto – párování plateb s výpisy z bankovního účtu Správce;
 
-e) zálohování a obnově dat, technické podpoře, údržbě, řešení incidentů a vývoji Systému;
+e) zálohování a obnově dat, technické podpoře, údržbě, řešení incidentů a vývoji Platformy;
 
 f) exportu, opravě, anonymizaci a výmazu údajů na pokyn Správce.
 
-2.2 **Povaha zpracování:** shromažďování (prostřednictvím Systému), zaznamenávání, uspořádání, uložení, vyhledávání, nahlížení, použití (např. výpočet storno poplatků, nabídky z čekací listiny, připomínky), přenos (odeslání zpráv), kombinování (párování plateb), omezení, výmaz a zničení, převážně automatizovaně.
+2.2 **Povaha zpracování:** shromažďování (prostřednictvím Platformy), zaznamenávání, uspořádání, uložení, vyhledávání, nahlížení, použití (např. výpočet storno poplatků, nabídky z čekací listiny, připomínky), přenos (odeslání zpráv), kombinování (párování plateb), omezení, výmaz a zničení, převážně automatizovaně.
 
-2.3 Zpracovatel nezpracovává osobní údaje pro vlastní účely. Zejména je nepoužije k marketingu, neprodá je, nepoužije je k trénování modelů umělé inteligence a nepoužije produkční osobní údaje k vývoji ani testování Systému – k tomu používá smyšlená nebo anonymizovaná data. [Anonymní statistiky o provozu a výkonu Systému, které neobsahují osobní údaje, smí Zpracovatel používat ke zlepšování Systému.]
+2.3 Zpracovatel nezpracovává osobní údaje pro vlastní účely ani pro jiné správce, kterým Platformu poskytuje. Zejména je nepoužije k marketingu, neprodá je, nepoužije je k trénování modelů umělé inteligence a nepoužije produkční osobní údaje k vývoji ani testování Platformy – k tomu používá smyšlená nebo anonymizovaná data. [Anonymní statistiky o provozu a výkonu Platformy, které neobsahují osobní údaje, smí Zpracovatel používat ke zlepšování Platformy.]
 
 2.4 Tato smlouva se nevztahuje na osobní údaje kontaktních osob Správce, které Zpracovatel zpracovává jako samostatný správce pro vedení smluvního vztahu, podporu a fakturaci podle Hlavní smlouvy.
 
@@ -70,13 +75,13 @@ f) exportu, opravě, anonymizaci a výmazu údajů na pokyn Správce.
 
 3.1 **Subjekty údajů:**
 
-a) klienti a zájemci o služby Správce, včetně osob na čekací listině, a jejich zákonní zástupci;
+a) Klienti, včetně osob na čekací listině, a jejich zákonní zástupci;
 
-b) plátci, kteří za klienty platí převodem (mohou to být i třetí osoby);
+b) plátci, kteří za Klienty platí převodem (mohou to být i třetí osoby);
 
 c) příjemci obchodních sdělení Správce;
 
-d) uživatelé Systému na straně Správce – zaměstnanci a spolupracovníci (majitel, recepce, terapeuti, lektoři).
+d) uživatelé Platformy na straně Správce – zaměstnanci a spolupracovníci (např. majitel, recepce, terapeuti, trenéři, lektoři, kosmetičky).
 
 3.2 **Kategorie osobních údajů:**
 
@@ -84,7 +89,7 @@ a) identifikační a kontaktní údaje (jméno, příjmení, e-mail, telefon, p�
 
 b) údaje o účtu a přihlašování (identifikátor účtu, údaje o přihlášení, IP adresy; hesla pouze v hašované podobě);
 
-c) údaje o rezervacích a docházce (služba, terapeut, čas, stav, zrušení a jeho čas a kanál, omluvenky, náhradní termíny, čekací listina, poznámky);
+c) údaje o rezervacích a docházce (služba, pracovník, čas, stav, zrušení a jeho čas a kanál, omluvenky, náhradní termíny, čekací listina, poznámky);
 
 d) platební a smluvní údaje (ceny, platby, kredit, bonusy, permanentky, poplatky, platební výzvy, variabilní symboly; z bankovních výpisů jméno a číslo účtu plátce, částka, symboly, zpráva pro příjemce a datum);
 
@@ -92,9 +97,13 @@ e) komunikační údaje (obsah a stav doručení zpráv, volba kanálů, souhlas
 
 f) provozní a bezpečnostní údaje (auditní záznamy, záznamy o přístupech, technické logy);
 
-g) údaje uživatelů Systému (jméno, role, e-mail, pracovní doba, přiřazené služby a místnosti).
+g) údaje uživatelů Platformy (jméno, role, e-mail, pracovní doba, přiřazené služby a místnosti).
 
-3.3 **Zvláštní kategorie osobních údajů.** Systém může obsahovat údaje o zdraví (čl. 9 GDPR), a to zejména (i) údaje, z nichž lze zdravotní stav odvodit z rezervací zdravotních služeb, a (ii) údaje, které klient nebo personál uvede v poznámce. Funkce klinických poznámek (`settings.features.clinicalNotes`) je v ostrém provozu vypnutá. Správce ji smí zapnout jen písemným pokynem; před zapnutím smluvní strany doplní tuto smlouvu a Správce posoudí právní základ a dopad zpracování (DPIA). Zdravotnická dokumentace podle zákona č. 372/2011 Sb. se v Systému nevede.
+3.3 **Zvláštní kategorie osobních údajů**
+
+**[VARIANTA Z]** Platforma může obsahovat údaje o zdraví (čl. 9 GDPR), a to zejména (i) údaje, z nichž lze zdravotní stav odvodit z rezervací zdravotních služeb, a (ii) údaje, které Klient nebo personál uvede v poznámce. Funkce klinických poznámek (`settings.features.clinicalNotes`) je v ostrém provozu vypnutá. Správce ji smí zapnout jen písemným pokynem; před zapnutím smluvní strany doplní tuto smlouvu a Správce posoudí právní základ a dopad zpracování (DPIA). Zdravotnická dokumentace podle zákona č. 372/2011 Sb. se v Platformě nevede.
+
+**[VARIANTA N]** Platforma není určena ke zpracování údajů o zdraví. Údaje o zdraví se v ní mohou objevit jen nahodile – v poznámce Klienta k rezervaci nebo v poznámce personálu (např. alergie na kosmetický přípravek, úraz, těhotenství). Správce zajistí, aby je personál zapisoval jen v rozsahu nezbytném k bezpečnému poskytnutí služby. Zdravotní dotazníky (např. před masáží, tréninkem nebo kosmetickým ošetřením) Správce v Platformě nevede, ledaže smluvní strany předem doplní tuto smlouvu; vede-li je mimo Platformu, zpracovává je na základě výslovného souhlasu Klienta (čl. 9 odst. 2 písm. a) GDPR). Funkce klinických poznámek (`settings.features.clinicalNotes`) zůstává vypnutá.
 
 3.4 S údaji podle odstavce 3.3 zachází Zpracovatel se zvýšenou péčí – zejména omezuje přístup na nejnutnější okruh osob a dbá, aby se nedostaly do technických logů, chybových hlášení a podpůrných nástrojů.
 
@@ -106,13 +115,15 @@ g) údaje uživatelů Systému (jméno, role, e-mail, pracovní doba, přiřazen
 
 a) tato smlouva a Hlavní smlouva;
 
-b) nastavení Systému, které provede Správce nebo jeho uživatelé (např. storno pravidla, šablony zpráv, zapnuté funkce, souhlasy klientů);
+b) nastavení Platformy, které provede Správce nebo jeho uživatelé (např. storno pravidla, šablony zpráv, zapnuté moduly a funkce, souhlasy Klientů);
 
 c) písemné pokyny oprávněných osob Správce uvedených v Příloze 2, zaslané e-mailem nebo jinou průkaznou formou.
 
 4.3 Má-li Zpracovatel za to, že pokyn porušuje GDPR nebo jiný předpis o ochraně osobních údajů, neprodleně na to Správce upozorní a do potvrzení nebo změny pokynu ho nemusí provést.
 
 4.4 Správce odpovídá za to, že má pro zpracování osobních údajů právní základ, že subjekty údajů řádně informoval a že jeho pokyny jsou v souladu s právními předpisy.
+
+4.5 Pokyn, který by vyžadoval změnu Platformy nebo infrastruktury společné všem správcům, provede Zpracovatel jen tehdy, je-li to technicky možné bez dopadu na ostatní správce; jinak postupují smluvní strany podle Hlavní smlouvy (Úpravy na zakázku).
 
 ## Článek 5 – Mlčenlivost a oprávněné osoby
 
@@ -130,25 +141,25 @@ a) **Hosting v EU.** Databáze, přihlašování uživatelů a zálohy jsou v da
 
 b) **Šifrování.** Veškerá komunikace mezi prohlížečem, serverovým rozhraním a poskytovateli probíhá šifrovaně (HTTPS, TLS 1.2 a vyšší). Data v databázi a zálohy jsou šifrována v klidu (AES-256 na úrovni poskytovatele). Tajné klíče (např. klíče k odesílání zpráv, k API banky a k automatickým úlohám) jsou uloženy pouze jako šifrované tajné proměnné serveru, nikdy v kódu webové aplikace ani v repozitáři.
 
-c) **Řízení přístupu podle rolí.** Systém rozlišuje role majitel, recepce, terapeut a klient a oprávnění se ověřují na serveru u každého příkazu. Každý uživatel má vlastní účet; sdílení účtů je zakázáno. Klient dostává ze serveru jen své vlastní údaje a anonymní obsazenost termínů, nikdy osobní údaje jiných klientů.
+c) **Řízení přístupu podle rolí.** Platforma rozlišuje role majitel, recepce, pracovník (terapeut, trenér, lektor…) a klient a oprávnění se ověřují na serveru u každého příkazu. Každý uživatel má vlastní účet; sdílení účtů je zakázáno. Klient dostává ze serveru jen své vlastní údaje a anonymní obsazenost termínů, nikdy osobní údaje jiných Klientů.
 
-d) **Ochrana na úrovni databáze.** Databázové schéma s daty Správce není přístupné přes veřejné rozhraní databáze. Data čte a zapisuje pouze serverové rozhraní po ověření přihlášení (podepsaný přístupový token) a role uživatele. Na tabulkách je zapnuta ochrana na úrovni řádků (row-level security) jako další vrstva ochrany. Data Správce jsou logicky oddělena od dat jiných zákazníků Zpracovatele.
+d) **Ochrana na úrovni databáze a oddělení správců.** Databázové schéma s daty správců není přístupné přes veřejné rozhraní databáze. Data čte a zapisuje pouze serverové rozhraní po ověření přihlášení (podepsaný přístupový token) a role uživatele. Na tabulkách je zapnuta ochrana na úrovni řádků (row-level security) jako další vrstva ochrany. Data Správce jsou logicky oddělena od dat ostatních správců, kterým Zpracovatel Platformu poskytuje: každý záznam nese identifikátor provozovny a serverové rozhraní u každého požadavku ověřuje, ke které provozovně přihlášený uživatel patří.
 
-e) **Auditní záznam.** Systém zaznamenává, kdo, kdy a jaký příkaz provedl (např. vytvoření a zrušení rezervace, změnu souhlasu, přijetí platby, úpravu kreditu). Záznamy nelze běžnými uživateli měnit ani mazat a uchovávají se [12 měsíců].
+e) **Auditní záznam.** Platforma zaznamenává, kdo, kdy a jaký příkaz provedl (např. vytvoření a zrušení rezervace, změnu souhlasu, přijetí platby, úpravu kreditu). Záznamy nelze běžnými uživateli měnit ani mazat a uchovávají se [12 měsíců].
 
 f) **Zálohy a obnova.** Databáze se automaticky zálohuje nejméně jednou denně; zálohy se uchovávají [7] dní (podle tarifu poskytovatele, nejvýše [30] dní) ve stejném regionu EU. Obnovu ze zálohy Zpracovatel ověřuje nejméně [jednou za 6 měsíců].
 
 g) **Nejnižší nutná oprávnění.** Administrátorský přístup k produkčnímu prostředí mají jen jmenovitě určené osoby Zpracovatele. Klíče s plným přístupem k databázi se používají jen na serveru. Oprávnění Zpracovatel přezkoumává nejméně [jednou za 3 měsíce] a bez odkladu je odebírá, jakmile je osoba nepotřebuje.
 
-h) **Vícefaktorové ověření.** Všechny administrátorské účty Zpracovatele u poskytovatelů infrastruktury a nástrojů (Supabase, Cloudflare, Brevo, správa zdrojového kódu, správa domény) mají zapnuté vícefaktorové ověření. [Pro účty personálu Správce s rolí majitel Systém nabízí vícefaktorové ověření a Zpracovatel doporučuje ho zapnout.]
+h) **Vícefaktorové ověření.** Všechny administrátorské účty Zpracovatele u poskytovatelů infrastruktury a nástrojů (Supabase, Cloudflare, Brevo, správa zdrojového kódu, správa domény) mají zapnuté vícefaktorové ověření. [Pro účty personálu Správce s rolí majitel Platforma nabízí vícefaktorové ověření a Zpracovatel doporučuje ho zapnout.]
 
 i) **Integrita dat.** Změny se zapisují transakčně s kontrolou verze stavu, takže nevznikne dvojí rezervace téhož termínu ani ztráta souběžné změny.
 
 j) **Bezpečný vývoj a údržba.** Změny kódu procházejí kontrolou a automatickými testy; vývoj a testování probíhají na smyšlených datech. Kritické bezpečnostní opravy Zpracovatel nasazuje bez zbytečného odkladu, nejpozději do [7] dní od jejich zveřejnění.
 
-k) **Minimalizace obsahu zpráv.** Servisní zprávy obsahují jen údaje nutné k termínu (datum, čas, místo, terapeut, název služby), nikoli diagnózy.
+k) **Minimalizace obsahu zpráv.** Servisní zprávy obsahují jen údaje nutné k termínu (datum, čas, místo, pracovník, název služby), nikoli diagnózy ani jiné údaje o zdraví.
 
-l) **Monitoring a řešení incidentů.** Zpracovatel sleduje dostupnost a chyby Systému a má postup pro řešení bezpečnostních incidentů (článek 10).
+l) **Monitoring a řešení incidentů.** Zpracovatel sleduje dostupnost a chyby Platformy a má postup pro řešení bezpečnostních incidentů (článek 10).
 
 m) **Fyzická bezpečnost** je zajištěna poskytovateli datových center s nezávisle ověřenou bezpečností (např. SOC 2 Type 2, ISO/IEC 27001).
 
@@ -156,19 +167,19 @@ n) **Pravidelné hodnocení** účinnosti opatření nejméně [jednou ročně] 
 
 6.2 Zpracovatel může opatření měnit, pokud se tím úroveň zabezpečení nesníží. O podstatných změnách informuje Správce.
 
-> **Poznámka k článku 6 (stav k commitu 6d3d6d6, před podpisem aktualizovat):** Opatření popisují architekturu ostrého provozu podle `app/docs/PRODUCTION.md`. Personál kliniky dnes dostává ze serveru celý stav kliniky; omezení uvnitř personálu (např. role terapeut bez financí) je zatím jen v uživatelském rozhraní. Pokud se do podpisu nezavede projekce dat i pro personál, je vhodné to v písm. c) výslovně uvést. Před podpisem také ověřit, že jsou nasazené funkce exportu a anonymizace (článek 9), vícefaktorové ověření (písm. h)) a doba uchování auditních záznamů (písm. e)).
+> **Poznámka k článku 6 (stav k commitu 173dbad, před podpisem aktualizovat):** Opatření popisují architekturu ostrého provozu podle `app/docs/PRODUCTION.md`. Personál dnes dostává ze serveru celý stav provozovny; omezení uvnitř personálu (např. role terapeut bez financí) je zatím jen v uživatelském rozhraní. Pokud se do podpisu nezavede projekce dat i pro personál, je vhodné to v písm. c) výslovně uvést. Databáze je připravena pro více provozoven (identifikátor `clinic_id`), založení provozovny přes `/api/admin/bootstrap` ale zatím umí jen první provozovnu na nasazení a registrace klienta se váže k výchozí provozovně – popis oddělení správců v písm. d) ověřit, až poběží více provozoven na jednom nasazení. Před podpisem také ověřit, že jsou nasazené funkce exportu a anonymizace (článek 9), vícefaktorové ověření (písm. h)) a doba uchování auditních záznamů (písm. e)).
 
 ## Článek 7 – Další zpracovatelé
 
 7.1 Správce uděluje Zpracovateli obecné předchozí písemné povolení zapojit další zpracovatele (čl. 28 odst. 2 GDPR). Ke dni podpisu této smlouvy Zpracovatel využívá další zpracovatele uvedené v Příloze 1.
 
-7.2 O zamýšleném přidání nebo nahrazení dalšího zpracovatele informuje Zpracovatel Správce e-mailem nejméně [30] dní předem. Správce může do [14] dní od oznámení vznést z oprávněných důvodů námitku. Pokud se smluvní strany nedohodnou na řešení, může Správce Hlavní smlouvu bez sankce vypovědět [s výpovědní dobou [DOPLNIT]] a Zpracovatel mu předá data podle článku 12. V naléhavých případech (bezpečnostní důvody, ukončení služby poskytovatelem) může být lhůta kratší; Zpracovatel pak informuje Správce bez zbytečného odkladu.
+7.2 O zamýšleném přidání nebo nahrazení dalšího zpracovatele informuje Zpracovatel Správce e-mailem nejméně [30] dní předem. Správce může do [14] dní od oznámení vznést z oprávněných důvodů námitku. Protože Platforma běží pro všechny správce na společné infrastruktuře, nemůže Zpracovatel zpravidla dalšího zpracovatele vyměnit jen pro jednoho z nich. Pokud se smluvní strany nedohodnou na řešení, může Správce Hlavní smlouvu bez sankce ukončit postupem podle Hlavní smlouvy (článek 17.4) a Zpracovatel mu předá data podle článku 12. V naléhavých případech (bezpečnostní důvody, ukončení služby poskytovatelem) může být lhůta kratší; Zpracovatel pak informuje Správce bez zbytečného odkladu.
 
 7.3 Zpracovatel uloží každému dalšímu zpracovateli smlouvou stejné povinnosti v oblasti ochrany osobních údajů, jaké má podle této smlouvy, zejména poskytnutí dostatečných záruk zavedení technických a organizačních opatření (čl. 28 odst. 4 GDPR). Za plnění povinností dalšího zpracovatele odpovídá Správci, jako by je plnil sám.
 
 7.4 Zpracovatel bez předchozího písemného souhlasu Správce nezapne funkce poskytovatelů, které by předávaly osobní údaje dalším subjektům nad rámec Přílohy 1 (např. asistenty s umělou inteligencí nebo analytické nástroje), a neumožní technické podpoře poskytovatelů přístup k datům Správce, není-li to nezbytné k vyřešení konkrétního problému.
 
-7.5 Fio banka, a.s. není dalším zpracovatelem (viz Poznámka k článku 7). Pokud Správce zapne automatické párování plateb, Zpracovatel s přístupovým tokenem k bankovnímu rozhraní a s údaji z bankovních výpisů zachází jako s osobními údaji podle této smlouvy; token používá jen ke stahování výpisů a párování plateb Správce.
+7.5 Banka Správce (Fio banka, a.s.) není dalším zpracovatelem (viz Poznámka k článku 7). Pokud Správce zapne automatické párování plateb, Zpracovatel s přístupovým tokenem k bankovnímu rozhraní a s údaji z bankovních výpisů zachází jako s osobními údaji podle této smlouvy; token používá jen ke stahování výpisů a párování plateb Správce.
 
 > **Poznámka k článku 7 – bankovní účet Správce (Fio banka):**
 >
@@ -182,9 +193,9 @@ n) **Pravidelné hodnocení** účinnosti opatření nejméně [jednou ročně] 
 >
 > **Důsledky:**
 > - Fio banka se neuvádí v Příloze 1. Smlouvu podle čl. 28 GDPR s ní uzavírat netřeba; vztah se řídí smlouvou Správce s bankou a podmínkami služby API Bankovnictví.
-> - V informacích pro klienty se banka uvádí jako zdroj údajů o plátci a jako samostatný příjemce, ne jako zpracovatel.
-> - Token si v internetovém bankovnictví vygeneruje Správce, a to jen s oprávněním „Sledování účtu“ (pouze export dat, bez možnosti zadávat platby). Předá ho Zpracovateli bezpečnou cestou a může ho kdykoli zneplatnit. Zpracovatel ho uloží jen jako šifrovanou tajnou proměnnou serveru (`FIO_TOKEN`).
-> - Párovat se mají jen příchozí platby, které odpovídají variabilním symbolům platebních výzev. Ostatní pohyby na účtu Systém neukládá, nebo je ukládá jen v nezbytném rozsahu.
+> - V informacích pro Klienty se banka uvádí jako zdroj údajů o plátci a jako samostatný příjemce, ne jako zpracovatel.
+> - Token si v internetovém bankovnictví vygeneruje Správce, a to jen s oprávněním „Sledování účtu“ (pouze export dat, bez možnosti zadávat platby). Předá ho Zpracovateli bezpečnou cestou a může ho kdykoli zneplatnit. Zpracovatel ho uloží jen jako šifrovanou tajnou proměnnou serveru (`FIO_TOKEN`); pro více správců na jednom nasazení je potřeba ukládat token zvlášť pro každou provozovnu.
+> - Párovat se mají jen příchozí platby, které odpovídají variabilním symbolům platebních výzev. Ostatní pohyby na účtu Platforma neukládá, nebo je ukládá jen v nezbytném rozsahu.
 >
 > **K ověření právníkem:** Zda automatizované stahování výpisu tokenem majitele účtu prostřednictvím softwaru Zpracovatele nepředstavuje službu informování o platebním účtu podle zákona č. 370/2017 Sb., o platebním styku, nebo zda jde o technickou službu, která pod zákon nespadá. Proprietární API Fio banky běžně využívají účetní a fakturační systémy, právní posouzení ale v tomto návrhu ověřeno nebylo.
 
@@ -196,21 +207,21 @@ n) **Pravidelné hodnocení** účinnosti opatření nejméně [jednou ročně] 
 
 ## Článek 9 – Součinnost při výkonu práv subjektů údajů
 
-9.1 Zpracovatel pomáhá Správci vhodnými technickými a organizačními opatřeními plnit povinnost reagovat na žádosti o výkon práv subjektů údajů (čl. 12 až 22 GDPR). Systém k tomu poskytuje tyto funkce:
+9.1 Zpracovatel pomáhá Správci vhodnými technickými a organizačními opatřeními plnit povinnost reagovat na žádosti o výkon práv subjektů údajů (čl. 12 až 22 GDPR). Platforma k tomu poskytuje tyto funkce:
 
-a) export údajů klienta ve strojově čitelném formátu (JSON, CSV) – pro právo na přístup a na přenositelnost;
+a) export údajů Klienta ve strojově čitelném formátu (JSON, CSV) – pro právo na přístup a na přenositelnost;
 
-b) opravu údajů v kartě klienta a v klientském účtu;
+b) opravu údajů v kartě Klienta a v klientském účtu;
 
-c) anonymizaci klienta – odstraní identifikační a kontaktní údaje a poznámky a ponechá anonymní záznamy potřebné pro účetnictví a statistiky;
+c) anonymizaci Klienta – odstraní identifikační a kontaktní údaje a poznámky a ponechá anonymní záznamy potřebné pro účetnictví a statistiky;
 
 d) správu souhlasů a voleb kanálů a odhlášení z obchodních sdělení;
 
 e) pozastavení online rezervací na účtu.
 
-9.2 Žádost subjektu údajů, kterou Zpracovatel obdrží přímo, předá Správci do [3] pracovních dnů a sám na ni věcně neodpoví, ledaže ho k tomu Správce pověří.
+9.2 Žádost subjektu údajů, kterou Zpracovatel obdrží přímo, předá Správci do [3] pracovních dnů a sám na ni věcně neodpoví, ledaže ho k tomu Správce pověří. Týká-li se žádost více provozoven, které Platformu používají, předá ji každému dotčenému správci zvlášť a údaje jednoho správce nesdělí jinému.
 
-9.3 Pokud funkce Systému nestačí, poskytne Zpracovatel technickou součinnost do [5] pracovních dnů od požádání. [Součinnost v rozsahu do [X] hodin za kalendářní rok je zahrnuta v ceně podle Hlavní smlouvy; nad tento rozsah se účtuje podle ceníku Zpracovatele.]
+9.3 Pokud funkce Platformy nestačí, poskytne Zpracovatel technickou součinnost do [5] pracovních dnů od požádání. [Součinnost v rozsahu do [X] hodin za kalendářní rok je zahrnuta v ceně podle Hlavní smlouvy; nad tento rozsah se účtuje podle ceníku Zpracovatele.]
 
 ## Článek 10 – Porušení zabezpečení osobních údajů
 
@@ -230,7 +241,7 @@ Informace, které nejsou k dispozici hned, Zpracovatel doplňuje postupně bez z
 
 10.3 Zpracovatel neprodleně přijme opatření k omezení následků, zajistí stopy a důkazy, porušení zdokumentuje a poskytne Správci součinnost při ohlášení Úřadu pro ochranu osobních údajů, které musí Správce učinit do 72 hodin (čl. 33 GDPR), a při oznámení subjektům údajů (čl. 34 GDPR).
 
-10.4 Úřadu ani subjektům údajů Zpracovatel porušení sám neoznamuje, ledaže ho o to Správce požádá nebo mu to ukládá právní předpis.
+10.4 Úřadu ani subjektům údajů Zpracovatel porušení sám neoznamuje, ledaže ho o to Správce požádá nebo mu to ukládá právní předpis. Týká-li se porušení více správců, ohlásí ho Zpracovatel každému z nich v rozsahu, který se ho týká.
 
 ## Článek 11 – Další součinnost, informace a audity
 
@@ -238,41 +249,43 @@ Informace, které nejsou k dispozici hned, Zpracovatel doplňuje postupně bez z
 
 11.2 Zpracovatel poskytne Správci všechny informace potřebné k doložení splnění povinností podle čl. 28 GDPR, zejména aktuální popis opatření podle článku 6, seznam dalších zpracovatelů a dostupné certifikace nebo auditní zprávy poskytovatelů (např. zprávy SOC 2, které mohou být poskytnuty jen pod závazkem mlčenlivosti).
 
-11.3 Správce nebo jím pověřený auditor vázaný mlčenlivostí může provést audit nebo kontrolu dodržování této smlouvy, a to nejvýše [jednou za 12 měsíců] a dále po závažném porušení zabezpečení. Audit oznámí nejméně [30] dní předem; provede ho v pracovní době a tak, aby nenarušil provoz Systému ani bezpečnost dat jiných zákazníků Zpracovatele. Přednostně se využije písemný dotazník a doložení dokumentů; u dalších zpracovatelů se audit nahrazuje jejich auditními zprávami a certifikacemi. Náklady auditu nese Správce, ledaže audit odhalí podstatné porušení této smlouvy Zpracovatelem.
+11.3 Správce nebo jím pověřený auditor vázaný mlčenlivostí může provést audit nebo kontrolu dodržování této smlouvy, a to nejvýše [jednou za 12 měsíců] a dále po závažném porušení zabezpečení. Audit oznámí nejméně [30] dní předem; provede ho v pracovní době a tak, aby nenarušil provoz Platformy ani bezpečnost dat ostatních správců. Přednostně se využije písemný dotazník a doložení dokumentů; u dalších zpracovatelů se audit nahrazuje jejich auditními zprávami a certifikacemi. Náklady auditu nese Správce, ledaže audit odhalí podstatné porušení této smlouvy Zpracovatelem.
 
 11.4 Zpracovatel vede záznamy o činnostech zpracování, které pro Správce provádí (čl. 30 odst. 2 GDPR), a na požádání je zpřístupní Správci nebo dozorovému úřadu.
 
 ## Článek 12 – Doba trvání, ukončení a vrácení nebo výmaz údajů
 
-12.1 Tato smlouva se uzavírá na dobu trvání Hlavní smlouvy. Povinnosti, které mají podle své povahy trvat i po jejím skončení (mlčenlivost, výmaz, součinnost), trvají až do svého splnění.
+12.1 Tato smlouva se uzavírá na dobu trvání Hlavní smlouvy a dále na dobu, po kterou Zpracovatel podle Hlavní smlouvy uchovává data Správce (Exportní lhůta). Povinnosti, které mají podle své povahy trvat i po jejím skončení (mlčenlivost, výmaz, součinnost), trvají až do svého splnění.
 
-12.2 Správce si může data ze Systému kdykoli během trvání smlouvy exportovat.
+12.2 Správce si může data z Platformy kdykoli během trvání smlouvy exportovat.
 
-12.3 Po skončení Hlavní smlouvy Zpracovatel podle volby Správce:
+12.3 Po skončení Hlavní smlouvy Zpracovatel podle volby Správce a v souladu s Hlavní smlouvou (článek 18):
 
-a) do [30] dní předá Správci úplný export osobních údajů a dalších dat Správce ve strojově čitelném formátu (JSON a CSV s popisem struktury), a poté
+a) ponechá Správci po dobu Exportní lhůty [60] dní (nejméně 30 dní) přístup k Platformě v režimu jen pro čtení a na žádost mu do [10] pracovních dnů předá úplný export osobních údajů a dalších dat Správce ve strojově čitelném formátu (JSON a CSV s popisem struktury), a poté
 
-b) do [30] dní od předání exportu (nebo od skončení smlouvy, pokud Správce export nežádá) osobní údaje vymaže ze Systému a ze záloh nejpozději uplynutím doby jejich uchování (nejvýše [30] dní) a o výmazu vydá Správci písemné potvrzení.
+b) do [30] dní od uplynutí Exportní lhůty – nebo dříve, do [30] dní od žádosti Správce, pokud Správce o dřívější výmaz požádá (např. po předání exportu nebo pokud export nežádá) – osobní údaje vymaže z Platformy a ze záloh nejpozději uplynutím doby jejich uchování (nejvýše [30] dní) a o výmazu vydá Správci písemné potvrzení.
 
 12.4 Osobní údaje může Zpracovatel ponechat jen tehdy, pokud mu jejich uložení ukládá právo Evropské unie nebo České republiky; o tom Správce informuje a zachová jejich důvěrnost.
+
+12.5 Omezení nebo pozastavení služeb podle Hlavní smlouvy (např. při prodlení s platbou) nemá vliv na povinnosti Zpracovatele podle této smlouvy. Zpracovatel ani v takovém případě nepodmiňuje předání exportu osobních údajů ani součinnost při výkonu práv subjektů údajů úhradou dlužných částek.
 
 ## Článek 13 – Odpovědnost
 
 13.1 Každá smluvní strana odpovídá za škodu, kterou způsobí porušením této smlouvy nebo GDPR, podle čl. 82 GDPR a obecně závazných právních předpisů.
 
-13.2 [OMEZENÍ ODPOVĚDNOSTI – DOPLNÍ PRÁVNÍK: např. celková odpovědnost Zpracovatele za škodu podle této smlouvy je omezena částkou [X Kč] / [X násobkem] ročních plateb podle Hlavní smlouvy; omezení se nevztahuje na škodu způsobenou úmyslně nebo z hrubé nedbalosti ani na újmu na přirozených právech člověka.]
+13.2 [OMEZENÍ ODPOVĚDNOSTI – DOPLNÍ PRÁVNÍK v souladu s článkem 15 Hlavní smlouvy: např. celková odpovědnost Zpracovatele za škodu podle této smlouvy je omezena částkou [X Kč] / [X násobkem] ročních plateb podle Hlavní smlouvy; omezení se nevztahuje na škodu způsobenou úmyslně nebo z hrubé nedbalosti ani na újmu na přirozených právech člověka.]
 
 13.3 [ROZDĚLENÍ ODPOVĚDNOSTI ZA POKUTY A NÁROKY TŘETÍCH OSOB – DOPLNÍ PRÁVNÍK.]
 
 13.4 [POJIŠTĚNÍ ODPOVĚDNOSTI ZPRACOVATELE – DOPLNIT, je-li sjednáno.]
 
-> **K ověření právníkem:** limitace odpovědnosti mezi podnikateli (§ 2898 OZ – nelze předem vyloučit ani omezit náhradu újmy na přirozených právech člověka ani újmy způsobené úmyslně nebo z hrubé nedbalosti); vztah k odpovědnosti vůči subjektům údajů (čl. 82 odst. 4 a 5 GDPR); regres pokut.
+> **K ověření právníkem:** limitace odpovědnosti mezi podnikateli (§ 2898 OZ – nelze předem vyloučit ani omezit náhradu újmy na přirozených právech člověka ani újmy způsobené úmyslně nebo z hrubé nedbalosti; nepřihlíží se k omezení vůči slabší straně); vztah k odpovědnosti vůči subjektům údajů (čl. 82 odst. 4 a 5 GDPR); regres pokut; soulad s limitem v Hlavní smlouvě.
 
 ## Článek 14 – Závěrečná ustanovení
 
 14.1 V otázkách ochrany osobních údajů má tato smlouva přednost před Hlavní smlouvou.
 
-14.2 Tato smlouva se řídí právem České republiky. Spory z ní řeší [příslušný obecný soud podle sídla žalovaného / DOPLNIT].
+14.2 Tato smlouva se řídí právem České republiky. Spory z ní rozhoduje soud místně příslušný podle Hlavní smlouvy (článek 21.7) [/ DOPLNIT].
 
 14.3 Tuto smlouvu lze měnit jen písemnými dodatky. Přílohu 1 aktualizuje Zpracovatel postupem podle článku 7.2; Přílohu 2 může každá strana aktualizovat oznámením druhé straně e-mailem.
 
@@ -288,7 +301,7 @@ V [MÍSTO] dne [DATUM]
 
 Za Správce: ……………………………\
 [JMÉNO, FUNKCE]\
-[NÁZEV KLINIKY]
+[NÁZEV PROVOZOVNY]
 
 &nbsp;
 
@@ -302,7 +315,7 @@ Nexum Care s.r.o.
 
 ## Příloha 1 – Seznam dalších zpracovatelů
 
-Stav k [DATUM]. Údaje o poskytovatelích odpovídají jejich veřejným podmínkám k 13. 11. 2026 a před podpisem je potřeba je ověřit.
+Stav k [DATUM]. Údaje o poskytovatelích odpovídají jejich veřejným podmínkám k 13. 11. 2026 a před podpisem je potřeba je ověřit. Seznam je stejný pro všechny správce, kterým Zpracovatel Platformu poskytuje.
 
 | Další zpracovatel | Činnost | Kategorie údajů | Umístění dat | Přístup mimo EHP a záruky | Podmínky |
 |---|---|---|---|---|---|
@@ -332,9 +345,11 @@ Fio banka, a.s. v seznamu není záměrně – viz Poznámka k článku 7.
 ---
 
 > **K ověření právníkem (souhrn):**
-> - Rozsah a cena součinnosti (článek 9.3), lhůty [24 hodin] pro ohlášení porušení a [30 dní] pro export a výmaz.
+> - Rozsah a cena součinnosti (článek 9.3), lhůty [24 hodin] pro ohlášení porušení a Exportní lhůta [60 dní] a [30 dní] pro výmaz – soulad s Hlavní smlouvou a s nařízením (EU) 2023/2854 (Data Act).
+> - Platformní model: jeden zpracovatel pro mnoho správců – obecné povolení dalších zpracovatelů a důsledek námitky jednoho správce (článek 7.2), pokyny vyžadující změnu společné infrastruktury (článek 4.5), žádosti a incidenty týkající se více správců (články 9.2 a 10.4).
+> - Varianta N: nahodilé zdravotní údaje v poznámkách (alergie, úrazy) a zdravotní dotazníky mimo Platformu na základě výslovného souhlasu.
 > - Zda není vhodnější mít kompletní standardní smluvní doložky (modul 3) mezi Zpracovatelem a Supabase Pte. Ltd. výslovně doložené jako přílohu.
-> - Zda Správce nebo Zpracovatel nespadají pod nový zákon o kybernetické bezpečnosti (zákon č. 264/2025 Sb., transpozice NIS2) – u malé kliniky a malého dodavatele se to nepředpokládá, posouzení ale nebylo provedeno.
+> - Zda Správce nebo Zpracovatel nespadají pod nový zákon o kybernetické bezpečnosti (zákon č. 264/2025 Sb., transpozice NIS2) – u malé provozovny a malého dodavatele se to nepředpokládá, posouzení ale nebylo provedeno.
 > - Zda se Správce rozhodne pro automatické párování plateb přes Fio banku a posouzení podle zákona o platebním styku (Poznámka k článku 7).
 
 ## Zdroje
@@ -343,6 +358,7 @@ Fio banka, a.s. v seznamu není záměrně – viz Poznámka k článku 7.
 - Zákon č. 110/2019 Sb., o zpracování osobních údajů: https://www.zakonyprolidi.cz/cs/2019-110
 - EDPB, Pokyny 07/2020 k pojmům správce a zpracovatel v GDPR: https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-072020-concepts-controller-and-processor-gdpr_en
 - Standardní smluvní doložky – prováděcí rozhodnutí Komise (EU) 2021/914: https://eur-lex.europa.eu/eli/dec_impl/2021/914/oj · EU–US Data Privacy Framework – prováděcí rozhodnutí (EU) 2023/1795: https://eur-lex.europa.eu/eli/dec_impl/2023/1795/oj
+- Nařízení (EU) 2023/2854 (Data Act), kapitola VI – přechod mezi službami zpracování dat: https://eur-lex.europa.eu/eli/reg/2023/2854/oj · přehled: https://www.pinsentmasons.com/out-law/guides/switching-porting-rules-eu-data-act
 - Supabase – DPA: https://supabase.com/legal/customer-resources/data-processing-addendum · rezidence dat a předávání (smluvní entita Supabase Pte. Ltd., SCC): https://supabase.com/legal/privacy-resources/data-residency-and-transfers-faq · zálohy (Pro 7 dní, Team 14 dní, Enterprise až 30 dní): https://supabase.com/docs/guides/platform/backups · zabezpečení (AES-256, TLS, SOC 2 Type 2): https://supabase.com/security
 - Cloudflare – DPA (verze 6.4 z 3. 4. 2026, oznámení nových dalších zpracovatelů 30 dní předem): https://www.cloudflare.com/cloudflare-customer-dpa/ · Data Localization Suite pro Pages: https://developers.cloudflare.com/data-localization/how-to/pages/
 - Brevo – podmínky a DPA: https://www.brevo.com/legal/termsofuse/ · GDPR: https://help.brevo.com/hc/en-us/articles/360001258744-How-does-Brevo-comply-with-the-GDPR · kde najít DPA: https://help.brevo.com/hc/en-us/articles/15403782599570-Where-can-I-find-the-Data-Processing-Agreement-DPA
@@ -350,4 +366,4 @@ Fio banka, a.s. v seznamu není záměrně – viz Poznámka k článku 7.
 - Zákon č. 370/2017 Sb., o platebním styku: https://www.zakonyprolidi.cz/cs/2017-370
 - Občanský zákoník č. 89/2012 Sb. (§ 2898): https://www.zakonyprolidi.cz/cs/2012-89
 
-Podklady v repozitáři: `app/docs/PRODUCTION.md` (architektura ostrého provozu: Supabase EU Frankfurt, Cloudflare Pages, Brevo, Fio API, schéma nepřístupné přes veřejné REST API, `command_log`, kontrola verze), `app/docs/ARCHITECTURE.md`, `research_notes/Rezervační systém pro fyzioterapii/komunikace_integrace.md`.
+Podklady v repozitáři: `app/docs/PRODUCTION.md` (architektura ostrého provozu: Supabase EU Frankfurt, Cloudflare Pages, Brevo, Fio API, schéma nepřístupné přes veřejné REST API, `command_log`, kontrola verze), `app/docs/ARCHITECTURE.md`, `supabase/migrations/20261113000000_init.sql` (oddělení provozoven `clinic_id`), `app/docs/legal/licencni-smlouva.md` (Hlavní smlouva), `research_notes/Rezervační systém pro fyzioterapii/komunikace_integrace.md`.
