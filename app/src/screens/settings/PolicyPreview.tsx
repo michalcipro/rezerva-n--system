@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import type { CancellationPolicy } from '../../domain/types';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatNumber, formatPercent } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { evaluateCancellation } from '../../engine/policy';
 import { addDays, addMinutes, combine, dateOf, diffMinutes } from '../../engine/time';
 import { useClinic, useNow } from '../../store/hooks';
@@ -30,8 +31,13 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
   const clinic = useClinic();
   const now = useNow();
   const sliderId = useId();
-  const [kind, setKind] = useState<Kind>('individual');
-  const [payment, setPayment] = useState<Payment>('onsite');
+  const [kindChoice, setKind] = useState<Kind>('individual');
+  const [paymentChoice, setPayment] = useState<Payment>('onsite');
+  // vypnuté moduly: náhled jen pro individuální termín placený na místě
+  const groupsOn = moduleOn(clinic, 'groups');
+  const packagesOn = moduleOn(clinic, 'packages');
+  const kind: Kind = groupsOn ? kindChoice : 'individual';
+  const payment: Payment = packagesOn ? paymentChoice : 'onsite';
   const [serviceId, setServiceId] = useState('');
   const [hours, setHours] = useState<number | null>(null);
 
@@ -91,6 +97,7 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
         </div>
 
         <div className="set-preview__controls">
+          {groupsOn && (
           <Segmented<Kind>
             aria-label="Typ termínu v náhledu"
             size="sm"
@@ -105,6 +112,8 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
               { value: 'group', label: 'Skupinová lekce' },
             ]}
           />
+          )}
+          {packagesOn && (
           <Segmented<Payment>
             aria-label="Platba v náhledu"
             size="sm"
@@ -116,6 +125,7 @@ export function PolicyPreview({ policy }: { policy: CancellationPolicy }): JSX.E
               { value: 'package', label: 'Permanentka' },
             ]}
           />
+          )}
           {services.length > 1 && (
             <Select
               size="sm"
@@ -212,13 +222,16 @@ export function PolicyClientText({ policy }: { policy: CancellationPolicy }): JS
       .sort((a, b) => Number(a.newClientsOnly) - Number(b.newClientsOnly) || a.order - b.order)[0] ?? fallbackService('individual');
   const state = useMemo(() => previewClinic(clinic, policy), [clinic, policy]);
   const ev = evaluateCancellation(state, previewBooking({ service: individual, start, createdAt: now, payment: 'onsite' }), now, 'client');
+  const groupsOn = moduleOn(clinic, 'groups');
+  const packagesOn = moduleOn(clinic, 'packages');
   const input = {
     policy,
     tiers: tiersFromEvaluation(ev, start),
-    packageExcuses: clinic.packageTemplates.filter((t) => t.active).map((t) => t.excusesAllowed),
+    packageExcuses: packagesOn ? clinic.packageTemplates.filter((t) => t.active).map((t) => t.excusesAllowed) : [],
   };
-  const rows = policyRows(input);
-  const clauses = policyClauses(input);
+  // vypnuté moduly: bez pravidel pro skupinové lekce a permanentky
+  const rows = policyRows(input).filter((r) => groupsOn || r.label !== 'Skupinové lekce');
+  const clauses = policyClauses(input).filter((c) => (groupsOn || c.id !== 'group') && (packagesOn || c.id !== 'package'));
   return (
     <section className="set-clientview" aria-labelledby="set-clientview-h">
       <div className="set-clientview__head">

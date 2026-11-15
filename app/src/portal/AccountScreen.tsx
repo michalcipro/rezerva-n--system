@@ -13,6 +13,7 @@ import {
   formatTime,
 } from '../engine/format';
 import { isImportedPackage, type ImportedPackage } from '../engine/importer';
+import { modulesOf, moduleOn } from '../engine/modules';
 import { clientCredit, packagesOfClient, packageUsage } from '../engine/selectors';
 import { addDays, dateOf, daysBetween } from '../engine/time';
 import { SERVER_MODE } from '../api/config';
@@ -98,6 +99,10 @@ function AccountRoot(): JSX.Element {
   const go = (v: AccountView): void => setAccountView(v);
   const purchase = onlinePurchase(clinic);
   const consentCount = [client.consents.health, client.consents.marketingEmail, client.consents.sms].filter(Boolean).length;
+  // vypnuté moduly (Nastavení → Moduly): bez nákupu a dobití, dosavadní zůstatky zůstávají vidět
+  const mod = modulesOf(clinic);
+  const showPackages = mod.packages || stats.active > 0;
+  const showCredit = mod.credit || stats.credit !== 0;
 
   return (
     <Screen title="Účet">
@@ -119,14 +124,18 @@ function AccountRoot(): JSX.Element {
 
       <PendingPaymentsSection title="Čekající platby" focusOnMount={focusPayments} />
 
+      {(showCredit || showPackages) && (
       <div className="por-quick">
+        {showCredit && (
         <button type="button" className="por-tile por-tile--button" onClick={() => go('kredit')}>
           <span className="por-tile__label">Kredit</span>
           <span className="por-tile__num tnum">{formatMoney(stats.credit)}</span>
           <span className="por-tile__hint por-tile__hint--accent">
-            {purchase.any ? 'Dobít a pohyby' : 'Pohyby kreditu'} <Icon name="arrowRight" size={14} />
+            {purchase.any && mod.credit ? 'Dobít a pohyby' : 'Pohyby kreditu'} <Icon name="arrowRight" size={14} />
           </span>
         </button>
+        )}
+        {showPackages && (
         <button type="button" className="por-tile por-tile--button" onClick={() => go('permanentky')}>
           <span className="por-tile__label">Permanentky</span>
           <span className="por-tile__num tnum">
@@ -134,21 +143,25 @@ function AccountRoot(): JSX.Element {
             <span className="por-tile__of"> {stats.freeEntries === 1 ? 'volný vstup' : stats.freeEntries >= 2 && stats.freeEntries <= 4 ? 'volné vstupy' : 'volných vstupů'}</span>
           </span>
           <span className="por-tile__hint por-tile__hint--accent">
-            {stats.active ? countLabel(stats.active, ['aktivní', 'aktivní', 'aktivních']) : purchase.any ? 'Koupit online' : 'Přehled'} <Icon name="arrowRight" size={14} />
+            {stats.active ? countLabel(stats.active, ['aktivní', 'aktivní', 'aktivních']) : purchase.any && mod.packages ? 'Koupit online' : 'Přehled'} <Icon name="arrowRight" size={14} />
           </span>
         </button>
+        )}
       </div>
+      )}
 
       <div className="por-group" role="list">
+        {showPackages && (
         <div role="listitem">
-          <ListRow icon="ticket" label="Permanentky" hint={purchase.any ? 'Aktivní i prošlé, nákup online' : 'Aktivní i prošlé'} onClick={() => go('permanentky')} />
+          <ListRow icon="ticket" label="Permanentky" hint={purchase.any && mod.packages ? 'Aktivní i prošlé, nákup online' : 'Aktivní i prošlé'} onClick={() => go('permanentky')} />
         </div>
+        )}
         <div role="listitem">
           <ListRow
             icon="wallet"
-            label="Kredit a platby"
-            hint={topUpHint(clinic)}
-            value={formatMoney(stats.credit)}
+            label={showCredit ? 'Kredit a platby' : 'Platby'}
+            hint={showCredit ? (mod.credit ? topUpHint(clinic) : 'Zůstatek a pohyby') : 'Přehled plateb'}
+            value={showCredit ? formatMoney(stats.credit) : undefined}
             onClick={() => go('kredit')}
           />
         </div>
@@ -352,7 +365,7 @@ function PackagesView({ onBack }: { onBack: () => void }): JSX.Element {
       old: all.filter(({ u }) => u.expired || u.free + u.reserved === 0),
     };
   }, [clinic, client.id, today]);
-  const canBuy = clinic.packageTemplates.some((t) => t.active);
+  const canBuy = moduleOn(clinic, 'packages') && clinic.packageTemplates.some((t) => t.active);
 
   return (
     <Screen
@@ -538,8 +551,9 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const [qrRequestId, setQrRequestId] = useState<Id | null>(null);
   const pay = useSimulatedPayment();
   const tpl = templates.find((t) => t.id === tplId);
+  const creditOn = moduleOn(clinic, 'credit');
   const credit = clientCredit(clinic, client.id);
-  const enoughCredit = !!tpl && credit >= tpl.priceCzk;
+  const enoughCredit = creditOn && !!tpl && credit >= tpl.priceCzk;
   // dostupné způsoby: karta jen se zapnutou funkcí, QR jen s účtem, kredit jen když stačí
   const available: PackagePay[] = [...(cardOn ? (['online'] as const) : []), ...(qrOn ? (['qr'] as const) : []), ...(enoughCredit ? (['credit'] as const) : [])];
   const effMethod: PackagePay | null = available.includes(method) ? method : (available[0] ?? null);
@@ -625,22 +639,27 @@ function BuyPackageSheet({ onClose }: { onClose: () => void }): JSX.Element {
                   },
                 ]
               : []),
-            {
-              value: 'credit',
-              title: 'Z kreditu',
-              description: tpl
-                ? enoughCredit
-                  ? `Zůstatek ${formatMoney(credit)}, po platbě ${formatMoney(credit - tpl.priceCzk)}`
-                  : `Zůstatek ${formatMoney(credit)} – nestačí`
-                : `Zůstatek ${formatMoney(credit)}`,
-              disabled: !enoughCredit,
-            },
+            ...(creditOn
+              ? [
+                  {
+                    value: 'credit' as const,
+                    title: 'Z kreditu',
+                    description: tpl
+                      ? enoughCredit
+                        ? `Zůstatek ${formatMoney(credit)}, po platbě ${formatMoney(credit - tpl.priceCzk)}`
+                        : `Zůstatek ${formatMoney(credit)} – nestačí`
+                      : `Zůstatek ${formatMoney(credit)}`,
+                    disabled: !enoughCredit,
+                  },
+                ]
+              : []),
           ]}
         />
         {effMethod === 'online' && tpl && <SimulatedPaymentNote amount={formatMoney(tpl.priceCzk)} />}
         {!effMethod && tpl && (
           <Callout tone="info" icon="building">
-            Permanentku teď koupíte na recepci – kartou, hotově nebo převodem. Z kreditu ji tu zaplatíte, až na něm budete mít aspoň {formatMoney(tpl.priceCzk)}.
+            Permanentku teď koupíte na recepci – kartou, hotově nebo převodem.
+            {creditOn ? ` Z kreditu ji tu zaplatíte, až na něm budete mít aspoň ${formatMoney(tpl.priceCzk)}.` : ''}
           </Callout>
         )}
         {effMethod === 'qr' && waiting && (
@@ -701,7 +720,9 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
     if (accountAction === 'topup') clearAccountAction();
   }, []);
   const credit = clientCredit(clinic, client.id);
-  const canTopUp = onlinePurchase(clinic).any;
+  // vypnutý kredit (Nastavení → Moduly): jen přehled plateb, případný zůstatek zůstává vidět
+  const creditOn = moduleOn(clinic, 'credit');
+  const canTopUp = creditOn && onlinePurchase(clinic).any;
   const ledger = useMemo(
     () => clinic.ledger.filter((e) => e.clientId === client.id).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)),
     [clinic.ledger, client.id],
@@ -714,7 +735,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
 
   return (
     <Screen
-      title="Kredit a platby"
+      title={creditOn || credit !== 0 ? 'Kredit a platby' : 'Platby'}
       onBack={onBack}
       backLabel="Zpět na účet"
       dock={
@@ -727,18 +748,20 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
         ) : undefined
       }
     >
+      {(creditOn || credit !== 0) && (
       <Card padding="md" className="por-credit">
         <span className="por-tile__label">Zůstatek</span>
         <span className="por-credit__num tnum">{formatMoney(credit)}</span>
         <span className="por-credit__text">
-          Kreditem zaplatíte termíny i permanentky.
-          {bonusRules.length
+          {creditOn ? 'Kreditem zaplatíte termíny i permanentky.' : 'Kredit teď nejde použít ani dobít – zeptejte se prosím na recepci.'}
+          {bonusRules.length && creditOn
             ? ` Bonus za dobití: ${bonusRules.map((r) => `od ${formatMoney(r.minTopup)} +${formatPercent(r.pct)}`).join(', ')}.`
             : ''}
         </span>
       </Card>
+      )}
 
-      {!canTopUp && (
+      {!canTopUp && creditOn && (
         <Callout tone="info" icon="building">
           Kredit dobijete na recepci – hotově, kartou nebo převodem.
         </Callout>
@@ -746,6 +769,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
 
       <PendingPaymentsSection title="Čeká na zaplacení" purpose="credit_topup" />
 
+      {(creditOn || ledger.length > 0) && (
       <section className="por-stack por-stack--tight" aria-labelledby="por-ledger">
         <SectionTitle id="por-ledger">Pohyby kreditu</SectionTitle>
         {ledger.length ? (
@@ -778,6 +802,7 @@ function CreditView({ onBack }: { onBack: () => void }): JSX.Element {
           </div>
         )}
       </section>
+      )}
 
       {payments.length > 0 && (
         <section className="por-stack por-stack--tight" aria-labelledby="por-payments">

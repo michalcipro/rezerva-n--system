@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Campaign, ClinicState, LocalDate, LocalDateTime } from '../../domain/types';
 import { saveCampaign } from '../../engine/commands';
+import { modulesOf } from '../../engine/modules';
 import {
   NBSP,
   countLabel,
@@ -219,6 +220,7 @@ export function StatsScreen(): JSX.Element {
   const now = useNow();
   const run = useCommand();
   const today = dateOf(now);
+  const mod = modulesOf(clinic);
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(today));
   useEffect(() => savePrefs(prefs), [prefs]);
 
@@ -449,6 +451,8 @@ export function StatsScreen(): JSX.Element {
     { key: 'credit_topup', label: 'Dobití kreditu' },
     { key: 'storno_fee', label: 'Storno poplatky' },
   ];
+  // vypnutý modul (Nastavení → Moduly) bez tržeb v období se v rozpisu neukazuje
+  const purposeShown = purpose.filter((p) => stats.revenueByPurpose[p.key] !== 0 || ((p.key !== 'package' || mod.packages) && (p.key !== 'credit_topup' || mod.credit)));
   const categoryCard = (
     <ChartCard
       title="Tržby podle kategorií"
@@ -485,7 +489,7 @@ export function StatsScreen(): JSX.Element {
           <div className="st-purpose">
             <span className="st-section-label">Přijaté platby v období</span>
             <ul className="st-purpose__list">
-              {purpose.map((p) => (
+              {purposeShown.map((p) => (
                 <li key={p.key}>
                   <span>{p.label}</span>
                   <strong>{formatMoney(stats.revenueByPurpose[p.key])}</strong>
@@ -907,9 +911,11 @@ export function StatsScreen(): JSX.Element {
               tone="warning"
               title="Končí do 30 dní"
               actions={
-                <Button size="sm" icon="mail" onClick={remind}>
-                  Poslat připomínku
-                </Button>
+                mod.marketing ? (
+                  <Button size="sm" icon="mail" onClick={remind}>
+                    Poslat připomínku
+                  </Button>
+                ) : undefined
               }
             >
               {countLabel(pk.expiringSoon, ['permanentka', 'permanentky', 'permanentek'])} ·{' '}
@@ -934,11 +940,15 @@ export function StatsScreen(): JSX.Element {
                     </span>
                   ),
                 },
-                { term: 'Kredity klientů', detail: <span className="st-dl-value">{formatMoney(pk.creditLiability)}</span> },
-                {
-                  term: 'Celkem',
-                  detail: <strong className="st-dl-value">{formatMoney(pk.liabilityValue + pk.creditLiability)}</strong>,
-                },
+                ...(mod.credit
+                  ? [
+                      { term: 'Kredity klientů', detail: <span className="st-dl-value">{formatMoney(pk.creditLiability)}</span> },
+                      {
+                        term: 'Celkem',
+                        detail: <strong className="st-dl-value">{formatMoney(pk.liabilityValue + pk.creditLiability)}</strong>,
+                      },
+                    ]
+                  : []),
               ]}
             />
           </div>
@@ -1165,7 +1175,7 @@ export function StatsScreen(): JSX.Element {
               {excusesCard}
             </div>
           </div>
-          {packagesCard}
+          {mod.packages && packagesCard}
         </>
       )}
     </div>

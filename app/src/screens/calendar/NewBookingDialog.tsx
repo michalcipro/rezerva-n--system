@@ -25,6 +25,7 @@ import {
   therapistName,
 } from '../../engine/selectors';
 import { addHours, addMinutes, combine, dateOf } from '../../engine/time';
+import { modulesOf } from '../../engine/modules';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
 import { Badge, Button, Dialog, Field, RadioCards, Segmented, Select, Textarea, toast, type RadioCardOption } from '../../ui';
@@ -77,14 +78,17 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
 
   const actor = useActor();
   const initSession = initial?.sessionId ? getSession(clinic, initial.sessionId) : undefined;
-  const groups = useMemo(() => servicesByCategory(clinic), [clinic]);
+  // vypnuté moduly (Nastavení → Moduly): bez skupinových lekcí, permanentek a kreditu
+  const mod = modulesOf(clinic);
+  const groups = useMemo(() => servicesByCategory(clinic, mod.groups ? undefined : (svc) => svc.kind !== 'group'), [clinic, mod.groups]);
   // Terapeut bez kontextu (tlačítko v horní liště) dostane předvyplněný sám sebe.
   const preferredTherapist = initial?.therapistId ?? (actor.role === 'therapist' ? actor.therapistId : undefined);
 
   const [clientId, setClientId] = useState<Id | null>(initial?.clientId && getClient(clinic, initial.clientId) ? initial.clientId : null);
   const [serviceId, setServiceId] = useState<Id>(() => {
     if (initSession) return initSession.serviceId;
-    if (initial?.serviceId && getService(clinic, initial.serviceId)?.active) return initial.serviceId;
+    const preset = initial?.serviceId ? getService(clinic, initial.serviceId) : undefined;
+    if (preset?.active && (mod.groups || preset.kind !== 'group')) return preset.id;
     return defaultServiceFor(clinic, preferredTherapist)?.id ?? groups[0]?.services[0]?.id ?? '';
   });
   const service = getService(clinic, serviceId);
@@ -218,8 +222,9 @@ function NewBookingForm({ onClose, initial, onCreated }: Omit<NewBookingDialogPr
     // platba kartou online jen se zapnutou funkcí (Nastavení → Funkce)
     if (cardPaymentsOn(clinic)) out.push({ key: 'online', method: 'online', title: 'Kartou online', description: 'Simulace platební brány – zaplaceno ihned.', aside: formatMoney(price) });
     out.push({ key: 'free', method: 'free', title: 'Zdarma', description: 'Např. kontrola nebo reklamace.', aside: formatMoney(0) });
-    return out;
-  }, [clinic, clientId, service, serviceId, effectiveStart, date, now, today, price]);
+    // permanentka a kredit jen se zapnutým modulem (Nastavení → Moduly); engine je jinak odmítne
+    return out.filter((o) => (o.method !== 'package' || mod.packages) && (o.method !== 'credit' || mod.credit));
+  }, [clinic, clientId, service, serviceId, effectiveStart, date, now, today, price, mod.packages, mod.credit]);
 
   const selectedPay = payOptions.find((o) => o.key === payment && !o.disabled) ?? payOptions.find((o) => !o.disabled) ?? null;
 

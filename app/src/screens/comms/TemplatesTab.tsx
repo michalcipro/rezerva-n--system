@@ -3,6 +3,7 @@ import type { Channel, MessageTemplate, TemplateKey } from '../../domain/types';
 import { updateTemplate } from '../../engine/commands';
 import { countLabel, formatNumber } from '../../engine/format';
 import { DEFAULT_TEMPLATES, MARKETING_TEMPLATES, renderTemplate } from '../../engine/messages';
+import { templateInUse } from '../../engine/modules';
 import { addDays } from '../../engine/time';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, useSession } from '../../store/session';
@@ -53,7 +54,10 @@ function TemplateList({
   return (
     <Card padding="none" as="section" className="com-tlist" aria-label="Šablony automatických zpráv">
       {TEMPLATE_GROUPS.map((g) => {
-        const items = g.keys.map((k) => clinic.templates.find((t) => t.key === k)).filter((t): t is MessageTemplate => !!t);
+        const items = g.keys
+          .map((k) => clinic.templates.find((t) => t.key === k))
+          // šablony vypnutých modulů (marketing, permanentky) se nenabízejí
+          .filter((t): t is MessageTemplate => !!t && templateInUse(clinic, t.key));
         if (!items.length) return null;
         return (
           <div key={g.id} className="com-tlist__group">
@@ -433,7 +437,8 @@ export function TemplatesTab({ selected, onSelect, drafts, onDraftsChange, onSho
   const clinic = useClinic();
   const [detail, setDetail] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const tpl = clinic.templates.find((t) => t.key === selected) ?? clinic.templates[0];
+  const usable = clinic.templates.filter((t) => templateInUse(clinic, t.key));
+  const tpl = usable.find((t) => t.key === selected) ?? usable[0];
 
   /** Na telefonu (seznam a editor se střídají) posune stránku na začátek zobrazené části. */
   const reveal = (part: 'detail' | 'list'): void => {

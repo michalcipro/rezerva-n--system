@@ -1,7 +1,7 @@
 import { ExportSection } from './ExportSection';
 import { BrandingSection, LegalTextsSection } from './BrandingLegal';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
+import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, ModuleSettings, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
@@ -46,6 +46,7 @@ import {
   type SettingsErrors,
 } from './helpers';
 import { ImportSection } from './ImportSection';
+import { ModulesSection } from './ModulesSection';
 import { PolicyClientText, PolicyPreview } from './PolicyPreview';
 import { SettingRow, useSyncedDraft } from './shared';
 import './set-settings.css';
@@ -62,6 +63,7 @@ const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'waitlist', label: 'Čekací listina', icon: 'hourglass' },
   { id: 'reminders', label: 'Připomínky', icon: 'bell' },
   { id: 'payments', label: 'Platby', icon: 'card' },
+  { id: 'modules', label: 'Moduly', icon: 'layers' },
   { id: 'features', label: 'Funkce', icon: 'sliders' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
   { id: 'branding', label: 'Vzhled', icon: 'sun' },
@@ -167,6 +169,7 @@ export function SettingsScreen(): JSX.Element {
   const setReminders = (patch: Partial<ReminderSettings>): void => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }));
   const setPayments = (patch: Partial<PaymentsDraft>): void => setDraft((d) => ({ ...d, payments: { ...d.payments, ...patch } }));
   const setFeatures = (patch: Partial<FeatureSettings>): void => setDraft((d) => ({ ...d, features: { ...d.features, ...patch } }));
+  const setModules = (patch: Partial<ModuleSettings>): void => setDraft((d) => ({ ...d, modules: { ...d.modules, ...patch } }));
   const setText = (key: 'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail', value: string): void =>
     setDraft((d) => ({ ...d, [key]: value }));
 
@@ -191,6 +194,7 @@ export function SettingsScreen(): JSX.Element {
       if (p.accountNumber !== base.payments.accountNumber.trim()) payments.accountNumber = p.accountNumber;
       patch.payments = payments;
     }
+    if (changed.includes('modules')) patch.modules = n.modules;
     if (changed.includes('features')) patch.features = { ...clinic.settings.features, ...n.features };
     if (changed.includes('clinic')) {
       patch.clinicName = n.clinicName;
@@ -218,7 +222,7 @@ export function SettingsScreen(): JSX.Element {
       <div className="set-settings">
         <nav className="set-anchors" aria-label="Sekce nastavení">
           <ul className="set-anchors__list">
-            {SECTIONS.map((s) => (
+            {SECTIONS.filter((s) => s.id !== 'export' || role === 'owner').map((s) => (
               <li key={s.id}>
                 <a
                   href={`#set-sec-${s.id}`}
@@ -251,7 +255,7 @@ export function SettingsScreen(): JSX.Element {
             <div className="set-policy-grid">
               <Card className="set-section-card set-policy-grid__form">
                 <SectionHeading id="policy" title="Storno podmínky" subtitle="Kdy lze zrušit zdarma a kolik stojí pozdní zrušení nebo nedostavení." />
-                <PolicySection policy={draft.policy} onChange={setPolicy} errors={visibleErrors} />
+                <PolicySection policy={draft.policy} onChange={setPolicy} errors={visibleErrors} modules={draft.modules} />
               </Card>
               <aside className="set-policy-grid__preview" aria-label="Živý náhled storno podmínek">
                 <PolicyPreview policy={draft.policy} />
@@ -263,7 +267,7 @@ export function SettingsScreen(): JSX.Element {
           </section>
 
           <Section id="excuses" title="Omluvenky a náhrady" subtitle="Omluvenka ruší poplatek za pozdní zrušení; u předplaceného termínu vznikne náhrada.">
-            <ExcusesSection excuses={draft.policy.excuses} onChange={setExcuses} errors={visibleErrors} />
+            <ExcusesSection excuses={draft.policy.excuses} onChange={setExcuses} errors={visibleErrors} modules={draft.modules} />
           </Section>
 
           <Section id="waitlist" title="Čekací listina" subtitle="Uvolněný termín automaticky nabídneme klientům, kteří na něj čekají.">
@@ -276,6 +280,14 @@ export function SettingsScreen(): JSX.Element {
 
           <Section id="payments" title="Platby" subtitle="QR Platba: klient naskenuje kód v bankovní aplikaci a převod má předvyplněný – účet, částku i variabilní symbol.">
             <PaymentsSection payments={draft.payments} onChange={setPayments} errors={visibleErrors} saved={clinic.settings.payments} />
+          </Section>
+
+          <Section
+            id="modules"
+            title="Moduly"
+            subtitle="Části systému, které provozovna používá. Vypnutý modul zmizí z aplikace i z klientského portálu; data zůstanou a po zapnutí se vrátí."
+          >
+            <ModulesSection modules={draft.modules} onChange={setModules} clinic={clinic} />
           </Section>
 
           <Section id="features" title="Funkce" subtitle="Funkce, které se v ostrém provozu zapínají vědomě – podle toho, co klinika potřebuje a má zajištěné.">
@@ -553,10 +565,13 @@ function PolicySection({
   policy,
   onChange,
   errors,
+  modules,
 }: {
   policy: CancellationPolicy;
   onChange: (patch: Partial<CancellationPolicy>) => void;
   errors: SettingsErrors;
+  /** Vypnuté moduly: pravidla pro permanentky a skupinové lekce se neukazují. */
+  modules: ModuleSettings;
 }): JSX.Element {
   const lastBlock = useRef(policy.blockAfterNoShows || 3);
   if (policy.blockAfterNoShows > 0) lastBlock.current = policy.blockAfterNoShows;
@@ -698,6 +713,7 @@ function PolicySection({
         <NumberInput className="set-ctl-sm" value={policy.noShowFeePct} min={0} max={100} step={5} suffix="% ceny" onChange={(v) => onChange({ noShowFeePct: v })} />
       </SettingRow>
 
+      {modules.packages && (
       <SettingRow label="Permanentka při pozdním zrušení" hint="Termíny placené permanentkou nemají cenu v penězích – vyberte, co se stane." group wide>
         <RadioCards
           aria-label="Permanentka při pozdním zrušení"
@@ -718,7 +734,9 @@ function PolicySection({
           ]}
         />
       </SettingRow>
+      )}
 
+      {modules.groups && (
       <SettingRow
         label="Skupinové lekce"
         hint="Odhlášení zdarma nejpozději tolik hodin před začátkem lekce, potom místo propadá (100 %)."
@@ -726,6 +744,7 @@ function PolicySection({
       >
         <NumberInput className="set-ctl-sm" value={policy.groupCancelHours} min={0} max={168} suffix="h předem" onChange={(v) => onChange({ groupCancelHours: v })} />
       </SettingRow>
+      )}
 
       <div className="set-row set-row--switch">
         <Switch
@@ -768,10 +787,12 @@ function ExcusesSection({
   excuses,
   onChange,
   errors,
+  modules,
 }: {
   excuses: CancellationPolicy['excuses'];
   onChange: (patch: Partial<CancellationPolicy['excuses']>) => void;
   errors: SettingsErrors;
+  modules: ModuleSettings;
 }): JSX.Element {
   return (
     <div className="set-rows">
@@ -785,6 +806,7 @@ function ExcusesSection({
       </div>
       <fieldset className={cx('set-fieldset', !excuses.enabled && 'is-disabled')} disabled={!excuses.enabled}>
         <legend className="visually-hidden">Pravidla omluvenek</legend>
+        {modules.packages && (
         <SettingRow label="Na permanentku (výchozí)" hint="Předvyplní se u nové permanentky; každá permanentka může mít vlastní počet.">
           <NumberInput
             className="set-ctl-sm"
@@ -795,6 +817,7 @@ function ExcusesSection({
             onChange={(v) => onChange({ perPackage: v })}
           />
         </SettingRow>
+        )}
         <SettingRow label="Klienti bez permanentky" hint="Počet omluvenek za klouzavé období." error={errors['excuses.perClientMonths']} group>
           <div className="set-inline">
             <NumberInput

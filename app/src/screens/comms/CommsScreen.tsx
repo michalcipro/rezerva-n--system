@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Id, TemplateKey } from '../../domain/types';
 import { countLabel, formatNumber } from '../../engine/format';
+import { moduleOn, templateInUse } from '../../engine/modules';
 import { useClinic } from '../../store/hooks';
 import { Button, PageHeader, TabPanel, Tabs } from '../../ui';
 import { CampaignsTab } from './CampaignsTab';
@@ -34,7 +35,10 @@ function storeTab(tab: CommsTab): void {
 /** Komunikace: newsletterové kampaně, automatické zprávy a odeslaná pošta. */
 export function CommsScreen(): JSX.Element {
   const clinic = useClinic();
-  const [tab, setTabState] = useState<CommsTab>(readTab);
+  // vypnutý marketing (Nastavení → Moduly): bez kampaní; šablony vypnutých modulů se nenabízejí
+  const marketingOn = moduleOn(clinic, 'marketing');
+  const [tabChoice, setTabState] = useState<CommsTab>(readTab);
+  const tab: CommsTab = tabChoice === 'kampane' && !marketingOn ? 'automaticke' : tabChoice;
   const [campaignId, setCampaignId] = useState<Id | null>(null);
   const [newCampaign, setNewCampaign] = useState(false);
   const [template, setTemplate] = useState<TemplateKey>('booking_confirmation');
@@ -48,7 +52,8 @@ export function CommsScreen(): JSX.Element {
   };
 
   const consented = useMemo(() => clinic.clients.filter((c) => c.consents.marketingEmail && c.email).length, [clinic.clients]);
-  const enabled = clinic.templates.filter((t) => t.enabled).length;
+  const templates = clinic.templates.filter((t) => templateInUse(clinic, t.key));
+  const enabled = templates.filter((t) => t.enabled).length;
 
   const actions =
     tab === 'kampane' ? (
@@ -67,8 +72,8 @@ export function CommsScreen(): JSX.Element {
         title="Komunikace"
         subtitle={
           <>
-            {countLabel(consented, ['klient', 'klienti', 'klientů'])} se souhlasem s obchodními sděleními · {enabled} z {clinic.templates.length}{' '}
-            automatických zpráv zapnuto · {clinic.settings.messaging?.deliver ? 'zprávy odesílá server' : 'odesílání je v prototypu simulované'}
+            {marketingOn && <>{countLabel(consented, ['klient', 'klienti', 'klientů'])} se souhlasem s obchodními sděleními · </>}
+            {enabled} z {templates.length} automatických zpráv zapnuto · {clinic.settings.messaging?.deliver ? 'zprávy odesílá server' : 'odesílání je v prototypu simulované'}
           </>
         }
         actions={actions}
@@ -81,8 +86,8 @@ export function CommsScreen(): JSX.Element {
         value={tab}
         onChange={setTab}
         items={[
-          { id: 'kampane', label: 'Kampaně', count: clinic.campaigns.length || undefined },
-          { id: 'automaticke', label: 'Automatické zprávy', count: `${enabled}/${clinic.templates.length}` },
+          ...(marketingOn ? [{ id: 'kampane' as const, label: 'Kampaně', count: clinic.campaigns.length || undefined }] : []),
+          { id: 'automaticke', label: 'Automatické zprávy', count: `${enabled}/${templates.length}` },
           { id: 'odeslane', label: 'Odeslané', count: formatNumber(clinic.messages.length) },
         ]}
       />

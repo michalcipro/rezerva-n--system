@@ -21,6 +21,7 @@ import {
   formatSpan,
   formatTimeRange,
 } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { bookingPolicy, evaluateCancellation, type CancellationEvaluation } from '../../engine/policy';
 import { pendingRequestFor } from '../../engine/qr';
 import { VISIT_PAY_STATE_LABEL, VISIT_STATUSES, visitPaymentInfo, type VisitPaymentInfo } from '../../engine/visits';
@@ -178,10 +179,10 @@ function BookingDrawerView({ booking: b, onClose, onSwitch }: { booking: Booking
       { id: 'cash', label: 'Hotově', icon: 'cash', onSelect: () => fn('cash') },
     ];
     if (opts.qr) items.push(qrMenuItem(clinic.settings.payments, opts.qr));
-    items.push(
-      { id: 'transfer', label: 'Převodem', icon: 'receipt', onSelect: () => fn('transfer') },
-      { id: 'credit', label: `Z kreditu (zůstatek ${formatMoney(credit)})`, icon: 'wallet', disabled: credit < amount, onSelect: () => fn('credit') },
-    );
+    items.push({ id: 'transfer', label: 'Převodem', icon: 'receipt', onSelect: () => fn('transfer') });
+    // kredit jen se zapnutým modulem (Nastavení → Moduly)
+    if (moduleOn(clinic, 'credit'))
+      items.push({ id: 'credit', label: `Z kreditu (zůstatek ${formatMoney(credit)})`, icon: 'wallet', disabled: credit < amount, onSelect: () => fn('credit') });
     if (opts.later) items.push({ type: 'separator', id: 'sep' }, { id: 'later', label: 'Zaplatí později', icon: 'clock', onSelect: opts.later });
     return items;
   };
@@ -630,7 +631,7 @@ function buildDetails({
       ),
     });
   }
-  if (showFinance) items.push({ term: 'Kredit', detail: <span className="tnum">{formatMoney(credit)}</span> });
+  if (showFinance && (moduleOn(clinic, 'credit') || credit !== 0)) items.push({ term: 'Kredit', detail: <span className="tnum">{formatMoney(credit)}</span> });
   return items;
 }
 

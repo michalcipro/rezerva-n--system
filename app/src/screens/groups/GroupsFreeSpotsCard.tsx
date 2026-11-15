@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { countLabel, formatTime } from '../../engine/format';
 import { groupSessionsOverview, type GroupSessionOverview } from '../../engine/groups';
+import { moduleOn } from '../../engine/modules';
 import { addDays, dateOf } from '../../engine/time';
 import { useClinic, useNow } from '../../store/hooks';
 import { navigate } from '../../store/session';
@@ -19,12 +20,14 @@ export interface GroupsFreeSpotsCardProps {
  * Karta na přehled: volná místa na dnešních a zítřejších skupinových lekcích, které ještě nezačaly.
  * Klik na lekci otevře obrazovku Skupinové lekce na jejím týdnu a lekci zvýrazní.
  */
-export function GroupsFreeSpotsCard({ limit = 6, className }: GroupsFreeSpotsCardProps = {}): JSX.Element {
+export function GroupsFreeSpotsCard({ limit = 6, className }: GroupsFreeSpotsCardProps = {}): JSX.Element | null {
   const clinic = useClinic();
   const now = useNow();
   const today = dateOf(now);
 
   const rows = useMemo(() => groupSessionsOverview(clinic, today, addDays(today, 2), {}, now), [clinic, today, now]);
+  // vypnuté skupinové lekce (Nastavení → Moduly): karta se neukazuje
+  if (!moduleOn(clinic, 'groups')) return null;
   const shown = rows.slice(0, Math.max(1, limit));
   const hidden = rows.length - shown.length;
   const free = rows.reduce((sum, r) => sum + r.free, 0);

@@ -42,6 +42,7 @@ import { checkBookingSlot } from './availability';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
 import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage, type TemplateVars } from './messages';
+import { MODULE_OFF, moduleOn } from './modules';
 import { bookingPolicy, evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
 import { formatIban, isVsFree, nextVs, parseAccount, qrReady } from './qr';
 import { evaluateSegment, campaignPlainText } from './segments';
@@ -308,6 +309,10 @@ export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) =>
   const client = getClient(d, input.clientId);
   if (!client) return fail('Klient neexistuje.');
   if (client.anonymizedAt) return fail(ANONYMIZED);
+  // vypnuté moduly (Nastavení → Moduly)
+  if (service.kind === 'group' && !moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
+  if (input.payment.method === 'package' && !moduleOn(d, 'packages')) return fail(MODULE_OFF.packages);
+  if (input.payment.method === 'credit' && !moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
 
   let start = input.start;
   let therapistId = input.therapistId;
@@ -494,7 +499,8 @@ function chargeFee(d: ClinicState, ctx: Ctx, b: Booking, amount: number, pct: nu
     return 'Bez poplatku.';
   }
   const balance = clientCredit(d, b.clientId);
-  if (balance >= amount) {
+  // s vypnutým kreditem se poplatek ze zůstatku nestrhává – zůstane k úhradě
+  if (balance >= amount && moduleOn(d, 'credit')) {
     addLedger(d, ctx, { clientId: b.clientId, amount: -amount, kind: 'storno_fee', bookingId: b.id, note: reason === 'no_show' ? 'Poplatek za nedostavení' : 'Storno poplatek' });
     b.fee = { amount, pct, status: 'paid', reason, settledBy: 'credit' };
     return `Poplatek ${formatMoney(amount)} (${formatPercent(pct)}) uhrazen z kreditu.`;
@@ -686,6 +692,7 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
   if (b.status !== 'confirmed') return fail('Přesunout lze jen potvrzenou rezervaci.');
   const service = getService(d, b.serviceId);
   if (!service) return fail('Služba neexistuje.');
+  if (service.kind === 'group' && !moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
   const role = isStaff(ctx) ? 'staff' : 'client';
   const therapistId = input.therapistId ?? b.therapistId;
 
@@ -760,6 +767,7 @@ function settle(d: ClinicState, ctx: Ctx, b: Booking, method: MoneyMethod | 'cre
   if (b.payment.paid) return ok(undefined);
   const due = Math.max(0, b.price - b.payment.paidAmount);
   if (method === 'credit') {
+    if (!moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
     const balance = clientCredit(d, b.clientId);
     if (balance < due) return fail(`Na kreditu je jen ${formatMoney(balance)}.`);
     addLedger(d, ctx, { clientId: b.clientId, amount: -due, kind: 'booking_payment', bookingId: b.id, note: 'Úhrada termínu z kreditu' });
@@ -872,6 +880,7 @@ export const payFee: Command<{ bookingId: Id; method: MoneyMethod | 'credit' }> 
   const b = findBooking(d, input.bookingId);
   if (!b || !b.fee || b.fee.status !== 'due') return fail('Rezervace nemá neuhrazený poplatek.');
   if (input.method === 'credit') {
+    if (!moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
     const balance = clientCredit(d, b.clientId);
     if (balance < b.fee.amount) return fail(`Na kreditu je jen ${formatMoney(balance)}.`);
     addLedger(d, ctx, { clientId: b.clientId, amount: -b.fee.amount, kind: 'storno_fee', bookingId: b.id, note: 'Úhrada storno poplatku' });
@@ -916,6 +925,8 @@ export interface PaymentRequestInput {
 
 /** Ověří vstup výzvy; vrátí existující čekající výzvu ke stejnému termínu/poplatku, pokud je. */
 function prepareRequest(d: ClinicState, input: PaymentRequestInput, ctx: Ctx): CommandResult<NewRequest | PaymentRequest> {
+  if (input.purpose === 'package' && !moduleOn(d, 'packages')) return fail(MODULE_OFF.packages);
+  if (input.purpose === 'credit_topup' && !moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   if (!qrReady(d.settings.payments)) return fail('QR platba není nastavená – doplňte číslo účtu v Nastavení → Platby.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
   const client = getClient(d, input.clientId);
@@ -1156,6 +1167,8 @@ function issuePackage(
 export const sellPackage: Command<{ clientId: Id; templateId: Id; paidBy: MoneyMethod | 'credit'; startDate?: LocalDate }, Id> = (d, input, ctx) => {
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
   if (ctx.actor.role === 'client' && input.paidBy !== 'online' && input.paidBy !== 'credit') return fail('Online lze platit kartou, kreditem nebo QR platbou.');
+  if (!moduleOn(d, 'packages')) return fail(MODULE_OFF.packages);
+  if (input.paidBy === 'credit' && !moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   if (input.paidBy === 'online' && !cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
   const tpl = getPackageTemplate(d, input.templateId);
   if (!tpl || !tpl.active) return fail('Permanentka není v nabídce.');
@@ -1276,6 +1289,7 @@ export const cancelPackage: Command<{ packageId: Id; refundToCredit: boolean }> 
   if (!isStaff(ctx)) return fail('Permanentky ruší personál.');
   const p = d.packages.find((x) => x.id === input.packageId);
   if (!p || p.cancelled) return fail('Permanentka neexistuje nebo je už zrušená.');
+  if (input.refundToCredit && !moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   const u = packageUsage(d, p, dateOf(ctx.now));
   if (u.reserved > 0) return fail('Na permanentku jsou rezervované termíny – nejdřív je zrušte nebo přepište.');
   p.cancelled = true;
@@ -1302,6 +1316,7 @@ function applyTopUp(d: ClinicState, ctx: Ctx, clientId: Id, amount: number, meth
 }
 
 export const topUpCredit: Command<{ clientId: Id; amount: number; method: MoneyMethod }, { bonus: number }> = (d, input, ctx) => {
+  if (!moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   if (ctx.actor.role === 'client' && (ctx.actor.clientId !== input.clientId || input.method !== 'online')) return fail('Kredit lze online dobít kartou nebo QR platbou.');
   if (input.method === 'online' && !cardPaymentsOn(d)) return fail('Platba kartou online teď není k dispozici.');
   const client = getClient(d, input.clientId);
@@ -1317,6 +1332,7 @@ export const topUpCredit: Command<{ clientId: Id; amount: number; method: MoneyM
 
 export const adjustCredit: Command<{ clientId: Id; amount: number; note: string }> = (d, input, ctx) => {
   if (!isStaff(ctx)) return fail('Kredit upravuje personál.');
+  if (!moduleOn(d, 'credit')) return fail(MODULE_OFF.credit);
   if (!input.amount || !Number.isFinite(input.amount)) return fail('Zadejte částku.');
   if (!input.note.trim()) return fail('Uveďte důvod úpravy.');
   const balance = clientCredit(d, input.clientId);
@@ -1336,7 +1352,9 @@ export const joinWaitlist: Command<
 > = (d, input, ctx) => {
   if (!d.settings.waitlist.enabled) return fail('Čekací listina je vypnutá.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
-  if (!getService(d, input.serviceId)) return fail('Služba neexistuje.');
+  const waitService = getService(d, input.serviceId);
+  if (!waitService) return fail('Služba neexistuje.');
+  if ((waitService.kind === 'group' || input.sessionId) && !moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
   const dateTo = input.dateTo ?? input.dateFrom;
   if (dateTo < input.dateFrom) return fail('Konec období je před začátkem.');
   if (dateTo < dateOf(ctx.now)) return fail('Období už proběhlo.');
@@ -1428,6 +1446,8 @@ export const upsertService: Command<Service, Id> = (d, input, ctx) => {
   if (input.priceCzk < 0) return fail('Cena nesmí být záporná.');
   if (input.bufferMin < 0 || input.bufferMin > 60) return fail('Rezerva po službě musí být 0–60 minut.');
   if (input.kind === 'group' && input.capacity < 2) return fail('Skupinová lekce musí mít kapacitu alespoň 2.');
+  // novou skupinovou službu jen se zapnutými skupinovými lekcemi (stávající lze dál upravovat)
+  if (input.kind === 'group' && !moduleOn(d, 'groups') && d.services.find((x) => x.id === input.id)?.kind !== 'group') return fail(MODULE_OFF.groups);
   if (!d.categories.some((c) => c.id === input.categoryId)) return fail('Vyberte kategorii.');
   const svc: Service = { ...input, name: input.name.trim(), capacity: input.kind === 'group' ? input.capacity : 1 };
   const i = d.services.findIndex((x) => x.id === input.id);
@@ -1473,6 +1493,7 @@ export const setServiceTherapists: Command<{ serviceId: Id; therapistIds: Id[] }
 export const upsertPackageTemplate: Command<PackageTemplate, Id> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  if (!moduleOn(d, 'packages')) return fail(MODULE_OFF.packages);
   if (!input.name.trim()) return fail('Zadejte název permanentky.');
   if (input.entries < 1 || input.entries > 100) return fail('Počet vstupů musí být 1–100.');
   if (input.validityDays < 7 || input.validityDays > 730) return fail('Platnost musí být 7–730 dní.');
@@ -1489,6 +1510,7 @@ export const upsertPackageTemplate: Command<PackageTemplate, Id> = (d, input, ct
 export const upsertGroupTemplate: Command<GroupTemplate, Id> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  if (!moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
   const svc = getService(d, input.serviceId);
   if (!svc || svc.kind !== 'group') return fail('Vyberte skupinovou službu.');
   if (input.capacity < 1) return fail('Kapacita musí být alespoň 1.');
@@ -1501,6 +1523,7 @@ export const upsertGroupTemplate: Command<GroupTemplate, Id> = (d, input, ctx) =
 export const cancelSession: Command<{ sessionId: Id; reason: string }, number> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  if (!moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
   const ses = getSession(d, input.sessionId);
   if (!ses) return fail('Lekce neexistuje.');
   if (d.cancelledSessions.includes(ses.id)) return fail('Lekce je už zrušená.');
@@ -1654,6 +1677,7 @@ export const updateTemplate: Command<{ key: TemplateKey; patch: Partial<Omit<Mes
 export const saveCampaign: Command<Campaign, Id> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  if (!moduleOn(d, 'marketing')) return fail(MODULE_OFF.marketing);
   if (!input.name.trim()) return fail('Zadejte název kampaně.');
   const i = d.campaigns.findIndex((c) => c.id === input.id);
   const next: Campaign = { ...input, updatedAt: ctx.now };
@@ -1705,6 +1729,7 @@ export function deliverCampaign(d: ClinicState, ctx: Ctx, campaign: Campaign): n
 export const sendCampaign: Command<{ campaignId: Id }, number> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  if (!moduleOn(d, 'marketing')) return fail(MODULE_OFF.marketing);
   const c = d.campaigns.find((x) => x.id === input.campaignId);
   if (!c) return fail('Kampaň neexistuje.');
   if (c.status === 'sent') return fail('Kampaň už byla odeslána.');
@@ -1723,6 +1748,8 @@ export const sendCampaign: Command<{ campaignId: Id }, number> = (d, input, ctx)
 export const scheduleCampaign: Command<{ campaignId: Id; at: LocalDateTime | null }> = (d, input, ctx) => {
   const denied = requireStaff(ctx);
   if (denied) return fail(denied);
+  // zrušit naplánování jde i s vypnutým marketingem (po zapnutí by se kampaň jinak hned odeslala)
+  if (input.at && !moduleOn(d, 'marketing')) return fail(MODULE_OFF.marketing);
   const c = d.campaigns.find((x) => x.id === input.campaignId);
   if (!c) return fail('Kampaň neexistuje.');
   if (c.status === 'sent') return fail('Kampaň už byla odeslána.');

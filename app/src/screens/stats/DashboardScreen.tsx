@@ -37,6 +37,7 @@ import { QrPaymentDialog, VisitSourceBadge } from '../../components/payments';
 import { GroupsFreeSpotsCard } from '../groups';
 import { PendingPaymentsCard, WithdrawalRefundsCard } from '../payments';
 import { pendingRequestFor, qrReady } from '../../engine/qr';
+import { modulesOf, moduleOn } from '../../engine/modules';
 import { visitPaymentInfo } from '../../engine/visits';
 import { useActor, useClinic, useCommand, useNow } from '../../store/hooks';
 import { navigate, setSession } from '../../store/session';
@@ -172,14 +173,18 @@ function ArrivalRow({
         if (r.ok) onQr(booking.id);
       },
     },
-    {
-      id: 'credit',
-      label: 'Z kreditu',
-      hint: formatMoney(credit),
-      icon: 'wallet',
-      disabled: credit < due,
-      onSelect: () => complete('credit'),
-    },
+    ...(moduleOn(clinic, 'credit')
+      ? [
+          {
+            id: 'credit',
+            label: 'Z kreditu',
+            hint: formatMoney(credit),
+            icon: 'wallet',
+            disabled: credit < due,
+            onSelect: () => complete('credit'),
+          } satisfies MenuEntry,
+        ]
+      : []),
     { type: 'separator' },
     { id: 'later', label: 'Bez úhrady, zaplatí později', icon: 'clock', onSelect: () => complete(null) },
   ];
@@ -435,7 +440,8 @@ export function DashboardScreen(): JSX.Element {
   const lists = useMemo(() => dayLists(clinic, today, now, scope), [clinic, today, now, scope]);
   const hourly = useMemo(() => hourlyOccupancy(clinic, today, scope), [clinic, today, scope]);
   const tomorrowFirst = useMemo(() => firstOnDate(clinic, addDays(today, 1), scope), [clinic, today, scope]);
-  const packages = useMemo(() => packagesExpiring(clinic, today, 14), [clinic, today]);
+  const mod = modulesOf(clinic);
+  const packages = useMemo(() => (mod.packages ? packagesExpiring(clinic, today, 14) : []), [clinic, today, mod.packages]);
   const alerts = useMemo(
     () => ({
       fees: dueFees(clinic),
@@ -645,9 +651,11 @@ export function DashboardScreen(): JSX.Element {
         <KpiTile label="Teď probíhá" value={formatNumber(nowCount)}>
           <span className="st-kpi-extra">{nextArrival ? <>další {whoNext(nextArrival)}</> : 'dnes už nikdo nepřichází'}</span>
         </KpiTile>
+        {mod.groups && (
         <KpiTile label="Skupinové lekce" value={formatNumber(day.groupSessions)}>
           <span className="st-kpi-extra">{countLabel(day.groupParticipants, ['účastník', 'účastníci', 'účastníků'])}</span>
         </KpiTile>
+        )}
         <KpiTile label="Nedostavení" value={formatNumber(day.noShows)}>
           <span className="st-kpi-extra">
             omluveno <strong>{formatNumber(day.excused)}</strong>

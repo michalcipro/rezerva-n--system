@@ -16,6 +16,7 @@ import {
   waiveFee,
 } from '../../engine/commands';
 import { countLabel, formatDate, formatMoney, formatNumber, formatPercent, formatSignedMoney } from '../../engine/format';
+import { moduleOn } from '../../engine/modules';
 import { pendingRequestFor } from '../../engine/qr';
 import { clientCredit, getService, packageUsage } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
@@ -278,7 +279,7 @@ export function SellPackageDialog({ client, open, onClose }: { client: Client; o
           )}
           <Field label="Platba" hint={qrReason ?? undefined}>
             <PayMethodPicker
-              methods={['card', 'cash', 'qr', 'transfer', 'credit']}
+              methods={moduleOn(clinic, 'credit') ? ['card', 'cash', 'qr', 'transfer', 'credit'] : ['card', 'cash', 'qr', 'transfer']}
               value={method}
               onChange={setMethod}
               disabled={[...(credit <= 0 ? (['credit'] as const) : []), ...(qrReason ? (['qr'] as const) : [])]}
@@ -375,7 +376,7 @@ export function CancelPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
   const clinic = useClinic();
   const now = useNow();
   const run = useCommand();
-  const [refund, setRefund] = useState(true);
+  const [refundChoice, setRefund] = useState(true);
   const [withdraw, setWithdraw] = useState(false);
 
   useEffect(() => {
@@ -387,6 +388,9 @@ export function CancelPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
 
   if (!pkg) return null;
   const u = packageUsage(clinic, pkg, dateOf(now));
+  // s vypnutým kreditem se nevyčerpané vstupy na kredit nevrací
+  const creditOn = moduleOn(clinic, 'credit');
+  const refund = refundChoice && creditOn;
   const refundAmount = u.free * u.unitValue;
   const wInfo = withdrawalInfo(clinic, pkg, now);
   // odstoupení od smlouvy (koupeno online, do 14 dnů) – termíny zruší samo, peníze se vrací na účet
@@ -428,6 +432,8 @@ export function CancelPackageDialog({ pkg, open, onClose }: { pkg: ClientPackage
         <Callout tone="danger" title="Nejdřív termíny">
           Na permanentku {u.reserved === 1 ? 'je rezervovaný 1 termín' : `jsou rezervované ${countLabel(u.reserved, ['termín', 'termíny', 'termínů'])}`}. Zrušte je nebo změňte jejich platbu v kalendáři.
         </Callout>
+      ) : u.free > 0 && !creditOn ? (
+        <p className="muted">Kredit je v nastavení vypnutý – nevyčerpané vstupy ({u.free}) se na kredit nevrátí.</p>
       ) : u.free > 0 ? (
         <Checkbox
           checked={refund}
@@ -655,7 +661,7 @@ export function SettleDebtDialog({ item, open, onClose }: { item: DebtItem | nul
         <form id={formId} className="cli-form" onSubmit={submit} noValidate>
           <Field label="Způsob úhrady" hint={qrReason ?? undefined}>
             <PayMethodPicker
-              methods={['card', 'cash', 'qr', 'transfer', 'credit']}
+              methods={moduleOn(clinic, 'credit') ? ['card', 'cash', 'qr', 'transfer', 'credit'] : ['card', 'cash', 'qr', 'transfer']}
               value={method}
               onChange={setMethod}
               disabled={[...(credit <= 0 ? (['credit'] as const) : []), ...(qrReason ? (['qr'] as const) : [])]}

@@ -15,6 +15,7 @@ import {
   WEEKDAY_SHORT,
 } from '../engine/format';
 import { paymentLabel } from '../engine/messages';
+import { moduleOn } from '../engine/modules';
 import { evaluateCancellation } from '../engine/policy';
 import {
   bookingsOfClient,
@@ -685,7 +686,11 @@ function ServiceStep({ flow, onPick }: { flow: Flow; onPick: (svc: Service) => v
   }, [clinic, flow.services]);
 
   const withPackage = useMemo(
-    () => new Set(flow.services.filter((svc) => eligiblePackages(clinic, client.id, svc.id, today, today).length > 0).map((svc) => svc.id)),
+    () =>
+      new Set(
+        // s vypnutými permanentkami (Nastavení → Moduly) se permanentkou platit nedá
+        moduleOn(clinic, 'packages') ? flow.services.filter((svc) => eligiblePackages(clinic, client.id, svc.id, today, today).length > 0).map((svc) => svc.id) : [],
+      ),
     [clinic, client.id, flow.services, today],
   );
 

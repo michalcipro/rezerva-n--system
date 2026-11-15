@@ -1,6 +1,7 @@
 import type { Client, ClientPackage, LocalDateTime, MakeupRight, PaymentRequest } from '../../domain/types';
 import { countLabel, formatDate, formatDayShort, formatMoney, formatPercent, plural } from '../../engine/format';
 import { isImportedPackage, type ImportedPackage } from '../../engine/importer';
+import { moduleOn } from '../../engine/modules';
 import { pendingRequestFor } from '../../engine/qr';
 import { getBooking, getPackageTemplate, getService, type PackageUsage } from '../../engine/selectors';
 import { dateOf, daysBetween } from '../../engine/time';
@@ -140,6 +141,7 @@ export function PackagesCard({
   onCancel: (p: ClientPackage) => void;
   onShowAll: () => void;
 }): JSX.Element {
+  const clinic = useClinic();
   const shown = active.slice(0, 2);
   return (
     <Card as="article" className="cli-balance cli-balance--pkg" aria-label="Permanentky">
@@ -165,6 +167,7 @@ export function PackagesCard({
           + {countLabel(active.length - shown.length, ['další aktivní permanentka', 'další aktivní permanentky', 'dalších aktivních permanentek'])}
         </button>
       )}
+      {!moduleOn(clinic, 'packages') && <p className="cli-balance__empty">Permanentky jsou v nastavení vypnuté – vstupy nejde použít k rezervaci.</p>}
     </Card>
   );
 }
@@ -173,7 +176,7 @@ export function PackagesCard({
 /* Kredit                                                              */
 /* ------------------------------------------------------------------ */
 
-export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { client: Client; credit: number; onTopUp?: () => void; onAdjust: () => void; onShowAll: () => void }): JSX.Element {
+export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { client: Client; credit: number; onTopUp?: () => void; onAdjust?: () => void; onShowAll: () => void }): JSX.Element {
   const clinic = useClinic();
   const last = ledgerOfClient(clinic, client.id).slice(0, 5);
   return (
@@ -201,16 +204,21 @@ export function CreditCard({ client, credit, onTopUp, onAdjust, onShowAll }: { c
       ) : (
         <p className="cli-balance__empty">Zatím žádné pohyby. Kredit lze dobít předem a platit z něj termíny.</p>
       )}
-      <div className="cli-balance__actions">
-        {onTopUp && (
-          <Button size="sm" icon="plus" onClick={onTopUp}>
-            Dobít
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={onAdjust}>
-          Upravit
-        </Button>
-      </div>
+      {(onTopUp || onAdjust) && (
+        <div className="cli-balance__actions">
+          {onTopUp && (
+            <Button size="sm" icon="plus" onClick={onTopUp}>
+              Dobít
+            </Button>
+          )}
+          {onAdjust && (
+            <Button size="sm" variant="ghost" onClick={onAdjust}>
+              Upravit
+            </Button>
+          )}
+        </div>
+      )}
+      {!onTopUp && !onAdjust && !moduleOn(clinic, 'credit') && <p className="cli-balance__empty">Kredit je v nastavení vypnutý – zůstatek nejde použít ani dobít.</p>}
     </Card>
   );
 }

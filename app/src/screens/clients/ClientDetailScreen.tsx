@@ -5,6 +5,7 @@ import { setConsent } from '../../engine/commands';
 import { clinicalNotesOn } from '../../engine/features';
 import { countLabel, formatDate, formatMoney, plural } from '../../engine/format';
 import { isAnonymized } from '../../engine/gdpr';
+import { modulesOf } from '../../engine/modules';
 import { pendingPaymentRequests } from '../../engine/qr';
 import { activePackages, bookingsOfClient, clientSummary, getBooking, getClient, packageUsage } from '../../engine/selectors';
 import { dateOf } from '../../engine/time';
@@ -105,6 +106,8 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
   const titleId = useId();
   const tabPrefix = 'cli-tab-' + client.id;
   const notesOn = clinicalNotesOn(clinic);
+  // vypnuté moduly (Nastavení → Moduly): bez prodeje a dobití; zůstatek klienta zůstává vidět
+  const mod = modulesOf(clinic);
   const anonymized = isAnonymized(client);
   const exportData = useClientExport(client, perms.clinical);
 
@@ -121,7 +124,9 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
   const tabs: TabItem<TabId>[] = [
     ...(perms.finance ? [{ id: 'prehled' as const, label: 'Přehled' }] : []),
     { id: 'rezervace', label: 'Rezervace', count: bookingCount || undefined },
-    ...(perms.finance ? [{ id: 'finance' as const, label: 'Permanentky a kredit' }] : []),
+    ...(perms.finance
+      ? [{ id: 'finance' as const, label: mod.packages && mod.credit ? 'Permanentky a kredit' : mod.packages ? 'Permanentky' : mod.credit ? 'Kredit' : 'Platby' }]
+      : []),
     // klinické poznámky jen se zapnutou funkcí (Nastavení → Funkce); anonymizovaný klient je nemá
     ...(notesOn && !anonymized
       ? [{ id: 'dokumentace' as const, label: 'Dokumentace', count: perms.clinical && client.notes.length ? client.notes.length : undefined }]
@@ -156,13 +161,13 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
   const menuItems: MenuEntry[] = [];
   if (anonymized) {
     // jen vyrovnání zůstatku kreditu (např. vyplacení po anonymizaci)
-    if (perms.finance) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
+    if (perms.finance && mod.credit) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
   } else {
     if (compact) {
       if (perms.manage) menuItems.push({ id: 'msg', label: 'Napsat zprávu', icon: 'mail', onSelect: () => setDlg({ kind: 'message' }) });
       if (perms.finance) {
-        menuItems.push({ id: 'sell', label: 'Prodat permanentku', icon: 'ticket', onSelect: () => setDlg({ kind: 'sell' }) });
-        menuItems.push({ id: 'topup', label: 'Dobít kredit', icon: 'wallet', onSelect: () => setDlg({ kind: 'topup' }) });
+        if (mod.packages) menuItems.push({ id: 'sell', label: 'Prodat permanentku', icon: 'ticket', onSelect: () => setDlg({ kind: 'sell' }) });
+        if (mod.credit) menuItems.push({ id: 'topup', label: 'Dobít kredit', icon: 'wallet', onSelect: () => setDlg({ kind: 'topup' }) });
       }
       if (menuItems.length) menuItems.push({ type: 'separator', id: 'sep0' });
     }
@@ -170,7 +175,7 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
       menuItems.push({ id: 'edit', label: 'Upravit údaje', icon: 'edit', onSelect: () => setDlg({ kind: 'edit' }) });
       menuItems.push({ id: 'tags', label: 'Upravit štítky', icon: 'tag', onSelect: () => setDlg({ kind: 'tags' }) });
     }
-    if (perms.finance) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
+    if (perms.finance && mod.credit) menuItems.push({ id: 'adjust', label: 'Upravit kredit', icon: 'coins', onSelect: () => setDlg({ kind: 'adjust' }) });
     if (perms.manage) {
       menuItems.push({ type: 'separator', id: 'sep1' });
       menuItems.push(
@@ -208,21 +213,25 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
             <WithdrawalRefundsCard clientId={client.id} />
             <div className="cli-balances-wrap">
             <div className="cli-balances">
+              {(mod.packages || active.length > 0) && (
               <PackagesCard
                 active={active}
                 today={today}
-                onSell={anonymized ? undefined : () => setDlg({ kind: 'sell' })}
+                onSell={anonymized || !mod.packages ? undefined : () => setDlg({ kind: 'sell' })}
                 onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
                 onCancel={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
                 onShowAll={() => goTab('finance')}
               />
+              )}
+              {(mod.credit || summary.credit !== 0) && (
               <CreditCard
                 client={client}
                 credit={summary.credit}
-                onTopUp={anonymized ? undefined : () => setDlg({ kind: 'topup' })}
-                onAdjust={() => setDlg({ kind: 'adjust' })}
+                onTopUp={anonymized || !mod.credit ? undefined : () => setDlg({ kind: 'topup' })}
+                onAdjust={mod.credit ? () => setDlg({ kind: 'adjust' }) : undefined}
                 onShowAll={() => goTab('finance')}
               />
+              )}
               <ExcusesCard client={client} now={now} active={active} onBookMakeup={bookMakeup} />
             </div>
             </div>
@@ -249,11 +258,11 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
           now={now}
           credit={summary.credit}
           spent={summary.spent}
-          onSell={anonymized ? undefined : () => setDlg({ kind: 'sell' })}
+          onSell={anonymized || !mod.packages ? undefined : () => setDlg({ kind: 'sell' })}
           onExtend={(pkg) => setDlg({ kind: 'extend', pkg })}
           onCancelPkg={(pkg) => setDlg({ kind: 'cancelPkg', pkg })}
-          onTopUp={anonymized ? undefined : () => setDlg({ kind: 'topup' })}
-          onAdjust={() => setDlg({ kind: 'adjust' })}
+          onTopUp={anonymized || !mod.credit ? undefined : () => setDlg({ kind: 'topup' })}
+          onAdjust={mod.credit ? () => setDlg({ kind: 'adjust' }) : undefined}
           onSettle={(item) => setDlg({ kind: 'settle', item })}
           onWaive={(item) => setDlg({ kind: 'waive', item })}
           onBookMakeup={bookMakeup}
@@ -315,12 +324,12 @@ function ClientDetail({ client }: { client: Client }): JSX.Element {
                 Napsat zprávu
               </Button>
             )}
-            {!compact && perms.finance && !anonymized && (
+            {!compact && perms.finance && !anonymized && mod.packages && (
               <Button icon="ticket" onClick={() => setDlg({ kind: 'sell' })}>
                 Prodat permanentku
               </Button>
             )}
-            {!compact && perms.finance && !anonymized && (
+            {!compact && perms.finance && !anonymized && mod.credit && (
               <Button icon="wallet" onClick={() => setDlg({ kind: 'topup' })}>
                 Dobít kredit
               </Button>
