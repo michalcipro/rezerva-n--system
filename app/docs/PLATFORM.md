@@ -1,0 +1,78 @@
+# Univerzální rezervační platforma
+
+Jedna instalace (jeden kód, jedna databáze, jeden server) obsluhuje libovolný počet **provozoven**
+(zákazníků): fyzioterapeutické kliniky, masážní a wellness studia, fitness a osobní trenéry,
+kosmetické salony… Každá provozovna má vlastní data, tým, klienty, vzhled, názvosloví, moduly
+a právní texty. **Platformu vlastní a licencuje Nexum Care s.r.o.**; zákazník platí měsíční,
+roční nebo doživotní licenci (viz [business/cenik-a-licence.md](business/cenik-a-licence.md)).
+
+Nic se pro zákazníka neprogramuje – přizpůsobení je nastavení v konzoli platformy a v nastavení provozovny.
+
+## Jak to funguje
+
+| Co | Kde se nastavuje | Kdo |
+|---|---|---|
+| Založení provozovny, obor (šablona), majitel | konzole `/platforma` → Nová provozovna | vlastník platformy |
+| Licence: druh, platnost, pozastavení, poznámka (smlouva, faktura) | konzole → Upravit | vlastník platformy |
+| Adresa `/<slug>` a vlastní domény | konzole → Upravit | vlastník platformy |
+| Napojení na banku (token Fio) | konzole → Upravit → Banka | vlastník platformy (token dodá zákazník) |
+| Vzhled: barva značky, logo | Nastavení → Vzhled | majitel provozovny (nebo vy přes podporu) |
+| Názvosloví: klinika / studio / salon, terapeut / trenér / kosmetička… | Nastavení → Názvosloví | majitel |
+| Moduly: skupinové lekce, permanentky, kredit, marketing | Nastavení → Moduly | majitel |
+| Služby, ceník, tým, pracovní doby, storno podmínky, platby, šablony zpráv | Nastavení, Služby, Tým | majitel |
+| Obchodní podmínky a zásady ochrany údajů provozovny | Nastavení → Právní texty | majitel (texty od jeho advokáta) |
+| Přístupy týmu | Tým a směny → Přístupy do systému | majitel |
+| Import klientů, permanentek, kreditů | Nastavení → Import dat | majitel / recepce |
+
+**Podpora:** vlastník platformy se do každé provozovny přihlásí s právy majitele (stačí otevřít její adresu
+a přihlásit se svým e-mailem). Jeho změny jsou v historii označené „podpora platformy“.
+
+### Adresy
+- `https://<adresa platformy>/<slug>` – každá provozovna hned po založení (bez DNS).
+- `https://rezervace.<domena-zakaznika>.cz` – volitelně vlastní doména: u zákazníka CNAME na web platformy,
+  v Cloudflare Pages přidat doménu, v konzoli u provozovny doplnit doménu a doménu přidat do `ALLOWED_ORIGINS`.
+- `https://<adresa platformy>/platforma` – konzole vlastníka platformy.
+
+### Šablony oborů
+`fyzio` (klinika / terapeut), `masaze` (studio / masér), `fitness` (studio / trenér), `beauty` (salon / kosmetička),
+`prazdna` (provozovna / specialista, bez katalogu). Šablona připraví služby, ceník, permanentky, skupinové lekce,
+názvosloví a moduly; tým tvoří jen majitel. Vše se pak upraví v aplikaci.
+
+### Licence
+| Stav | Kdy | Co se děje |
+|---|---|---|
+| Aktivní | platnost běží (doživotní licence vždy) | vše funguje |
+| Brzy končí | 14 dní před koncem | majitel vidí upozornění |
+| Po konci platnosti | 14 dní po konci | vše funguje, výrazné upozornění |
+| Jen pro čtení | potom | data lze prohlížet a exportovat; nové rezervace a změny ne (klient smí rušit termíny, odvolat souhlas, odstoupit od smlouvy) |
+| Pozastaveno | ručně v konzoli (neplacení, ukončení) | nikdo se nepřihlásí (kromě vás), automatika neběží |
+
+Prodloužení: konzole → Upravit → „+ měsíc“ / „+ rok“ (nebo datum) → Uložit. Doživotní licence nemá datum.
+
+## Založení nového zákazníka (technicky)
+1. Konzole → **Nová provozovna**: název, adresa, obor, jméno a e-mail majitele, licence a platnost.
+2. Majiteli pošlete adresu `https://<platforma>/<slug>` – přihlásí se svým e-mailem (kód z e-mailu).
+3. S majitelem (nebo za něj přes podporu): Nastavení → Vzhled, Názvosloví, Moduly, Platby (číslo účtu),
+   Služby a ceník, Tým a směny (+ přístupy pro recepci a tým), Storno podmínky, Šablony zpráv, Právní texty.
+4. Import dat ze stávajícího systému (Nastavení → Import dat).
+5. Volitelně: token Fio (konzole), vlastní doména, SMS odesílatel.
+Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](business/onboarding-zakaznika.md).
+
+## Technika
+- **Databáze:** `app.clinics` (provozovny: slug, licence), `app.clinic_domains`, `app.clinic_secrets`
+  (šifrované AES-GCM klíčem `SECRETS_KEY`), stav každé provozovny po částech v `app.state_chunks`.
+  Migrace: `supabase/migrations/20261113000000_init.sql` a `20261115000000_platform.sql`.
+- **Server** pozná provozovnu podle hlavičky `x-tenant` (slug z adresy) nebo `x-tenant-host` (vlastní doména);
+  role a data jsou vždy jen v rámci provozovny. Vlastník platformy = e-mail v `PLATFORM_ADMIN_EMAILS`.
+- **Automatika** (`/api/cron`) běží pro všechny provozovny kromě pozastavených; párování plateb používá token
+  dané provozovny.
+- **E-maily** odcházejí z jedné ověřené adresy platformy (`MAIL_FROM`) se jménem provozovny jako odesílatele
+  a s odpovědí na e-mail provozovny (Nastavení → Provozovna). Přihlašovací kódy posílá Supabase Auth se
+  společnou šablonou platformy.
+- **Instalace jen pro jednoho zákazníka** (např. doživotní licence s vlastním hostingem) je stejný kód:
+  stačí jedna provozovna – adresa bez `/<slug>` pak vede přímo na ni.
+
+## Proměnné prostředí
+Server: viz [DEPLOY.md](DEPLOY.md) krok 3 (`PLATFORM_ADMIN_EMAILS`, `SECRETS_KEY`, `CRON_SECRET`, `ALLOWED_ORIGINS`,
+`PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`). Web: `VITE_API_URL`,
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, volitelně `VITE_PLATFORM_NAME` (název platformy v konzoli).

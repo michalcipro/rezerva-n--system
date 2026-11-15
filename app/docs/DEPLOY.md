@@ -1,7 +1,9 @@
-# Nasazení do ostrého provozu – krok za krokem
+# Nasazení platformy – krok za krokem
 
-Návod pro první spuštění. Co je hotové v kódu, je popsané v [PRODUCTION.md](PRODUCTION.md); tady jsou
-kroky v účtech poskytovatelů (Supabase, Cloudflare, Brevo, Fio), které za vás nikdo jiný udělat nemůže.
+Návod pro **jednorázové** zprovoznění platformy (jedna instalace pro všechny zákazníky). Jak platforma funguje
+a jak se zakládají a spravují provozovny zákazníků, je v [PLATFORM.md](PLATFORM.md); co je hotové v kódu,
+v [PRODUCTION.md](PRODUCTION.md). Tady jsou kroky v účtech poskytovatelů (Supabase, Cloudflare, Brevo),
+které za vás nikdo jiný udělat nemůže.
 
 Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
 
@@ -64,15 +66,15 @@ Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
 
    | Název | Hodnota |
    |---|---|
+   | `PLATFORM_ADMIN_EMAILS` | váš e-mail (vlastník platformy), případně více oddělených čárkou |
+   | `SECRETS_KEY` | náhodný řetězec (aspoň 32 znaků) – šifruje tokeny bank zákazníků; **neměňte ho** (staré tokeny by nešly přečíst) |
    | `CRON_SECRET` | náhodný řetězec (aspoň 32 znaků) |
-   | `ADMIN_SECRET` | jiný náhodný řetězec – jen pro založení kliniky, potom smazat |
-   | `ALLOWED_ORIGINS` | adresa aplikace, např. `https://rezervace.klinika.cz` (více adres oddělte čárkou) |
+   | `ALLOWED_ORIGINS` | adresa aplikace a vlastní domény zákazníků, např. `https://app.vase-platforma.cz,https://rezervace.klinika.cz` |
    | `PUBLIC_API_URL` | `https://<ref>.supabase.co/functions/v1/api` |
    | `BREVO_API_KEY` | API klíč z Brevo (`xkeysib-…`) – bez něj se zprávy jen řadí do fronty |
    | `MAIL_FROM` | odesílací adresa na ověřené doméně, např. `rezervace@klinika.cz` |
    | `MAIL_FROM_NAME` | jméno odesílatele (jinak se bere název kliniky z nastavení) |
    | `SMS_SENDER` | schválený odesílatel SMS (max. 11 znaků) – bez něj SMS neodcházejí |
-   | `FIO_TOKEN` | nepovinné, token „Pouze sledovat účet“ (krok 7) |
 
    Náhodný řetězec vytvoříte např. příkazem `openssl rand -hex 32`. Pokud projekt používá nové klíče
    (`sb_publishable_…`, `sb_secret_…`) a starší klíče jsou vypnuté, přidejte i `APP_ANON_KEY` a `APP_SERVICE_KEY`.
@@ -84,19 +86,12 @@ Odhad času: 2–3 hodiny (bez čekání na DNS a schválení SMS odesílatele).
    ```
 3. Kontrola: `https://<ref>.supabase.co/functions/v1/api/health` vrátí `{"ok":true,…}`.
 
-## 4. Založení kliniky a majitele
+## 4. Správa platformy a první provozovna
 
-Jednou, po nasazení serveru:
-
-```bash
-curl -X POST "https://<ref>.supabase.co/functions/v1/api/admin/bootstrap" \
-  -H "x-admin-secret: <ADMIN_SECRET>" -H "Content-Type: application/json" \
-  -d '{"clinicName":"<Název kliniky>","ownerEmail":"<e-mail majitele>","ownerName":"<Jméno majitele>"}'
-```
-
-Klinika vznikne s výchozím katalogem služeb a týmem (upraví se v aplikaci), s vypnutými platbami kartou
-a klinickými poznámkami a se zapnutým odesíláním zpráv. Druhé volání skončí chybou 409 – klinika už existuje.
-**Potom `ADMIN_SECRET` ze Secrets smažte.**
+Otevřete `https://<adresa aplikace>/platforma` a přihlaste se e-mailem z `PLATFORM_ADMIN_EMAILS`.
+V konzoli **Nová provozovna** založíte zákazníka: název, adresa (`/<slug>`), obor (šablona služeb,
+názvosloví a modulů), majitel (e-mail, kterým se přihlásí) a licence. Postup pro každého dalšího
+zákazníka je v [PLATFORM.md](PLATFORM.md) a [business/onboarding-zakaznika.md](business/onboarding-zakaznika.md).
 
 ## 5. Automatika každých 5 minut (plánovač v databázi)
 
@@ -138,8 +133,9 @@ Automatika: docházka po termínu, připomínky, propadání náhrad a nabídek 
 
 ## 7. Fio banka – automatické párování QR plateb (nepovinné)
 
-Internetbanking → Nastavení → API → Přidat nový token → **Pouze sledovat účet**, platnost max. 180 dní →
-token uložte do Supabase Secrets jako `FIO_TOKEN`. Token funguje asi 5 minut po potvrzení.
+Každá provozovna má vlastní účet: zákazník v internetbankingu vytvoří token (Nastavení → API → Přidat nový
+token → **Pouze sledovat účet**, platnost max. 180 dní) a vy ho vložíte v konzoli platformy u jeho provozovny
+(Upravit → Banka). Uloží se šifrovaně (`SECRETS_KEY`). Token funguje asi 5 minut po potvrzení.
 Do kalendáře si dejte připomínku obnovy tokenu před koncem platnosti. Bez tokenu potvrzuje platby recepce ručně.
 
 Přeplatky se potvrdí na částku výzvy; rozdíl je třeba vyřešit ručně (server ho zapíše do logu).
@@ -158,20 +154,25 @@ Přeplatky se potvrdí na částku výzvy; rozdíl je třeba vyřešit ručně (
    | `VITE_SUPABASE_URL` | `https://<ref>.supabase.co` |
    | `VITE_SUPABASE_ANON_KEY` | veřejný klíč projektu (anon / publishable) – smí být v prohlížeči |
 
-4. Custom domains → `rezervace.klinika.cz` (CNAME na `<projekt>.pages.dev`).
+4. Custom domains → adresa platformy (např. `app.vase-platforma.cz`), každá provozovna běží na `/<slug>`.
+   Chce-li zákazník vlastní doménu (`rezervace.klinika.cz`): přidejte ji tady (CNAME na `<projekt>.pages.dev`),
+   v konzoli platformy u provozovny (Upravit → Vlastní domény) a do `ALLOWED_ORIGINS`.
 5. Bezpečnostní hlavičky jsou v [`public-prod/_headers`](../public-prod/_headers); pro užší pravidlo
    nahraďte v `connect-src` `https://*.supabase.co` konkrétní adresou projektu.
 
 ## 9. Právní texty
 
 Návrhy jsou v [`docs/legal/`](legal/README.md) – **před zveřejněním je musí zkontrolovat advokát**.
-Schválené finální texty uložte do `docs/legal/zverejnit/` (`obchodni-podminky.md`,
-`ochrana-osobnich-udaju.md`); build je vystaví na `/obchodni-podminky.html` a `/ochrana-osobnich-udaju.html`.
-Koncept s poznámkami nebo s [doplňovanými údaji] build odmítne.
+Každá provozovna je správcem údajů svých klientů a má **vlastní** obchodní podmínky a zásady ochrany
+údajů: majitel je vloží v Nastavení → Právní texty (klienti je vidí při registraci, přihlášení a v účtu).
+Obecné stránky platformy (pro provozovny bez vlastních textů) se vytvoří z `docs/legal/zverejnit/`
+(`obchodni-podminky.md`, `ochrana-osobnich-udaju.md`) jako `/obchodni-podminky.html` a `/ochrana-osobnich-udaju.html`;
+koncept s poznámkami nebo s [doplňovanými údaji] build odmítne.
 
 Smlouvy o zpracování s poskytovateli: Supabase (Dashboard → Organization → Legal Documents → DPA),
-Brevo a Cloudflare (DPA jsou součástí podmínek – stáhnout a uložit), smlouva Nexum Care ↔ klinika
-podle [`legal/smlouva-o-zpracovani.md`](legal/smlouva-o-zpracovani.md).
+Brevo a Cloudflare (DPA jsou součástí podmínek – stáhnout a uložit). Se **každým zákazníkem**: licenční smlouva
+([`legal/licencni-smlouva.md`](legal/licencni-smlouva.md)) a smlouva o zpracování
+([`legal/smlouva-o-zpracovani.md`](legal/smlouva-o-zpracovani.md)).
 
 ## 10. Postup spuštění (doporučený)
 
@@ -196,5 +197,5 @@ podle [`legal/smlouva-o-zpracovani.md`](legal/smlouva-o-zpracovani.md).
 - **Zálohy:** Supabase Pro dělá denní zálohy (7 dní). Pro delší historii zvažte doplněk PITR.
 - **Aktualizace:** po změně kódu `npm run build:edge` + `supabase functions deploy api …`; web se nasadí
   sám po pushi do produkční větve. Nová migrace = nový soubor v `supabase/migrations/`.
-- **Lokální vývoj:** `npm run dev:server` (API s ukázkovou klinikou na :8787) a `npm run dev:live`
-  (aplikace na :5173, přihlášení bez e-mailu).
+- **Lokální vývoj:** `npm run dev:server` (API s ukázkovou provozovnou na :8787) a `npm run dev:live`
+  (aplikace na :5173 – provozovna na `/pohyb`, správa platformy na `/platforma`, přihlášení bez e-mailu).

@@ -1,4 +1,6 @@
-# Ostrý provoz – architektura a nasazení
+# Ostrý provoz – architektura
+
+> Platforma obsluhuje mnoho provozoven v jedné instalaci – viz [PLATFORM.md](PLATFORM.md).
 
 Testovací verze běží celá v prohlížeči (data v IndexedDB nebo ve sdíleném úložišti artefaktu). Ostrá verze
 přidává server, databázi a přihlašování, ale **pravidla rezervací zůstávají stejná**: server spouští stejný
@@ -70,8 +72,8 @@ supabase/functions/api Edge Function (tenký obal nad app/server, sestavuje se e
 | `npm run dev:server` + `npm run dev:live` | lokální vývoj | API nad PGlite s ukázkovou klinikou + aplikace v ostrém režimu, přihlášení bez e-mailu |
 
 Proměnné webu: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (veřejné), `VITE_BACKEND=server` je v `.env.prod`.
-Proměnné serveru (Supabase → Edge Functions → Secrets): `CRON_SECRET`, `ADMIN_SECRET` (jen při založení),
-`ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`, `FIO_TOKEN`
+Proměnné serveru (Supabase → Edge Functions → Secrets): `PLATFORM_ADMIN_EMAILS`, `SECRETS_KEY`, `CRON_SECRET`,
+`ALLOWED_ORIGINS`, `PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `SMS_SENDER`
 – popis v [DEPLOY.md](DEPLOY.md).
 
 ## API
@@ -85,7 +87,8 @@ Proměnné serveru (Supabase → Edge Functions → Secrets): `CRON_SECRET`, `AD
 | `GET/POST/DELETE /api/members` | majitel | přístupy týmu |
 | `POST /api/cron` | plánovač (`x-cron-secret`) | automatika, odeslání zpráv, párování plateb, údržba |
 | `GET/POST /api/unsubscribe` | odkaz v e-mailu | odhlášení z obchodních sdělení (podepsaný odkaz, List-Unsubscribe) |
-| `POST /api/admin/bootstrap` | `x-admin-secret` | jednorázové založení kliniky a majitele |
+| `GET /api/tenant`, `GET /api/legal` | kdokoli | veřejné údaje provozovny (název, vzhled, názvosloví) a její právní texty |
+| `/api/platform/tenants…` | vlastník platformy | provozovny, licence, adresy, domény, token Fio (šifrovaně) |
 
 ## Bezpečnost (shrnutí)
 
