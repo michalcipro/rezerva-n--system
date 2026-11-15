@@ -95,6 +95,8 @@ export interface PublicTenant {
   /** Má provozovna vlastní obchodní podmínky / zásady ochrany údajů? */
   legal: { terms: boolean; privacy: boolean };
   license: { state: LicenseState };
+  /** Identifikace podnikatele pro web (§ 435 OZ): firma, sídlo, IČO, zápis v rejstříku; prázdné, dokud nejsou údaje úplné. */
+  identity?: string[];
 }
 
 export interface LegalDocument {

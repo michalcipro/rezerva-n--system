@@ -329,6 +329,8 @@ describe('API platformy', () => {
     expect(t.status).toBe(200);
     // právní texty majitel uložil před spuštěním online rezervací
     expect(t.body).toMatchObject({ slug: A, name: 'Klinika Test', branding: { accent: '#7c3aed', logo: null }, legal: { terms: true, privacy: true }, license: { state: 'ok' } });
+    // identifikace podnikatele pro web (§ 435 OZ) z fakturačních údajů
+    expect(t.body.identity).toEqual(['Klinika Test s.r.o., Ukázková 299/12, 602 00 Brno, IČO 12345679']);
     expect(t.body.terms.staff.sg[0]).toBeTruthy();
     expect((await call('GET', '/tenant', { tenant: 'neexistuje' })).status).toBe(404);
     expect((await call<{ text: string }>('GET', '/legal?doc=privacy')).body.text).toContain('Text informací.');

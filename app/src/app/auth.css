@@ -271,3 +271,16 @@
 .license-banner svg {
   flex: none;
 }
+
+/* identifikace provozovny pod přihlášením (§ 435 OZ) */
+.auth__identity {
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 440px;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

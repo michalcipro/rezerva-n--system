@@ -205,7 +205,21 @@ export function LoginScreen(): JSX.Element {
         <span aria-hidden="true"> · </span>
         <LegalLink doc="terms">Obchodní podmínky</LegalLink>
       </p>
+      <TenantIdentity />
     </main>
+  );
+}
+
+/** Identifikace provozovny na její přihlašovací stránce (§ 435 občanského zákoníku). */
+function TenantIdentity(): JSX.Element | null {
+  const identity = useStore((s) => (s.platform ? undefined : s.tenant?.identity));
+  if (!identity?.length) return null;
+  return (
+    <p className="auth__identity">
+      {identity.map((line) => (
+        <span key={line}>{line}</span>
+      ))}
+    </p>
   );
 }
 

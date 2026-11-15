@@ -17,6 +17,7 @@ import type {
   UpdateTenantRequest,
 } from '../src/api/protocol';
 import type { Actor, ClinicState } from '../src/domain/types';
+import { businessIdentity } from '../src/engine/business';
 import { createClient, setConsent } from '../src/engine/commands';
 import { createBaseState } from '../src/engine/defaults';
 import { createPresetState, isPresetId, OWNER_STAFF_ID, type PresetId, type PresetOptions } from '../src/engine/presets';
@@ -437,6 +438,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       terms: s.terms,
       legal: { terms: !!s.legal.terms.trim(), privacy: !!s.legal.privacy.trim() },
       license: { state: licenseOf(t).state },
+      identity: businessIdentity(s.business),
     };
     return json(req, 200, body as unknown as Json);
   }
