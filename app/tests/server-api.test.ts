@@ -267,10 +267,12 @@ describe('API platformy', () => {
     const b = await call<PlatformTenant>('POST', '/platform/tenants', {
       as: 'platforma',
       tenant: null,
-      body: { name: 'Studio B', slug: 'studio-b', preset: 'prazdna', ownerName: 'Bořek Béčko', ownerEmail: 'majitel-b@example.cz', plan: 'lifetime', validUntil: null },
+      body: { name: 'Studio B', slug: 'studio-b', preset: 'prazdna', ownerName: 'Bořek Béčko', ownerEmail: 'majitel-b@example.cz', plan: 'lifetime', validUntil: '2027-11-17' },
     });
     expect(b.status).toBe(200);
-    expect(b.body.license).toMatchObject({ plan: 'lifetime', validUntil: null });
+    // doživotní licence nese datum konce zaplaceného provozu a podpory
+    expect(b.body.license).toMatchObject({ plan: 'lifetime', validUntil: '2027-11-17' });
+    expect(b.body.licenseView.state).toBe('ok');
     // majitel A v provozovně B nic nemá
     expect((await call('GET', '/state', { as: 'owner', tenant: 'studio-b' })).status).toBe(403);
     // klientka A je v B nová – musela by se zaregistrovat
@@ -310,9 +312,12 @@ describe('API platformy', () => {
     expect(grace.body.licenseView.state).toBe('grace');
     expect((await cmd('owner', 'updateSettings', { clinicTagline: 'v lhůtě' })).body.ok).toBe(true);
 
-    // pozastavení
+    // pozastavení: tým ani klienti se nedostanou, majitel data jen prohlédne a vyexportuje
     await call('PATCH', path, { as: 'platforma', tenant: null, body: { status: 'suspended' } });
-    expect((await call('GET', '/state', { as: 'owner' })).status).toBe(423);
+    expect((await call('GET', '/state', { as: 'owner' })).status).toBe(200);
+    expect((await cmd('owner', 'logClientDataExport', { clientId: jana.id })).body.ok).toBe(true);
+    expect((await cmd('owner', 'updateSettings', { clinicTagline: 'pozastaveno' })).status).toBe(423);
+    expect((await call('GET', '/state', { as: 'recepce' })).status).toBe(423);
     expect((await call('GET', '/state', { as: 'jana' })).status).toBe(423);
     expect((await call<PublicTenant>('GET', '/tenant')).body.license.state).toBe('blocked');
     expect((await call('GET', '/state', { as: 'platforma' })).status).toBe(200);
@@ -321,8 +326,13 @@ describe('API platformy', () => {
     expect(a.license).toBe('blocked');
     expect(a.processes).toBeUndefined();
 
-    // obnovení – doživotní licence
-    const back = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { status: 'active', plan: 'lifetime', validUntil: null } });
+    // obnovení – doživotní licence; bez zaplaceného provozu se chová jako předplatné po konci platnosti
+    const due = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { status: 'active', plan: 'lifetime', validUntil: '2026-11-25' } });
+    expect(due.body.licenseView.state).toBe('expiring');
+    const unpaid = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { validUntil: '2026-10-01' } });
+    expect(unpaid.body.licenseView.state).toBe('readonly');
+    expect((await cmd('owner', 'updateSettings', { clinicTagline: 'nezaplaceno' })).status).toBe(423);
+    const back = await call<PlatformTenant>('PATCH', path, { as: 'platforma', tenant: null, body: { validUntil: null } });
     expect(back.body.licenseView.state).toBe('ok');
     expect((await call('GET', '/state', { as: 'owner' })).status).toBe(200);
   });

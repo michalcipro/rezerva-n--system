@@ -35,10 +35,14 @@ export interface LicenseView {
   graceUntil: string | null;
 }
 
+/**
+ * Stav licence k danému dni. U doživotní licence znamená platnost „provoz a podpora zaplaceny do“
+ * (roční poplatek za provoz) – bez data je bez omezení.
+ */
 export function licenseView(l: { plan: LicensePlan; status: LicenseStatus; validUntil: string | null }, today: string): LicenseView {
   const base = { plan: l.plan, status: l.status, validUntil: l.validUntil };
   if (l.status !== 'active') return { ...base, state: 'blocked', daysLeft: null, graceUntil: null };
-  if (l.plan === 'lifetime' || !l.validUntil) return { ...base, state: 'ok', daysLeft: null, graceUntil: null };
+  if (!l.validUntil) return { ...base, state: 'ok', daysLeft: null, graceUntil: null };
   const daysLeft = daysBetween(today, l.validUntil);
   const graceUntil = addDays(l.validUntil, LICENSE_GRACE_DAYS);
   let state: LicenseState = 'ok';

@@ -23,6 +23,7 @@ Nic se pro zákazníka neprogramuje – přizpůsobení je nastavení v konzoli 
 | Obchodní podmínky a zásady ochrany údajů provozovny | Nastavení → Právní texty | majitel (texty od jeho advokáta) |
 | Přístupy týmu | Tým a směny → Přístupy do systému | majitel |
 | Import klientů, permanentek, kreditů | Nastavení → Import dat | majitel / recepce |
+| Export všech dat (záloha, přechod jinam) | Nastavení → Export dat | majitel |
 
 **Podpora:** vlastník platformy se do každé provozovny přihlásí s právy majitele (stačí otevřít její adresu
 a přihlásit se svým e-mailem). Jeho změny jsou v historii označené „podpora platformy“.
@@ -41,13 +42,18 @@ názvosloví a moduly; tým tvoří jen majitel. Vše se pak upraví v aplikaci.
 ### Licence
 | Stav | Kdy | Co se děje |
 |---|---|---|
-| Aktivní | platnost běží (doživotní licence vždy) | vše funguje |
+| Aktivní | platnost běží (u doživotní licence zaplacený provoz a podpora) | vše funguje |
 | Brzy končí | 14 dní před koncem | majitel vidí upozornění |
 | Po konci platnosti | 14 dní po konci | vše funguje, výrazné upozornění |
 | Jen pro čtení | potom | data lze prohlížet a exportovat; nové rezervace a změny ne (klient smí rušit termíny, odvolat souhlas, odstoupit od smlouvy) |
-| Pozastaveno | ručně v konzoli (neplacení, ukončení) | nikdo se nepřihlásí (kromě vás), automatika neběží |
+| Pozastaveno | ručně v konzoli (neplacení, ukončení) | tým ani klienti se nepřihlásí; majitel data jen prohlíží a exportuje; automatika neběží |
 
-Prodloužení: konzole → Upravit → „+ měsíc“ / „+ rok“ (nebo datum) → Uložit. Doživotní licence nemá datum.
+Prodloužení: konzole → Upravit → „+ měsíc“ / „+ rok“ (nebo datum) → Uložit. U doživotní licence je datum konec
+zaplaceného provozu a podpory (první rok je v licenčním poplatku, potom roční poplatek → „+ rok“); bez data je provoz
+neomezený (např. vlastní hosting zákazníka).
+
+**Export dat:** majitel si kdykoli (i v režimu jen pro čtení a při pozastavení) stáhne všechna data provozovny –
+Nastavení → Export dat (JSON s popisem struktury, CSV klientů, rezervací, plateb, permanentek a kreditu).
 Jednou denně vám (`PLATFORM_ADMIN_EMAILS`) přijde e-mail se seznamem provozoven, kterým licence končí do 14 dní
 nebo už skončila – podklad pro fakturu a prodloužení (adresu konzole v e-mailu určuje `PUBLIC_APP_URL`).
 

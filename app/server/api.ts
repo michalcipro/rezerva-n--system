@@ -278,11 +278,17 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
 
   const licenseOf = (t: ClinicInfo): LicenseView => licenseView(t.license, today());
 
-  /** Licence provozovny: pozastavená = žádný přístup, po lhůtě = jen čtení (podpora platformy vždy). */
+  /**
+   * Licence provozovny: po lhůtě jen čtení, pozastavená = klienti ani tým se nepřihlásí; majitel ale data
+   * vždy prohlédne a vyexportuje (export nesmí záviset na platbě – licenční smlouva, Data Act).
+   * Podpora platformy může vždy.
+   */
   function ensureLicense(t: ClinicInfo, r: Resolved | null, command?: string): LicenseView {
     const lv = licenseOf(t);
     if (r?.kind === 'staff' && r.support) return lv;
     const staff = r?.kind === 'staff';
+    const ownerExport = r?.kind === 'staff' && r.role === 'owner' && (command === undefined || command === 'logClientDataExport');
+    if (lv.state === 'blocked' && ownerExport) return lv;
     if (lv.state === 'blocked')
       throw new HttpError(
         423,
@@ -716,7 +722,7 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       checkSlug(slug);
       if (!isPresetId(b.preset)) throw new HttpError(400, 'Vyberte obor (šablonu).');
       if (!PLANS.includes(b.plan)) throw new HttpError(400, 'Neplatný druh licence.');
-      const validUntil = b.plan === 'lifetime' ? null : b.validUntil === null ? null : b.validUntil;
+      const validUntil = b.validUntil === null || b.validUntil === undefined || b.validUntil === '' ? null : b.validUntil;
       if (validUntil !== null && !validDate(validUntil)) throw new HttpError(400, 'Neplatné datum konce licence.');
       if (await store.resolveTenant(slug, null)) throw new HttpError(409, 'Adresa je už obsazená jinou provozovnou.', 'conflict');
       const ownerId = await deps.auth.ensureUser(ownerEmail);

@@ -1,3 +1,4 @@
+import { ExportSection } from './ExportSection';
 import { BrandingSection, LegalTextsSection } from './BrandingLegal';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, PaymentSettings, ReminderSettings, WaitlistSettings } from '../../domain/types';
@@ -9,7 +10,7 @@ import { therapistName } from '../../engine/selectors';
 import { addDays, dateOf } from '../../engine/time';
 import { QrPaymentCard } from '../../components/payments';
 import { useClinic, useCommand, useNow } from '../../store/hooks';
-import { navigate } from '../../store/session';
+import { useSession, navigate } from '../../store/session';
 import {
   Badge,
   Button,
@@ -52,7 +53,7 @@ import './set-settings.css';
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
 /** Kotvy v levém sloupci: sekce konceptu + Import dat (má vlastní tlačítko, do konceptu nepatří). */
-type AnchorId = SectionId | 'import' | 'branding' | 'legal';
+type AnchorId = SectionId | 'import' | 'branding' | 'legal' | 'export';
 
 const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'booking', label: 'Rezervace online', icon: 'calendarPlus' },
@@ -66,6 +67,7 @@ const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'branding', label: 'Vzhled', icon: 'sun' },
   { id: 'legal', label: 'Právní texty', icon: 'file' },
   { id: 'import', label: 'Import dat', icon: 'upload' },
+  { id: 'export', label: 'Export dat', icon: 'download' },
 ];
 
 const SECTION_OF_ERROR = (key: string): SectionId => {
@@ -93,6 +95,7 @@ let parkedDraft: SettingsDraft | null = null;
 
 export function SettingsScreen(): JSX.Element {
   const clinic = useClinic();
+  const role = useSession().role;
   const run = useCommand();
   const base = useMemo(() => settingsDraftOf(clinic.settings), [clinic.settings]);
   const [restored] = useState(() => parkedDraft !== null);
@@ -301,6 +304,15 @@ export function SettingsScreen(): JSX.Element {
               <ImportSection />
             </Card>
           </section>
+
+          {role === 'owner' && (
+            <section id="set-sec-export" className="set-section" aria-labelledby="set-sec-export-h">
+              <Card className="set-section-card">
+                <SectionHeading id="export" title="Export dat" subtitle="Všechna data provozovny v JSON a hlavní evidence v CSV pro Excel." />
+                <ExportSection />
+              </Card>
+            </section>
+          )}
         </div>
       </div>
 

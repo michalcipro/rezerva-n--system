@@ -50,8 +50,8 @@ for (const d of DOCS) {
   }
   const md = readFileSync(src, 'utf8');
   const problems = [];
-  if (/PRACOVNÍ NÁVRH|K ověření právníkem|Pro kliniku:/i.test(md)) problems.push('obsahuje poznámky konceptu');
-  const placeholders = md.match(/\[[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ0-9 …,./-]{2,}\]/g);
+  if (/PRACOVNÍ NÁVRH|K ověření právníkem|Pro kliniku:|Pro Provozovnu:|Pro Nexum Care:/i.test(md)) problems.push('obsahuje poznámky konceptu');
+  const placeholders = md.match(/\[(?:VARIANTA|MODUL)[^\]]*\](?!\()|\[[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ0-9 …,./-]{2,}\](?!\()/g);
   if (placeholders) problems.push(`nevyplněné údaje: ${[...new Set(placeholders)].slice(0, 5).join(', ')}`);
   if (problems.length) {
     console.error(`✗ ${d.file}.md nejde zveřejnit – ${problems.join('; ')}.`);

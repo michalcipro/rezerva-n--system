@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { contrast } from '../../app/branding';
 import { Markdown } from '../../components/Markdown';
 import { MAX_LEGAL_LENGTH, updateSettings } from '../../engine/commands';
+import { legalDraftProblems } from '../../engine/legalDraft';
 import { formatDateTimeShort } from '../../engine/format';
 import { useClinic, useCommand } from '../../store/hooks';
 import { Button, Callout, Card, Field, Input, Segmented, Textarea } from '../../ui';
@@ -137,6 +138,7 @@ export function LegalTextsSection({ headingId }: { headingId: string }): JSX.Ele
 
   const dirty = terms !== saved.terms || privacy !== saved.privacy;
   const value = doc === 'terms' ? terms : privacy;
+  const problems = [...legalDraftProblems(terms).map((p) => `Obchodní podmínky: ${p}`), ...legalDraftProblems(privacy).map((p) => `Ochrana osobních údajů: ${p}`)];
   const setValue = doc === 'terms' ? setTerms : setPrivacy;
 
   return (
@@ -183,9 +185,14 @@ export function LegalTextsSection({ headingId }: { headingId: string }): JSX.Ele
             <Textarea rows={14} value={value} onValueChange={setValue} className="set-legal__text" />
           </Field>
         )}
+        {problems.length > 0 && (
+          <Callout tone="warning" icon="alert" title="Text vypadá jako koncept">
+            {problems.join(' · ')}. Klientům se zobrazí až finální text bez poznámek a doplňovaných údajů.
+          </Callout>
+        )}
         <div className="set-brand__actions">
           {saved.updatedAt && <span className="muted">Naposledy uloženo {formatDateTimeShort(saved.updatedAt)}</span>}
-          <Button variant="primary" icon="check" disabled={!dirty} onClick={() => run(updateSettings, { legal: { terms, privacy } }, { success: 'Právní texty uloženy' })}>
+          <Button variant="primary" icon="check" disabled={!dirty || problems.length > 0} onClick={() => run(updateSettings, { legal: { terms, privacy } }, { success: 'Právní texty uloženy' })}>
             Uložit texty
           </Button>
         </div>

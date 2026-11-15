@@ -232,6 +232,18 @@ Zjištěno při porovnání návrhů s kódem (commit 6d3d6d6). Seřazeno podle 
 23. **Odstoupení u permanentek:** `withdrawalInfo` počítá jako vyčerpané i propadlé vstupy (pozdní zrušení, nedostavení) – podle posouzení advokáta (VOP čl. 14, § 1834 OZ) případně změnit.
 24. **Přihlašovací účet klienta u více provozoven** – ověřit, jak se jeden e-mail propojuje s kartami u různých provozoven (`client_accounts`), a popsat to v informaci o zpracování (část 2).
 
+### Stav platformních bodů (15. 11. 2026)
+
+| Bod | Stav |
+|---|---|
+| 18. Licence a omezení | **Hotovo:** upozornění majiteli 14 dní před koncem a v 14denní ochranné lhůtě; potom jen čtení – nové rezervace a změny ne, klient ale smí zrušit rezervaci, odvolat souhlas a odstoupit od smlouvy a automatické zprávy (potvrzení zrušení, připomínky) dál odcházejí. Při pozastavení vidí klient neutrální text „Online rezervace jsou dočasně nedostupné. Kontaktujte prosím provozovnu.“, tým se nepřihlásí, **majitel data dál prohlíží a exportuje**. U plánu `lifetime` se zadává datum konce zaplaceného provozu a podpory (konzole: „Provoz a podpora zaplaceny do“, výchozí +1 rok); bez data je provoz neomezený (např. vlastní hosting). |
+| 19. Úplný export | **Hotovo:** Nastavení → Export dat (jen majitel) – všechna data provozovny v JSON s popisem struktury a CSV klientů, rezervací, plateb, permanentek a kreditu. Funguje i v režimu jen pro čtení a při pozastavení / ukončení (do výmazu). Veřejný popis formátu pro čl. 18.1 lze převzít z pole `popis` v exportu. |
+| 20. Více provozoven | **Hotovo:** jedna instalace, provozovny zakládá vlastník platformy v konzoli `/platforma`; data, přístupy a klienti oddělené; token Fio každé provozovny šifrovaně v databázi; e-maily z jedné adresy platformy se jménem provozovny jako odesílatele a odpovědí na e-mail provozovny. Společný zůstává odesílatel SMS (`SMS_SENDER`). Viz `../PLATFORM.md`. |
+| 21. Právní texty provozovny | **Hotovo:** Nastavení → Právní texty; klienti je vidí při registraci, přihlášení a v účtu. Uložit nejde text s poznámkami konceptu („PRACOVNÍ NÁVRH“, „K ověření právníkem“, „Pro kliniku:“, „Pro Provozovnu:“, „Pro Nexum Care:“) ani s nevyplněnými údaji ([VARIANTA …], [MODUL …], [NÁZEV …]); odkazy jako [ÚOOÚ](https://uoou.gov.cz) nevadí. Dokud provozovna text nemá, zobrazí se obecná stránka platformy. |
+| 22. Šablony oborů | Ve vývoji (katalogy pro masáže, fitness, kosmetiku; odstoupení vypnuté jen u zdravotních služeb). |
+| 23. Odstoupení u permanentek | Otevřené – rozhodnutí advokáta. |
+| 24. Účet klienta u více provozoven | **Technický stav:** přihlašovací účet (e-mail) je jeden pro celou platformu, ale karta klienta, souhlasy a historie jsou u každé provozovny zvlášť; u další provozovny se klient registruje znovu (nová karta) a provozovny o sobě navzájem nic nevidí. Účet se s kartou propojí jen tehdy, když provozovna klienta s tímto ověřeným e-mailem už vede. K posouzení: kdo je správcem samotného přihlašovacího účtu (pravděpodobně Nexum Care jako provozovatel platformy) a jak to uvést v informaci o zpracování (část 2). |
+
 ## Kontrolní seznam pro advokáta
 
 **Licenční smlouva (B2B, Nexum Care ↔ zákazník)**

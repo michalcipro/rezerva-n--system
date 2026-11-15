@@ -5,6 +5,7 @@ import { updateSettings } from '../src/engine/commands';
 import { createBaseState } from '../src/engine/defaults';
 import { createPresetState, OWNER_STAFF_ID, PRESETS } from '../src/engine/presets';
 import { normalizeState } from '../src/store/persistence';
+import { legalDraftProblems } from '../src/engine/legalDraft';
 
 const owner: Ctx = { now: '2026-11-15T10:00', actor: { role: 'owner', name: 'Majitel' } };
 
@@ -66,5 +67,14 @@ describe('nastavení univerzální platformy', () => {
       for (const svc of s.services) expect(svc.therapistIds).toEqual([OWNER_STAFF_ID]);
       expect(s.clients).toEqual([]);
     }
+  });
+});
+
+describe('kontrola konceptu právních textů', () => {
+  it('pozná poznámky a nevyplněné údaje, ne běžné odkazy a čísla', () => {
+    expect(legalDraftProblems('# Obchodní podmínky\n\nProvozovatel: Studio Lotos s.r.o., IČO 12345678. Dozor: [ÚOOÚ](https://uoou.gov.cz), viz bod [1].')).toEqual([]);
+    const draft = legalDraftProblems('> PRACOVNÍ NÁVRH – K ověření právníkem\n\nProvozovatel [NÁZEV PROVOZOVNY], IČO [IČO]. [VARIANTA A] ...');
+    expect(draft).toHaveLength(2);
+    expect(draft[1]).toContain('[NÁZEV PROVOZOVNY]');
   });
 });

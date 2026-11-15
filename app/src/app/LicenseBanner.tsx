@@ -25,6 +25,11 @@ export function LicenseBanner({ audience }: { audience: 'staff' | 'client' }): J
     text = owner
       ? `Licence vypršela ${formatDate(lic.validUntil ?? '')}. Do ${formatDate(lic.graceUntil ?? '')} vše funguje, potom bude systém jen pro čtení. Kontaktujte prosím dodavatele.`
       : 'Licence systému vypršela – majitel ji musí prodloužit.';
+  } else if (lic.state === 'blocked') {
+    danger = true;
+    text = owner
+      ? 'Licence je pozastavená. Data můžete prohlížet a exportovat (Nastavení → Export dat); pro obnovení kontaktujte dodavatele.'
+      : 'Licence systému je pozastavená – obraťte se prosím na majitele.';
   } else if (lic.state === 'readonly') {
     danger = true;
     text = owner

@@ -46,9 +46,9 @@ export function slugify(name: string): string {
 
 const today = (): string => pragueNow().slice(0, 10);
 
-function defaultValidUntil(plan: LicensePlan): string | null {
+/** Výchozí platnost; u doživotní licence konec zaplaceného provozu a podpory (první rok je v licenčním poplatku). */
+function defaultValidUntil(plan: LicensePlan): string {
   const t = today();
-  if (plan === 'lifetime') return null;
   if (plan === 'trial') return addDays(t, 30);
   if (plan === 'monthly') return addDays(t, 31);
   return addDays(t, 365);
@@ -59,9 +59,10 @@ function licenseText(t: PlatformTenant): string {
   const plan = LICENSE_PLAN_LABEL[t.license.plan];
   if (!t.license.validUntil) return `${plan} · bez omezení`;
   const when = formatDate(t.license.validUntil);
-  if (v.daysLeft === null) return `${plan} · do ${when}`;
-  if (v.daysLeft >= 0) return `${plan} · do ${when} (${countLabel(v.daysLeft, ['den', 'dny', 'dní'])})`;
-  return `${plan} · skončila ${when}`;
+  const what = t.license.plan === 'lifetime' ? 'provoz ' : '';
+  if (v.daysLeft === null) return `${plan} · ${what}do ${when}`;
+  if (v.daysLeft >= 0) return `${plan} · ${what}do ${when} (${countLabel(v.daysLeft, ['den', 'dny', 'dní'])})`;
+  return `${plan} · ${t.license.plan === 'lifetime' ? 'provoz skončil' : 'skončila'} ${when}`;
 }
 
 export function PlatformConsole(): JSX.Element {
@@ -251,7 +252,7 @@ function CreateTenantDialog({ onClose, onCreated }: { onClose: () => void; onCre
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [plan, setPlan] = useState<LicensePlan>('trial');
-  const [validUntil, setValidUntil] = useState<string>(defaultValidUntil('trial') ?? '');
+  const [validUntil, setValidUntil] = useState<string>(defaultValidUntil('trial'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -260,7 +261,7 @@ function CreateTenantDialog({ onClose, onCreated }: { onClose: () => void; onCre
 
   const pickPlan = (p: LicensePlan): void => {
     setPlan(p);
-    setValidUntil(defaultValidUntil(p) ?? '');
+    setValidUntil(defaultValidUntil(p));
   };
 
   const save = async (): Promise<void> => {
@@ -274,7 +275,7 @@ function CreateTenantDialog({ onClose, onCreated }: { onClose: () => void; onCre
         ownerName: ownerName.trim(),
         ownerEmail: ownerEmail.trim().toLowerCase(),
         plan,
-        validUntil: plan === 'lifetime' || !validUntil ? null : validUntil,
+        validUntil: validUntil || null,
       };
       const t = await api<PlatformTenant>('POST', '/platform/tenants', body);
       toast('Provozovna založená', { tone: 'success', description: `Majitel se přihlásí e-mailem ${body.ownerEmail} na ${tenantUrl(t.slug)}` });
@@ -332,11 +333,12 @@ function CreateTenantDialog({ onClose, onCreated }: { onClose: () => void; onCre
           <Field label="Licence">
             <Select value={plan} onValueChange={(v) => pickPlan(v as LicensePlan)} options={PLANS.map((p) => ({ value: p, label: LICENSE_PLAN_LABEL[p] }))} />
           </Field>
-          {plan !== 'lifetime' && (
-            <Field label="Platná do">
-              <Input type="date" value={validUntil} onValueChange={setValidUntil} />
-            </Field>
-          )}
+          <Field
+            label={plan === 'lifetime' ? 'Provoz a podpora zaplaceny do' : 'Platná do'}
+            hint={plan === 'lifetime' ? 'Licence trvá; po tomto datu bez zaplaceného ročního poplatku jen čtení.' : undefined}
+          >
+            <Input type="date" value={validUntil} onValueChange={setValidUntil} />
+          </Field>
         </div>
         {error && (
           <Callout tone="danger" icon="alertCircle">
@@ -354,7 +356,7 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
   const [plan, setPlan] = useState<LicensePlan>(tenant.license.plan);
   const [status, setStatus] = useState<LicenseStatus>(tenant.license.status);
   const [unlimited, setUnlimited] = useState(!tenant.license.validUntil);
-  const [validUntil, setValidUntil] = useState(tenant.license.validUntil ?? defaultValidUntil('monthly') ?? '');
+  const [validUntil, setValidUntil] = useState(tenant.license.validUntil ?? defaultValidUntil(tenant.license.plan));
   const [note, setNote] = useState(tenant.license.note);
   const [domains, setDomains] = useState(tenant.domains.join('\n'));
   const [fioToken, setFioToken] = useState('');
@@ -383,7 +385,7 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
       if (slug.trim() !== tenant.slug) patch.slug = slug.trim().toLowerCase();
       if (plan !== tenant.license.plan) patch.plan = plan;
       if (status !== tenant.license.status) patch.status = status;
-      const nextValid = plan === 'lifetime' || unlimited ? null : validUntil || null;
+      const nextValid = unlimited ? null : validUntil || null;
       if (nextValid !== tenant.license.validUntil) patch.validUntil = nextValid;
       if (note !== tenant.license.note) patch.note = note;
       let saved = tenant;
@@ -436,29 +438,38 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
           <Field label="Druh">
             <Select value={plan} onValueChange={(v) => setPlan(v as LicensePlan)} options={PLANS.map((p) => ({ value: p, label: LICENSE_PLAN_LABEL[p] }))} />
           </Field>
-          <Field label="Stav" hint={status !== 'active' ? 'Provozovna ani její klienti se do systému nedostanou.' : undefined}>
+          <Field label="Stav" hint={status !== 'active' ? 'Tým ani klienti se do systému nedostanou; majitel může jen prohlížet a exportovat data.' : undefined}>
             <Select value={status} onValueChange={(v) => setStatus(v as LicenseStatus)} options={(Object.keys(STATUS_LABEL) as LicenseStatus[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))} />
           </Field>
         </div>
-        {plan !== 'lifetime' && (
-          <>
-            <Checkbox checked={unlimited} onChange={setUnlimited} label="Bez omezení platnosti" />
-            {!unlimited && (
-              <div className="plt__grid plt__grid--end">
-                <Field label="Platná do" hint="Po konci platnosti 14 dní vše funguje, potom jen čtení.">
-                  <Input type="date" value={validUntil} onValueChange={setValidUntil} />
-                </Field>
-                <div className="plt__extend">
-                  <Button size="sm" variant="secondary" onClick={() => extend(31)}>
-                    + měsíc
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => extend(365)}>
-                    + rok
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
+        <Checkbox
+          checked={unlimited}
+          onChange={setUnlimited}
+          label={plan === 'lifetime' ? 'Provoz a podpora bez omezení (např. vlastní hosting)' : 'Bez omezení platnosti'}
+        />
+        {!unlimited && (
+          <div className="plt__grid plt__grid--end">
+            <Field
+              label={plan === 'lifetime' ? 'Provoz a podpora zaplaceny do' : 'Platná do'}
+              hint={
+                plan === 'lifetime'
+                  ? 'Po zaplacení ročního poplatku prodlužte o rok. Po tomto datu 14 dní vše funguje, potom jen čtení.'
+                  : 'Po konci platnosti 14 dní vše funguje, potom jen čtení.'
+              }
+            >
+              <Input type="date" value={validUntil} onValueChange={setValidUntil} />
+            </Field>
+            <div className="plt__extend">
+              {plan !== 'lifetime' && (
+                <Button size="sm" variant="secondary" onClick={() => extend(31)}>
+                  + měsíc
+                </Button>
+              )}
+              <Button size="sm" variant="secondary" onClick={() => extend(365)}>
+                + rok
+              </Button>
+            </div>
+          </div>
         )}
         <Field label="Poznámka" optional hint="Jen pro vás – např. číslo smlouvy, faktury, domluvená sleva.">
           <Textarea rows={2} value={note} onValueChange={setNote} />
