@@ -1,0 +1,18 @@
+{
+  "icoId": "12345679",
+  "zaznamy": [
+    {
+      "rejstrik": "OR",
+      "primarniZaznam": true,
+      "ico": [{ "hodnota": "12345679", "platnostOd": "2015-03-02" }],
+      "obchodniJmeno": [{ "hodnota": "Pohybové studio Test s.r.o.", "platnostOd": "2015-03-02" }],
+      "pravniForma": [{ "hodnota": "112", "platnostOd": "2015-03-02" }],
+      "spisovaZnacka": [
+        { "soud": "MSPH", "oddil": "C", "vlozka": 99999, "platnostOd": "2015-03-02", "platnostDo": "2018-06-30" },
+        { "soud": "KSBR", "oddil": "C", "vlozka": 12345, "platnostOd": "2018-07-01" }
+      ],
+      "datumZapisu": "2015-03-02",
+      "stavSubjektu": "AKTIVNI"
+    }
+  ]
+}

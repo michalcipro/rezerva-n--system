@@ -21,6 +21,8 @@ Nic se pro zákazníka neprogramuje – přizpůsobení je nastavení v konzoli 
 | Moduly: skupinové lekce, permanentky, kredit, marketing | Nastavení → Moduly | majitel |
 | Služby, ceník, tým, pracovní doby, storno podmínky, platby, šablony zpráv | Nastavení, Služby, Tým | majitel |
 | Obchodní podmínky a zásady ochrany údajů provozovny | Nastavení → Právní texty | majitel (texty od jeho advokáta) |
+| Fakturační údaje: obchodní firma / jméno, IČO (tlačítko „Načíst z ARES“), DIČ a plátce DPH, údaj o zápisu v rejstříku, sídlo, adresa provozovny, kontakt pro klienty, e-mail pro faktury od platformy | Nastavení → Fakturační údaje | jen majitel (ostatním rolím se sekce nezobrazuje) |
+| Spuštění online rezervací: kontrolní seznam (fakturační údaje, e-mail odesílatele, účet pro QR platby, aktivní služba, pracovní doby, právní texty; vzhled nepovinně) a tlačítko „Spustit online rezervace“; pozastavení | Přehled → Spuštění online rezervací; pozastavení v Nastavení → Rezervace online | jen majitel |
 | Přístupy týmu | Tým a směny → Přístupy do systému | majitel |
 | Import klientů, permanentek, kreditů | Nastavení → Import dat | majitel / recepce |
 | Export všech dat (záloha, přechod jinam) | Nastavení → Export dat | majitel |
@@ -74,8 +76,11 @@ nebo už skončila – podklad pro fakturu a prodloužení (adresu konzole v e-m
 ## Založení nového zákazníka (technicky)
 1. Konzole → **Nová provozovna**: název, adresa, obor, jméno a e-mail majitele, licence a platnost.
 2. Majiteli pošlete adresu `https://<platforma>/<slug>` – přihlásí se svým e-mailem (kód z e-mailu).
-3. S majitelem (nebo za něj přes podporu): Nastavení → Vzhled, Názvosloví, Moduly, Platby (číslo účtu),
-   Služby a ceník, Tým a směny (+ přístupy pro recepci a tým), Storno podmínky, Šablony zpráv, Právní texty.
+3. S majitelem (nebo za něj přes podporu): Nastavení → Fakturační údaje (IČO → Načíst z ARES), Vzhled, Názvosloví,
+   Moduly, Platby (číslo účtu), Služby a ceník, Tým a směny (+ přístupy pro recepci a tým), Storno podmínky,
+   Šablony zpráv, Právní texty. Nakonec Přehled → Spuštění online rezervací: nová provozovna začíná nespuštěná
+   (klienti v portálu vidí „Online rezervace připravujeme“, personál rezervuje normálně) a engine spuštění
+   bez povinných kroků kontrolního seznamu odmítne.
 4. Import dat ze stávajícího systému (Nastavení → Import dat).
 5. Volitelně: token Fio (konzole), vlastní doména, SMS odesílatel.
 Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](business/onboarding-zakaznika.md).
@@ -88,6 +93,11 @@ Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](busine
   role a data jsou vždy jen v rámci provozovny. Vlastník platformy = e-mail v `PLATFORM_ADMIN_EMAILS`.
 - **Automatika** (`/api/cron`) běží pro všechny provozovny kromě pozastavených; párování plateb používá token
   dané provozovny.
+- **ARES** (`GET /api/ares?ico=…`, personál provozovny): server se ptá veřejného REST API ARES
+  (`ares.gov.cz/ekonomicke-subjekty-v-be/rest`, bez klíče) s časovým limitem 8 s a krátkou cache (10 min);
+  vrátí obchodní jméno, sídlo, DIČ, plátce DPH, právní formu a údaj o zápisu. Formulář jen doplní – uloží majitel.
+- **Patička automatických e-mailů** nese identifikaci provozovny z fakturačních údajů (firma, sídlo, IČO, zápis
+  v rejstříku), jakmile jsou úplné; klientský portál ukazuje kontakt (adresa, telefon, e-mail, web).
 - **E-maily** odcházejí z jedné ověřené adresy platformy (`MAIL_FROM`) se jménem provozovny jako odesílatele
   a s odpovědí na e-mail provozovny (Nastavení → Provozovna). Přihlašovací kódy posílá Supabase Auth se
   společnou šablonou platformy.

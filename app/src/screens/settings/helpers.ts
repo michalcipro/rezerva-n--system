@@ -4,6 +4,7 @@
  */
 import type {
   Booking,
+  BookingRules,
   CancellationPolicy,
   Client,
   ClientPackage,
@@ -563,18 +564,26 @@ export function validateBonusRules(rules: readonly CreditBonusRule[]): BonusRowI
  */
 export type PaymentsDraft = Pick<PaymentSettings, 'qrEnabled' | 'accountNumber' | 'recipientName' | 'qrDueHours'>;
 
+/**
+ * Pravidla rezervací v konceptu. Spuštění online rezervací (`onlineOpen`) do konceptu nepatří – mění se hned
+ * (Přehled → Spuštění online rezervací, přepínač v sekci Rezervace online), aby ho starší koncept nepřepsal.
+ */
+export type BookingRulesDraft = Omit<BookingRules, 'onlineOpen'>;
+
 export type SettingsDraft = Pick<
   Settings,
-  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'features' | 'modules' | 'terms'
-> & { payments: PaymentsDraft };
+  'clinicName' | 'clinicTagline' | 'senderName' | 'senderEmail' | 'policy' | 'waitlist' | 'reminders' | 'features' | 'modules' | 'terms'
+> & { payments: PaymentsDraft; bookingRules: BookingRulesDraft };
 
 export function settingsDraftOf(s: Settings): SettingsDraft {
+  const bookingRules: Partial<BookingRules> = { ...s.bookingRules };
+  delete bookingRules.onlineOpen;
   return clone({
     clinicName: s.clinicName,
     clinicTagline: s.clinicTagline,
     senderName: s.senderName,
     senderEmail: s.senderEmail,
-    bookingRules: s.bookingRules,
+    bookingRules: bookingRules as BookingRulesDraft,
     policy: s.policy,
     waitlist: s.waitlist,
     reminders: s.reminders,

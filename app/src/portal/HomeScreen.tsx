@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import type { ClientPackage, MakeupRight } from '../domain/types';
 import { TherapistAvatar } from '../components/domain';
 import { leaveWaitlist } from '../engine/commands';
+import { businessContact, phoneHref } from '../engine/business';
 import { countLabel, formatDate, formatDateLong, formatDayShort, formatMoney, formatTimeRange } from '../engine/format';
+import { onlineOpen } from '../engine/launch';
 import { modulesOf } from '../engine/modules';
 import { pendingRequestFor } from '../engine/qr';
 import {
@@ -18,6 +20,7 @@ import {
   therapistName,
   upcomingBookingsOfClient,
 } from '../engine/selectors';
+import { prep } from '../engine/terms';
 import { dateOf, daysBetween } from '../engine/time';
 import { useClinic, useCommand, useNow, useTerms } from '../store/hooks';
 import { Button, Callout, Icon, IconButton, StackedBar, cx } from '../ui';
@@ -72,7 +75,7 @@ export function HomeScreen(): JSX.Element {
   const now = useNow();
   const run = useCommand();
   const words = useTerms();
-  const { client, go, openAccount } = usePortal();
+  const { client, canBook, go, openAccount } = usePortal();
   const today = dateOf(now);
 
   const data = useMemo(() => {
@@ -126,7 +129,7 @@ export function HomeScreen(): JSX.Element {
         <p className="por-hello__sub">
           {next ? `Příští termín máte ${whenLabel(next.start, now)}.` : 'Teď nemáte naplánovaný žádný termín.'}
         </p>
-        {!client.blocked && (
+        {canBook && (
           <div className="por-hello__actions">
             <Button variant="primary" size="lg" icon="calendarPlus" full onClick={() => go({ name: 'rezervace' })}>
               Rezervovat termín
@@ -145,7 +148,7 @@ export function HomeScreen(): JSX.Element {
         )}
       </section>
 
-      {client.blocked && <BlockedNotice />}
+      {!onlineOpen(clinic) ? <PreparingNotice /> : client.blocked && <BlockedNotice />}
 
       {data.offers.map((w) => (
         <OfferCard key={w.id} entry={w} />
@@ -299,6 +302,24 @@ export function HomeScreen(): JSX.Element {
   );
 }
 
+/** Online rezervace provozovna ještě nespustila (nebo je pozastavila) – termín domluví personál. */
+export function PreparingNotice(): JSX.Element {
+  const clinic = useClinic();
+  const words = useTerms();
+  const contact = businessContact(clinic.settings);
+  const reach = contact.phone || contact.email;
+  return (
+    <Callout tone="info" icon="clock" title="Online rezervace připravujeme">
+      Brzy si tu termíny zarezervujete sami. Zatím si termín domluvte přímo {prep('s', words.business.ins)}
+      {reach ? ' – ' : '.'}
+      {contact.phone && <a href={phoneHref(contact.phone)}>{contact.phone}</a>}
+      {contact.phone && contact.email && ' nebo '}
+      {contact.email && <a href={`mailto:${contact.email}`}>{contact.email}</a>}
+      {reach && '.'} Rezervované termíny tu najdete a zrušit je můžete i online.
+    </Callout>
+  );
+}
+
 export function BlockedNotice(): JSX.Element {
   const clinic = useClinic();
   return (
@@ -355,7 +376,7 @@ function NextBookingCard({ bookingId }: { bookingId: string }): JSX.Element | nu
 function MakeupCard({ makeup }: { makeup: MakeupRight }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
-  const { go, client } = usePortal();
+  const { go, canBook } = usePortal();
   const src = getBooking(clinic, makeup.sourceBookingId);
   const daysLeft = daysBetween(dateOf(now), dateOf(makeup.validUntil));
   const urgent = daysLeft <= 3;
@@ -373,7 +394,7 @@ function MakeupCard({ makeup }: { makeup: MakeupRight }): JSX.Element {
           {daysLeft <= 0 ? 'poslední den' : `zbývá ${countLabel(daysLeft, ['den', 'dny', 'dní'])}`}
         </span>
       </div>
-      {!client.blocked && (
+      {canBook && (
         <Button size="sm" variant={urgent ? 'primary' : 'secondary'} onClick={() => go({ name: 'rezervace', makeupId: makeup.id })}>
           Vybrat
         </Button>

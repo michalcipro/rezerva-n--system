@@ -129,6 +129,21 @@ function newClient(s: ClinicState): { s: ClinicState; clientId: string } {
   return { s: r.s, clientId: r.value };
 }
 
+/** Majitel doplní povinné kroky kontrolního seznamu a spustí online rezervace (nová provozovna je nespuštěná). */
+function launched(s: ClinicState): ClinicState {
+  return apply(
+    s,
+    updateSettings,
+    {
+      business: { legalName: 'Provozovna Test s.r.o.', legalForm: 'company', ico: '12345679', registeredAddress: { street: 'Hlavní 1', city: 'Brno', zip: '60200' } },
+      payments: { qrEnabled: false },
+      legal: { terms: '# Obchodní podmínky\n\nText.', privacy: '# Informace o zpracování osobních údajů\n\nText.' },
+      bookingRules: { onlineOpen: true },
+    },
+    desk,
+  ).s;
+}
+
 /** První volný online termín služby v příštích 14 dnech (jak ho nabídne portál). */
 function firstSlot(s: ClinicState, serviceId: string, clientId: string): string {
   for (let i = 1; i <= 14; i++) {
@@ -235,7 +250,7 @@ describe('šablony oborů – provoz', () => {
       const cat = apply<Parameters<typeof upsertCategory>[1], string>(s, upsertCategory, { id: '', name: 'Konzultace', tone: 'teal', order: 0 }, desk);
       s = apply(cat.s, upsertService, { ...DEFAULT_SERVICES[1], id: '', categoryId: cat.value, therapistIds: [OWNER_STAFF_ID] }, desk).s;
     }
-    const c = newClient(s);
+    const c = newClient(launched(s));
     s = c.s;
     const svc = s.services.find((x) => x.active && x.onlineBookable && x.kind === 'individual');
     expect(svc).toBeDefined();
@@ -252,7 +267,7 @@ describe('šablony oborů – provoz', () => {
   });
 
   it.each(['fyzio', 'fitness'] as const)('%s: rozvrh vytváří skupinové lekce v pracovní době a klient se přihlásí', (id) => {
-    const c = newClient(tenant(id));
+    const c = newClient(launched(tenant(id)));
     const s = c.s;
     const week = nextWeekSessions(s);
     expect(s.groupTemplates.length).toBeGreaterThan(0);

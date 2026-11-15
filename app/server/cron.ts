@@ -1,4 +1,5 @@
 import type { Actor, ClinicState, Message } from '../src/domain/types';
+import { businessIdentity } from '../src/engine/business';
 import { MAX_DELIVERY_ATTEMPTS, confirmPaymentRequest, queuedMessages, recordDeliveries, type DeliveryResult } from '../src/engine/commands';
 import { clientName, getClient } from '../src/engine/selectors';
 import { addDays, dateOf } from '../src/engine/time';
@@ -48,12 +49,14 @@ async function sendOne(cfg: DeliveryConfig, clinicId: string, s: ClinicState, m:
   if (!client.email) return { ok: false, permanent: true, error: 'Klient nemá e-mail.' };
   const extras = await campaignExtras(cfg, clinicId, m);
   const fromName = s.settings.senderName || s.settings.clinicName;
+  // patička: identifikace provozovny (firma, sídlo, IČO, zápis v rejstříku), u novinek i odkaz na odhlášení
+  const footer = [...businessIdentity(s.settings.business), ...(extras ? [extras.footer] : [])].join('\n');
   return cfg.messenger.sendEmail({
     to: client.email,
     toName: clientName(client),
     subject: m.subject,
-    text: extras ? `${m.body}\n\n${extras.footer}` : m.body,
-    html: renderEmailHtml({ clinicName: fromName, subject: m.subject, body: m.body, footer: extras?.footer }),
+    text: footer ? `${m.body}\n\n${footer}` : m.body,
+    html: renderEmailHtml({ clinicName: fromName, subject: m.subject, body: m.body, footer: footer || undefined }),
     replyTo: s.settings.senderEmail || undefined,
     fromName,
     headers: extras?.headers,

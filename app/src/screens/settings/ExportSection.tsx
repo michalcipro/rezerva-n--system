@@ -13,7 +13,7 @@ import { Button, toast } from '../../ui';
  */
 
 const DESCRIPTION: Record<string, string> = {
-  settings: 'nastavení provozovny (pravidla rezervací, storno podmínky, platby, vzhled, názvosloví, moduly)',
+  settings: 'nastavení provozovny (pravidla rezervací, storno podmínky, platby, vzhled, názvosloví, moduly, fakturační údaje)',
   categories: 'kategorie služeb',
   services: 'služby a ceník',
   rooms: 'místnosti',

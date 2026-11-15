@@ -33,14 +33,18 @@ import type {
   TimeOff,
   WaitlistEntry,
   BrandingSettings,
+  BusinessProfile,
   LegalSettings,
   ModuleSettings,
   NounForms,
+  PostalAddress,
   TermsSettings,
 } from '../domain/types';
 import { checkBookingSlot } from './availability';
+import { businessErrors, emptyBusinessProfile, isBusinessShape, normalizeBusiness } from './business';
 import { formatDateTimeShort, formatDayShort, formatMoney, formatPercent, formatTime, countLabel } from './format';
 import { newId } from './ids';
+import { launchMissing, onlineClosedMessage, onlineOpen } from './launch';
 import { addManualMessage, bookingVars, outgoingStatus, queueTemplateMessage, type TemplateVars } from './messages';
 import { MODULE_OFF, moduleOn } from './modules';
 import { bookingPolicy, evaluateCancellation, isGroupBooking, type CancelOptionKind } from './policy';
@@ -305,6 +309,8 @@ export interface CreateBookingInput {
 export const createBooking: Command<CreateBookingInput, Id> = (d, input, ctx) => {
   const mode = ctx.actor.role === 'client' ? 'client' : 'staff';
   if (mode === 'client' && ctx.actor.clientId !== input.clientId) return fail('Rezervovat lze jen za sebe.');
+  // před spuštěním online rezervací (a při jejich pozastavení) rezervuje jen personál
+  if (mode === 'client' && !onlineOpen(d)) return fail(onlineClosedMessage(d));
   const service = getService(d, input.serviceId);
   if (!service) return fail('Služba neexistuje.');
   const client = getClient(d, input.clientId);
@@ -513,7 +519,8 @@ function chargeFee(d: ClinicState, ctx: Ctx, b: Booking, amount: number, pct: nu
 /** Nabídne uvolněný termín lidem z čekací listiny. */
 export function offerFreedSlot(d: ClinicState, ctx: Ctx, freed: { serviceId: Id; therapistId: Id; start: LocalDateTime; end: LocalDateTime; sessionId?: Id; excludeClientId?: Id }): number {
   const ws = d.settings.waitlist;
-  if (!ws.enabled || freed.start <= ctx.now) return 0;
+  // nabídku potvrzuje klient v portálu – bez spuštěných online rezervací by ji nemohl přijmout
+  if (!ws.enabled || !onlineOpen(d) || freed.start <= ctx.now) return 0;
   const date = dateOf(freed.start);
   const candidates = d.waitlist
     .filter((w) => w.status === 'waiting' && w.clientId !== freed.excludeClientId && !w.offeredStarts.includes(freed.start))
@@ -696,6 +703,7 @@ export const rescheduleBooking: Command<RescheduleInput, Id> = (d, input, ctx) =
   if (service.kind === 'group' && !moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
   const role = isStaff(ctx) ? 'staff' : 'client';
   const therapistId = input.therapistId ?? b.therapistId;
+  if (role === 'client' && !onlineOpen(d)) return fail(onlineClosedMessage(d));
 
   if (role === 'client') {
     const ev = evaluateCancellation(d, b, ctx.now, 'client');
@@ -1353,6 +1361,7 @@ export const joinWaitlist: Command<
 > = (d, input, ctx) => {
   if (!d.settings.waitlist.enabled) return fail('Čekací listina je vypnutá.');
   if (ctx.actor.role === 'client' && ctx.actor.clientId !== input.clientId) return fail('Nemáte oprávnění.');
+  if (ctx.actor.role === 'client' && !onlineOpen(d)) return fail(onlineClosedMessage(d));
   const waitService = getService(d, input.serviceId);
   if (!waitService) return fail('Služba neexistuje.');
   if ((waitService.kind === 'group' || input.sessionId) && !moduleOn(d, 'groups')) return fail(MODULE_OFF.groups);
@@ -1561,9 +1570,11 @@ export const removeTimeOff: Command<{ id: Id }> = (d, input, ctx) => {
 };
 
 type SettingsPatch = Partial<
-  Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'messaging' | 'terms' | 'modules' | 'branding' | 'legal' | 'policyHistory'>
+  Omit<Settings, 'bookingRules' | 'policy' | 'waitlist' | 'reminders' | 'payments' | 'features' | 'messaging' | 'terms' | 'modules' | 'branding' | 'legal' | 'policyHistory' | 'business'>
 > & {
   payments?: Partial<Omit<PaymentSettings, 'iban' | 'demoAccount'>>;
+  /** Fakturační údaje (jen majitel); adresy se doplňují po polích. */
+  business?: Partial<Omit<BusinessProfile, 'registeredAddress' | 'placeAddress'>> & { registeredAddress?: Partial<PostalAddress>; placeAddress?: Partial<PostalAddress> };
   bookingRules?: Partial<Settings['bookingRules']>;
   policy?: Partial<Omit<Settings['policy'], 'excuses'>> & { excuses?: Partial<Settings['policy']['excuses']> };
   waitlist?: Partial<Settings['waitlist']>;
@@ -1592,7 +1603,13 @@ export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
   const denied = requireStaff(ctx);
   if (denied && Object.keys(patch).some((k) => k !== 'simulatedNow')) return fail(denied);
   const s = d.settings;
-  const { bookingRules, policy, waitlist, reminders, payments, features, messaging, terms, modules, branding, legal, ...rest } = patch;
+  const { bookingRules, policy, waitlist, reminders, payments, features, messaging, terms, modules, branding, legal, business, ...rest } = patch;
+  // fakturační údaje a spuštění online rezervací jsou na majiteli (server pouští updateSettings jen majiteli, engine to hlídá i v testovací verzi)
+  if (business !== undefined && ctx.actor.role !== 'owner') return fail('Fakturační údaje může měnit jen majitel.');
+  const wasOpen = onlineOpen(d);
+  const open = bookingRules?.onlineOpen;
+  if (open !== undefined && typeof open !== 'boolean') return fail('Neplatné nastavení online rezervací.');
+  if (open !== undefined && open !== wasOpen && ctx.actor.role !== 'owner') return fail('Spustit nebo pozastavit online rezervace může jen majitel.');
   Object.assign(s, rest);
   if (features) s.features = { ...s.features, ...features };
   if (messaging) s.messaging = { ...s.messaging, ...messaging };
@@ -1617,6 +1634,21 @@ export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
     if (next.terms.length > MAX_LEGAL_LENGTH || next.privacy.length > MAX_LEGAL_LENGTH) return fail('Text je příliš dlouhý.');
     s.legal = { terms: next.terms, privacy: next.privacy, updatedAt: ctx.now };
   }
+  if (business) {
+    const current = s.business ?? emptyBusinessProfile();
+    const next = {
+      ...current,
+      ...business,
+      registeredAddress: { ...current.registeredAddress, ...business.registeredAddress },
+      placeAddress: { ...current.placeAddress, ...business.placeAddress },
+    };
+    if (!isBusinessShape(next)) return fail('Neplatné fakturační údaje.');
+    const problem = Object.values(businessErrors(next))[0];
+    if (problem) return fail(problem);
+    s.business = normalizeBusiness(next);
+    // jméno příjemce QR platby se předvyplní obchodní firmou, pokud je prázdné
+    if (s.business.legalName && !s.payments.recipientName.trim()) s.payments = { ...s.payments, recipientName: s.business.legalName.slice(0, 35) };
+  }
   if (payments) {
     const next: PaymentSettings = { ...s.payments, ...payments };
     if (payments.accountNumber !== undefined) {
@@ -1634,7 +1666,12 @@ export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
     next.qrDueHours = Math.round(next.qrDueHours);
     s.payments = next;
   }
-  if (bookingRules) Object.assign(s.bookingRules, bookingRules);
+  if (bookingRules) {
+    const other: Partial<Settings['bookingRules']> = { ...bookingRules };
+    delete other.onlineOpen;
+    Object.assign(s.bookingRules, other);
+    if (open !== undefined) s.bookingRules.onlineOpen = open;
+  }
   if (waitlist) Object.assign(s.waitlist, waitlist);
   if (reminders) Object.assign(s.reminders, reminders);
   if (policy) {
@@ -1658,6 +1695,13 @@ export const updateSettings: Command<SettingsPatch> = (d, patch, ctx) => {
   if (s.bookingRules.minNoticeMin < 0) return fail('Minimální předstih nesmí být záporný.');
   if (s.bookingRules.horizonDays < 1 || s.bookingRules.horizonDays > 365) return fail('Horizont rezervací musí být 1–365 dní.');
   if (patch.simulatedNow !== undefined && patch.simulatedNow !== null && !isValidLocalDateTime(patch.simulatedNow)) return fail('Neplatný testovací čas.');
+  // spuštění online rezervací: všechny povinné kroky kontrolního seznamu (launch.ts)
+  const nowOpen = onlineOpen(d);
+  if (!wasOpen && nowOpen) {
+    const missing = launchMissing(d);
+    if (missing.length) return fail(`Online rezervace zatím nelze spustit – chybí: ${missing.map((x) => x.label).join(', ')}.`);
+  }
+  if (wasOpen !== nowOpen) audit(d, ctx, nowOpen ? 'Spuštění online rezervací' : 'Pozastavení online rezervací', 'Rezervace klientů v portálu');
   if (Object.keys(patch).some((k) => k !== 'simulatedNow')) audit(d, ctx, 'Nastavení', Object.keys(patch).join(', '));
   return ok(undefined);
 };

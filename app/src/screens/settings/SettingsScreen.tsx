@@ -1,9 +1,11 @@
 import { ExportSection } from './ExportSection';
 import { BrandingSection, LegalTextsSection } from './BrandingLegal';
+import { BusinessSection } from './BusinessSection';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BookingRules, CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, ModuleSettings, PaymentSettings, ReminderSettings, TermsSettings, WaitlistSettings } from '../../domain/types';
+import type { CancellationPolicy, ClinicState, FeatureSettings, LocalDateTime, ModuleSettings, PaymentSettings, ReminderSettings, TermsSettings, WaitlistSettings } from '../../domain/types';
 import { availableSlots } from '../../engine/availability';
 import { updateSettings } from '../../engine/commands';
+import { launchMissing, onlineOpen } from '../../engine/launch';
 import { countLabel, formatDayShort, formatDuration, formatNumber, formatTime } from '../../engine/format';
 import { formatIban, nextVs, parseAccount, qrReady } from '../../engine/qr';
 import { therapistName } from '../../engine/selectors';
@@ -24,13 +26,14 @@ import {
 import { addDays, dateOf } from '../../engine/time';
 import { QrPaymentCard } from '../../components/payments';
 import { useClinic, useCommand, useNow, useTerms } from '../../store/hooks';
-import { useSession, navigate } from '../../store/session';
+import { useSession, navigate, setSession } from '../../store/session';
 import {
   Badge,
   Button,
   Callout,
   Card,
   ChoiceChips,
+  ConfirmDialog,
   Icon,
   IconButton,
   Input,
@@ -54,6 +57,7 @@ import {
   settingsDraftOf,
   tierWarning,
   validateSettings,
+  type BookingRulesDraft,
   type PaymentsDraft,
   type SectionId,
   type SettingsDraft,
@@ -67,8 +71,8 @@ import './set-settings.css';
 
 type SettingsPatch = Parameters<typeof updateSettings>[1];
 
-/** Kotvy v levém sloupci: sekce konceptu + Import dat (má vlastní tlačítko, do konceptu nepatří). */
-type AnchorId = SectionId | 'import' | 'branding' | 'legal' | 'export';
+/** Kotvy v levém sloupci: sekce konceptu + sekce s vlastním uložením (fakturační údaje, vzhled, právní texty, import, export). */
+type AnchorId = SectionId | 'business' | 'import' | 'branding' | 'legal' | 'export';
 
 const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'booking', label: 'Rezervace online', icon: 'calendarPlus' },
@@ -80,6 +84,7 @@ const SECTIONS: { id: AnchorId; label: string; icon: IconName }[] = [
   { id: 'modules', label: 'Moduly', icon: 'layers' },
   { id: 'features', label: 'Funkce', icon: 'sliders' },
   { id: 'clinic', label: 'Klinika', icon: 'building' },
+  { id: 'business', label: 'Fakturační údaje', icon: 'receipt' },
   { id: 'terms', label: 'Názvosloví', icon: 'message' },
   { id: 'branding', label: 'Vzhled', icon: 'sun' },
   { id: 'legal', label: 'Právní texty', icon: 'file' },
@@ -97,6 +102,9 @@ const SECTION_OF_ERROR = (key: string): SectionId => {
 
 const sectionLabel = (id: AnchorId): string => SECTIONS.find((s) => s.id === id)?.label ?? id;
 
+/** Sekce jen pro majitele (fakturační údaje, export dat) – ostatním rolím se neukazují. */
+const OWNER_SECTIONS: readonly AnchorId[] = ['business', 'export'];
+
 const NOTICE_OPTIONS = [0, 30, 60, 120, 180, 240, 360, 720, 1440, 2880];
 const OFFER_OPTIONS = [15, 30, 60, 120, 180, 240, 360, 720, 1440];
 const REMINDER_OPTIONS = [2, 3, 4, 6, 12, 24, 48, 72];
@@ -112,7 +120,7 @@ let parkedDraft: SettingsDraft | null = null;
 
 export function SettingsScreen(): JSX.Element {
   const clinic = useClinic();
-  const role = useSession().role;
+  const { role, route } = useSession();
   const run = useCommand();
   const words = useTerms();
   // název sekce s údaji provozovny podle uloženého názvosloví („Klinika“, „Studio“…)
@@ -178,8 +186,21 @@ export function SettingsScreen(): JSX.Element {
     setActive(id);
   };
 
+  // odkaz na konkrétní sekci (kontrolní seznam spuštění na Přehledu)
+  const target = route.name === 'nastaveni' ? SECTIONS.find((s) => s.id === route.section)?.id : undefined;
+  useEffect(() => {
+    if (!target) return undefined;
+    // po vykreslení sekcí; trasu bez sekce uložíme až potom (jinak by úklid efektu posun zrušil)
+    const timer = window.setTimeout(() => {
+      goTo(target);
+      setSession({ route: { name: 'nastaveni' } });
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+
   /* ---- úpravy konceptu ---- */
-  const setRules = (patch: Partial<BookingRules>): void => setDraft((d) => ({ ...d, bookingRules: { ...d.bookingRules, ...patch } }));
+  const setRules = (patch: Partial<BookingRulesDraft>): void => setDraft((d) => ({ ...d, bookingRules: { ...d.bookingRules, ...patch } }));
   const setPolicy = (patch: Partial<CancellationPolicy>): void => setDraft((d) => ({ ...d, policy: { ...d.policy, ...patch } }));
   const setExcuses = (patch: Partial<CancellationPolicy['excuses']>): void =>
     setDraft((d) => ({ ...d, policy: { ...d.policy, excuses: { ...d.policy.excuses, ...patch } } }));
@@ -242,7 +263,7 @@ export function SettingsScreen(): JSX.Element {
       <div className="set-settings">
         <nav className="set-anchors" aria-label="Sekce nastavení">
           <ul className="set-anchors__list">
-            {SECTIONS.filter((s) => s.id !== 'export' || role === 'owner').map((s) => (
+            {SECTIONS.filter((s) => !OWNER_SECTIONS.includes(s.id) || role === 'owner').map((s) => (
               <li key={s.id}>
                 <a
                   href={`#set-sec-${s.id}`}
@@ -268,6 +289,7 @@ export function SettingsScreen(): JSX.Element {
 
         <div className="set-settings__body">
           <Section id="booking" title="Rezervace online" subtitle="Kdy a jak daleko dopředu si klienti mohou sami rezervovat.">
+            <OnlineOpenRow />
             <BookingSection rules={draft.bookingRules} onChange={setRules} errors={visibleErrors} />
           </Section>
 
@@ -317,6 +339,12 @@ export function SettingsScreen(): JSX.Element {
           <Section id="clinic" title={words.Business.nom} subtitle="Název a odesílatel e-mailů, které klienti dostávají.">
             <ClinicSection draft={draft} onChange={setText} errors={visibleErrors} />
           </Section>
+
+          {role === 'owner' && (
+            <section id="set-sec-business" className="set-section" aria-labelledby="set-sec-business-h">
+              <BusinessSection headingId="set-sec-business-h" />
+            </section>
+          )}
 
           <Section id="terms" title="Názvosloví" subtitle="Jak aplikace, klientský portál a zprávy říkají vaší provozovně a lidem, kteří poskytují služby.">
             <TermsSection terms={draft.terms} onChange={setTerms} />
@@ -420,7 +448,7 @@ interface CompactExample {
   compact: string[];
 }
 
-function compactExample(clinic: ClinicState, rules: BookingRules, now: LocalDateTime): CompactExample | null {
+function compactExample(clinic: ClinicState, rules: BookingRulesDraft, now: LocalDateTime): CompactExample | null {
   const svc = clinic.services
     .filter((s) => s.active && s.kind === 'individual' && s.onlineBookable && !s.newClientsOnly && s.durationMin >= 30)
     .sort(byOrder)
@@ -430,7 +458,7 @@ function compactExample(clinic: ClinicState, rules: BookingRules, now: LocalDate
   if (!therapist) return null;
   const variant = (compactSlots: boolean): ClinicState => ({
     ...clinic,
-    settings: { ...clinic.settings, bookingRules: { ...rules, compactSlots } },
+    settings: { ...clinic.settings, bookingRules: { ...clinic.settings.bookingRules, ...rules, compactSlots } },
   });
   const sAll = variant(false);
   const sCompact = variant(true);
@@ -465,13 +493,77 @@ function SlotChips({ times, max = 14 }: { times: string[]; max?: number }): JSX.
   );
 }
 
+/**
+ * Spuštění / pozastavení online rezervací – ukládá se hned (mimo koncept). Spustit lze až po povinných krocích
+ * kontrolního seznamu (Přehled); pozastavené rezervace zapisuje jen personál.
+ */
+function OnlineOpenRow(): JSX.Element {
+  const clinic = useClinic();
+  const run = useCommand();
+  const role = useSession().role;
+  const open = onlineOpen(clinic);
+  const missing = useMemo(() => launchMissing(clinic), [clinic]);
+  const [confirm, setConfirm] = useState(false);
+  const owner = role === 'owner';
+  const setOpen = (value: boolean) =>
+    run(updateSettings, { bookingRules: { onlineOpen: value } }, { success: value ? 'Online rezervace jsou spuštěné' : 'Online rezervace jsou pozastavené' });
+  const gaps = missing.map((x) => x.label).join(', ');
+  return (
+    <div className="set-row set-row--switch">
+      <Switch
+        checked={open}
+        disabled={!owner || (!open && missing.length > 0)}
+        onChange={(v) => {
+          if (v) setOpen(true);
+          else setConfirm(true);
+        }}
+        label="Online rezervace spuštěné"
+        description={
+          open
+            ? 'Klienti si termíny rezervují, přesouvají a hlídají uvolnění sami v portálu. Po pozastavení je zapisuje jen personál.'
+            : 'Klienti si zatím online nerezervují – v portálu vidí „Online rezervace připravujeme“. Termíny zapisuje personál.'
+        }
+      />
+      {!open && missing.length > 0 && (
+        <p className="set-footnote set-feature-note">
+          <Icon name="info" size={14} />
+          <span>
+            Spustit je půjde po doplnění: {gaps}.{' '}
+            <button type="button" className="link" onClick={() => navigate({ name: 'prehled' })}>
+              Kontrolní seznam na Přehledu
+            </button>
+          </span>
+        </p>
+      )}
+      <ConfirmDialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        tone="danger"
+        title="Pozastavit online rezervace?"
+        message={
+          <>
+            Klienti si nové termíny online nezarezervují ani je nepřesunou, v portálu uvidí „Online rezervace připravujeme“. Zrušit nebo omluvit
+            termín mohou dál a personál rezervuje normálně.
+            {missing.length > 0 && <> Znovu spustit je půjde až po doplnění: {gaps}.</>}
+          </>
+        }
+        confirmLabel="Pozastavit"
+        onConfirm={() => {
+          const r = setOpen(false);
+          if (!r.ok) throw new Error(r.error);
+        }}
+      />
+    </div>
+  );
+}
+
 function BookingSection({
   rules,
   onChange,
   errors,
 }: {
-  rules: BookingRules;
-  onChange: (patch: Partial<BookingRules>) => void;
+  rules: BookingRulesDraft;
+  onChange: (patch: Partial<BookingRulesDraft>) => void;
   errors: SettingsErrors;
 }): JSX.Element {
   const clinic = useClinic();
@@ -1083,7 +1175,8 @@ function PaymentsSection({
           label="Příjemce"
           hint={
             <>
-              Jméno, které klient uvidí v bankovní aplikaci. Když ho nevyplníte, použije se odesílatel <span className="nowrap">e-mailů</span>.
+              Jméno, které klient uvidí v bankovní aplikaci. Když ho nevyplníte, použije se obchodní firma z fakturačních údajů, případně odesílatel{' '}
+              <span className="nowrap">e-mailů</span>.
             </>
           }
           error={errors['payments.recipientName']}
@@ -1092,7 +1185,7 @@ function PaymentsSection({
             className="set-ctl-lg"
             value={payments.recipientName}
             maxLength={RECIPIENT_MAX}
-            placeholder={clinic.settings.senderName}
+            placeholder={(clinic.settings.business?.legalName || clinic.settings.senderName).slice(0, RECIPIENT_MAX)}
             suffix={<span className="set-count tnum">{`${payments.recipientName.length}/${RECIPIENT_MAX}`}</span>}
             onValueChange={(v) => onChange({ recipientName: v })}
           />

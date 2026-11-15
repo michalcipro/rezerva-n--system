@@ -34,6 +34,8 @@ export function projectForClient(s: ClinicState, clientId: Id, now: LocalDateTim
 
   return {
     ...s,
+    // e-mail pro faktury od platformy klientovi nepatří (kontakt provozovny ano)
+    settings: s.settings.business ? { ...s.settings, business: { ...s.settings.business, invoiceEmail: '' } } : s.settings,
     therapists: s.therapists.map((t) => ({ ...t, email: '' })),
     timeOff: s.timeOff.map((t) => ({ ...t, reason: '' })),
     clients: s.clients.filter((c) => c.id === clientId).map((c) => ({ ...c, notes: [], internalNote: '' })),

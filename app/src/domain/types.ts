@@ -534,6 +534,11 @@ export interface BookingRules {
   allowAnyTherapist: boolean;
   /** Proběhlé potvrzené termíny automaticky označit jako proběhlé. */
   autoCompletePast: boolean;
+  /**
+   * Online rezervace jsou spuštěné – klienti si v portálu rezervují sami. Nová provozovna začíná
+   * nespuštěná (kontrolní seznam na Přehledu); personál rezervuje vždy.
+   */
+  onlineOpen: boolean;
 }
 
 export interface WaitlistSettings {
@@ -633,11 +638,48 @@ export interface LegalSettings {
   updatedAt: LocalDateTime | null;
 }
 
+/** Poštovní adresa. PSČ se ukládá jako 5 číslic bez mezery. */
+export interface PostalAddress {
+  street: string;
+  city: string;
+  zip: string;
+}
+
+/**
+ * Fakturační a identifikační údaje provozovny (podnikatele): patička automatických e-mailů,
+ * kontakt v klientském portálu a faktury od platformy. Mění je jen majitel.
+ */
+export interface BusinessProfile {
+  /** Obchodní firma, nebo jméno a příjmení (fyzická osoba podnikatel). */
+  legalName: string;
+  /** person = fyzická osoba podnikatel, company = právnická osoba. */
+  legalForm: 'person' | 'company';
+  /** IČO – 8 číslic s kontrolou modulo 11. */
+  ico: string;
+  /** DIČ ve tvaru CZ + 8–10 číslic; prázdné = nemá. */
+  dic: string;
+  /** Plátce DPH – pak je DIČ povinné. */
+  vatPayer: boolean;
+  /** Sídlo (u fyzické osoby místo podnikání). */
+  registeredAddress: PostalAddress;
+  /** Údaj o zápisu, např. „Společnost zapsaná v obchodním rejstříku vedeném Krajským soudem v Brně, oddíl C, vložka 12345“. */
+  registryNote: string;
+  /** Adresa provozovny, pokud se liší od sídla (prázdná = stejná jako sídlo). */
+  placeAddress: PostalAddress;
+  phone: string;
+  email: string;
+  web: string;
+  /** E-mail pro faktury od platformy. */
+  invoiceEmail: string;
+}
+
 export interface Settings {
   clinicName: string;
   clinicTagline: string;
   senderName: string;
   senderEmail: string;
+  /** Fakturační údaje provozovny. */
+  business: BusinessProfile;
   bookingRules: BookingRules;
   policy: CancellationPolicy;
   /**

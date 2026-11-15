@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { CommandResponse, PlatformTenant, PublicTenant, SessionInfo, StatePayload } from '../src/api/protocol';
+import type { ApiError, AresCompany, CommandResponse, PlatformTenant, PublicTenant, SessionInfo, StatePayload } from '../src/api/protocol';
 import type { ClinicState } from '../src/domain/types';
 import { availableSlots } from '../src/engine/availability';
 import { devAuth } from '../server/auth';
@@ -8,8 +8,12 @@ import { createApi, type LicenseDigestItem } from '../server/api';
 import { licenseDigestText } from '../server/digest';
 import { chunksToState } from '../server/core/state';
 import { decryptSecret } from '../server/core/secrets';
+import { createAresClient } from '../server/providers/ares';
 import { MIGRATIONS } from '../server/store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';
+import aresNotFound from './fixtures/ares-not-found.json';
+import aresSro from './fixtures/ares-sro.json';
+import aresSroVr from './fixtures/ares-sro-vr.json';
 
 const CRON = 'cron-secret-for-tests-0001';
 const SECRETS_KEY = 'klic-pro-sifrovani-tajnych-udaju-v-testech-0001';
@@ -53,6 +57,16 @@ async function staffState(as: string, tenant?: string): Promise<{ version: numbe
   return { version: r.body.version, state: state! };
 }
 
+/** Podstrčený ARES (síť se v testech nepoužívá): vzorový subjekt, 87654326 = výpadek, jinak 404. */
+const aresJson = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const aresFetch: typeof fetch = async (input) => {
+  const url = String(input);
+  if (url.endsWith('/ekonomicke-subjekty/12345679')) return aresJson(200, aresSro);
+  if (url.endsWith('/ekonomicke-subjekty-vr/12345679')) return aresJson(200, aresSroVr);
+  if (url.endsWith('/ekonomicke-subjekty/87654326')) throw new TypeError('fetch failed');
+  return aresJson(404, aresNotFound);
+};
+
 /** Volný online termín 1:1 služby u majitele (šablona oboru určuje katalog). */
 function freeSlot(s: ClinicState, clientId: string, date: string, skip = 0): { serviceId: string; therapistId: string; start: string } {
   const svc = s.services.find((x) => x.active && x.onlineBookable && x.kind !== 'group' && !x.newClientsOnly)!;
@@ -81,6 +95,7 @@ beforeAll(async () => {
     licenseDigest: async (items) => {
       digests.push(items);
     },
+    ares: createAresClient({ fetchImpl: aresFetch }),
     log: () => undefined,
   });
   await login('platforma', 'platforma@example.cz');
@@ -116,6 +131,9 @@ describe('API platformy', () => {
     expect(state.settings.features).toEqual({ clinicalNotes: false, cardPayments: false });
     expect(state.settings.messaging.deliver).toBe(true);
     expect(state.settings.preset).toBe('fyzio');
+    // online rezervace začínají nespuštěné, kontakt a faktury na e-mail majitele
+    expect(state.settings.bookingRules.onlineOpen).toBe(false);
+    expect(state.settings.business).toMatchObject({ ico: '', email: 'majitelka@example.cz', invoiceEmail: 'majitelka@example.cz' });
     expect(state.clients).toEqual([]);
     expect(state.therapists.map((t) => `${t.firstName} ${t.lastName}`)).toEqual(['Tereza Testová']);
   });
@@ -188,6 +206,59 @@ describe('API platformy', () => {
     expect(again.body.kind).toBe('unchanged');
   });
 
+  it('před spuštěním si klient online nerezervuje; majitel projde kontrolní seznam a spustí', async () => {
+    const view = await call<StatePayload>('GET', '/state', { as: 'jana' });
+    if (view.body.kind !== 'client') throw new Error('čekal jsem pohled klienta');
+    const jana = view.body.state.clients[0];
+    expect(view.body.state.settings.bookingRules.onlineOpen).toBe(false);
+    // e-mail pro faktury od platformy klient nevidí
+    expect(view.body.state.settings.business.invoiceEmail).toBe('');
+    const { state } = await staffState('owner');
+    const early = await cmd('jana', 'createBooking', { ...freeSlot(state, jana.id, '2026-11-19'), clientId: jana.id, payment: { method: 'onsite' } });
+    expect(early.body).toMatchObject({ ok: false, error: 'Online rezervace připravujeme. Termín si zatím domluvte přímo s klinikou.' });
+
+    // spouští jen majitel (recepce nastavení nemění vůbec) a až po povinných krocích
+    expect((await cmd('recepce', 'updateSettings', { bookingRules: { onlineOpen: true } })).status).toBe(403);
+    const notYet = await cmd('owner', 'updateSettings', { bookingRules: { onlineOpen: true } });
+    expect(notYet.body).toMatchObject({
+      ok: false,
+      error: 'Online rezervace zatím nelze spustit – chybí: fakturační údaje, e-mail odesílatele, číslo účtu pro QR platby, obchodní podmínky a informace o zpracování údajů.',
+    });
+    const filled = await cmd('owner', 'updateSettings', {
+      senderEmail: 'recepce@klinika-test.cz',
+      business: { legalName: 'Klinika Test s.r.o.', legalForm: 'company', ico: '12345679', registeredAddress: { street: 'Ukázková 299/12', city: 'Brno', zip: '602 00' } },
+      payments: { accountNumber: '19-2000145399/0800' },
+      legal: { terms: '# Obchodní podmínky\n\nText podmínek.', privacy: '# Informace o zpracování osobních údajů\n\nText informací.' },
+    });
+    expect(filled.body.ok).toBe(true);
+    expect((await cmd('owner', 'updateSettings', { bookingRules: { onlineOpen: true } })).body.ok).toBe(true);
+    const after = await staffState('owner');
+    expect(after.state.settings.bookingRules.onlineOpen).toBe(true);
+    expect(after.state.settings.business).toMatchObject({ ico: '12345679', registeredAddress: { zip: '60200' } });
+  });
+
+  it('ARES: personál provozovny načte údaje podle IČO, chyby jsou česky', async () => {
+    const found = await call<AresCompany>('GET', '/ares?ico=12345679', { as: 'owner' });
+    expect(found.status).toBe(200);
+    expect(found.body).toEqual({
+      ico: '12345679',
+      legalName: 'Pohybové studio Test s.r.o.',
+      legalForm: 'company',
+      dic: 'CZ12345679',
+      vatPayer: true,
+      registeredAddress: { street: 'Ukázková 299/12', city: 'Brno', zip: '60200' },
+      registryNote: 'Společnost zapsaná v obchodním rejstříku vedeném Krajským soudem v Brně, oddíl C, vložka 12345',
+    });
+    expect((await call('GET', '/ares?ico=12345679', { as: 'recepce' })).status).toBe(200);
+    expect((await call('GET', '/ares?ico=12345679', { as: 'jana' })).status).toBe(403);
+    expect((await call('GET', '/ares?ico=12345679')).status).toBe(401);
+    expect(await call<ApiError>('GET', '/ares?ico=12345678', { as: 'owner' })).toEqual({ status: 400, body: { error: 'IČO není platné – zkontrolujte číslice.', code: 'bad_request' } });
+    const missing = await call<ApiError>('GET', '/ares?ico=45244782', { as: 'owner' });
+    expect(missing).toMatchObject({ status: 404, body: { code: 'not_found', error: expect.stringContaining('v ARES neexistuje') } });
+    const down = await call<ApiError>('GET', '/ares?ico=87654326', { as: 'owner' });
+    expect(down).toMatchObject({ status: 503, body: { error: expect.stringContaining('ARES je teď nedostupný') } });
+  });
+
   it('klient rezervuje za sebe, ne za jiné; cizí pole ani platba kartou neprojdou', async () => {
     const view = await call<StatePayload>('GET', '/state', { as: 'jana' });
     if (view.body.kind !== 'client') throw new Error('čekal jsem pohled klienta');
@@ -254,10 +325,11 @@ describe('API platformy', () => {
   it('veřejné údaje provozovny (bez přihlášení): název, vzhled, názvosloví, právní texty', async () => {
     const t = await call<PublicTenant>('GET', '/tenant');
     expect(t.status).toBe(200);
-    expect(t.body).toMatchObject({ slug: A, name: 'Klinika Test', branding: { accent: '#7c3aed', logo: null }, legal: { terms: false, privacy: false }, license: { state: 'ok' } });
+    // právní texty majitel uložil před spuštěním online rezervací
+    expect(t.body).toMatchObject({ slug: A, name: 'Klinika Test', branding: { accent: '#7c3aed', logo: null }, legal: { terms: true, privacy: true }, license: { state: 'ok' } });
     expect(t.body.terms.staff.sg[0]).toBeTruthy();
     expect((await call('GET', '/tenant', { tenant: 'neexistuje' })).status).toBe(404);
-    expect((await call('GET', '/legal?doc=terms')).status).toBe(404);
+    expect((await call<{ text: string }>('GET', '/legal?doc=privacy')).body.text).toContain('Text informací.');
     await cmd('owner', 'updateSettings', { legal: { terms: '# Obchodní podmínky\n\nText.' } });
     const legal = await call<{ title: string; text: string }>('GET', '/legal?doc=terms');
     expect(legal.body).toMatchObject({ title: 'Obchodní podmínky', text: '# Obchodní podmínky\n\nText.' });
@@ -280,6 +352,9 @@ describe('API platformy', () => {
     const sb = await staffState('ownerB', 'studio-b');
     expect(sb.state.clients).toEqual([]);
     expect(sb.state.services).toEqual([]);
+    expect(sb.state.settings.bookingRules.onlineOpen).toBe(false);
+    // bez vlastních právních textů zatím nic nezveřejňuje
+    expect((await call('GET', '/legal?doc=terms', { tenant: 'studio-b' })).status).toBe(404);
     // adresa bez provozovny už nevede nikam (na platformě jsou dvě)
     expect((await call('GET', '/tenant', { tenant: null })).status).toBe(404);
     expect((await call<SessionInfo>('GET', '/session', { as: 'platforma', tenant: null })).body).toMatchObject({ platformAdmin: true, tenant: null, role: null });

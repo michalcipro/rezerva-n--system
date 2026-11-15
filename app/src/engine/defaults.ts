@@ -13,6 +13,7 @@ import type {
   TimeRange,
   WeekSchedule,
 } from '../domain/types';
+import { emptyBusinessProfile } from './business';
 import { DEFAULT_TEMPLATES } from './messages';
 
 export const SCHEMA_VERSION = 1;
@@ -265,6 +266,7 @@ export function defaultSettings(): Settings {
     clinicTagline: 'fyzioterapie · trénink · masáže',
     senderName: 'Klinika pohyb',
     senderEmail: 'rezervace@example.com',
+    business: emptyBusinessProfile(),
     bookingRules: {
       slotStepMin: 15,
       minNoticeMin: 120,
@@ -273,6 +275,8 @@ export function defaultSettings(): Settings {
       maxUpcomingPerClient: 6,
       allowAnyTherapist: true,
       autoCompletePast: true,
+      // výchozí stav, ukázková data a starší data: spuštěno; nová provozovna na platformě začíná nespuštěná (presets.ts)
+      onlineOpen: true,
     },
     policy: {
       freeCancelHours: 24,

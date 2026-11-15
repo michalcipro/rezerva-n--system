@@ -3,6 +3,7 @@ import type { Client, ClinicState, Id, LocalDate, LocalDateTime } from '../domai
 import { availableSlots } from '../engine/availability';
 import { countLabel, formatDateLong, formatDuration, formatTime, plural } from '../engine/format';
 import { groupSessionsOverview, type GroupSessionOverview } from '../engine/groups';
+import { onlineOpen } from '../engine/launch';
 import { moduleOn } from '../engine/modules';
 import { bookingsOfClient, getClient, getTherapist, therapistName } from '../engine/selectors';
 import { addDays, dateOf, daysBetween, diffMinutes } from '../engine/time';
@@ -120,7 +121,8 @@ export function GroupSchedule({ days = 7 }: GroupScheduleProps = {}): JSX.Elemen
     if (last && last.date === date) last.rows.push(r);
     else groups.push({ date, rows: [r] });
   }
-  const blocked = !!client?.blocked;
+  // zablokovaný účet nebo nespuštěné online rezervace: rozvrh jen ukazuje, rezervuje recepce
+  const blocked = !!client?.blocked || !onlineOpen(clinic);
   const booked = bookedLabel(client);
 
   return (

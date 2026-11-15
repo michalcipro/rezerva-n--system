@@ -123,7 +123,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
   const now = useNow();
   const run = useCommand();
   const words = useTerms();
-  const { client, go } = usePortal();
+  const { client, canBook, go } = usePortal();
   const [policyOpen, setPolicyOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const qrOn = qrAvailable(clinic);
@@ -151,11 +151,11 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
   const cs = upcoming ? cancelState(clinic, b, now) : null;
   const ev = cs?.ev;
   const makeup = useMemo(() => clinic.makeups.find((m) => m.sourceBookingId === b.id), [clinic.makeups, b.id]);
-  const rebookable = !client.blocked && bookableServices(clinic, client.id).some((s) => s.id === b.serviceId);
+  const rebookable = canBook && bookableServices(clinic, client.id).some((s) => s.id === b.serviceId);
   const pkg = b.payment.packageId ? getPackage(clinic, b.payment.packageId) : undefined;
   const pkgUsage = pkg ? packageUsage(clinic, pkg, dateOf(now)) : undefined;
   const canReschedule =
-    !!ev && future && !client.blocked && !svc?.newClientsOnly && (ev.phase === 'free' || ev.excuse.allowed) && b.payment.method !== 'makeup' &&
+    !!ev && future && canBook && !svc?.newClientsOnly && (ev.phase === 'free' || ev.excuse.allowed) && b.payment.method !== 'makeup' &&
     // vypnuté skupinové lekce (Nastavení → Moduly): přihlášku na lekci jde jen zrušit
     (svc?.kind !== 'group' || moduleOn(clinic, 'groups'));
   const place = placeLabel(clinic, b);
@@ -279,7 +279,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
           icon="repeat"
           title="Náhradní termín"
           actions={
-            !client.blocked ? (
+            canBook ? (
               <Button size="sm" variant="primary" onClick={() => go({ name: 'rezervace', makeupId: makeup.id })}>
                 Vybrat náhradní termín
               </Button>
@@ -369,7 +369,7 @@ function Detail({ booking: b, onCancel }: { booking: Booking; onCancel: () => vo
       )}
       {future && !canReschedule && ev && (
         <p className="por-note">
-          {client.blocked
+          {!canBook
             ? 'Přesun vám teď domluví recepce.'
             : svc?.newClientsOnly
               ? 'Vstupní vyšetření přesune recepce.'
@@ -429,7 +429,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const now = useNow();
   const run = useCommand();
   const words = useTerms();
-  const { client, go } = usePortal();
+  const { client, canBook, go } = usePortal();
   const svc = getService(clinic, b.serviceId);
   const cat = svc ? getCategory(clinic, svc.categoryId) : undefined;
   const t = getTherapist(clinic, b.therapistId);
@@ -437,7 +437,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
   const options = ev.options.filter((o) => !o.staffOnly);
   const forfeit = ev.isGroup || (b.payment.method === 'package' && clinic.settings.policy.packageLateHandling === 'forfeit_entry');
   const canReschedule =
-    !client.blocked && !svc?.newClientsOnly && b.payment.method !== 'makeup' && b.start > now && (ev.phase === 'free' || ev.excuse.allowed) &&
+    canBook && !svc?.newClientsOnly && b.payment.method !== 'makeup' && b.start > now && (ev.phase === 'free' || ev.excuse.allowed) &&
     (svc?.kind !== 'group' || moduleOn(clinic, 'groups'));
   const fallbackChoice = options.find((o) => o.recommended)?.kind ?? options[0]?.kind ?? (canReschedule ? 'reschedule' : null);
   const [picked, setChoice] = useState<string | null>(fallbackChoice);
@@ -654,7 +654,7 @@ function CancelFlow({ booking: b, onBack, onDone }: { booking: Booking; onBack: 
 function CancelDone({ booking: b, result }: { booking: Booking; result: CancelResult }): JSX.Element {
   const clinic = useClinic();
   const now = useNow();
-  const { client, go } = usePortal();
+  const { client, canBook, go } = usePortal();
   // stav po zrušení: náhrada vznikla jen u předplaceného omluveného termínu
   const openMakeup = clinic.makeups.find((m) => m.sourceBookingId === b.id && m.status === 'open' && m.validUntil > now);
   const excused = result.kind === 'excuse';
@@ -664,7 +664,7 @@ function CancelDone({ booking: b, result }: { booking: Booking; result: CancelRe
       title={excused ? 'Omluvenka' : 'Zrušení termínu'}
       dock={
         <ActionBar>
-          {openMakeup && !client.blocked ? (
+          {openMakeup && canBook ? (
             <>
               <Button variant="secondary" size="lg" onClick={() => go({ name: 'moje' })}>
                 Později
@@ -678,7 +678,7 @@ function CancelDone({ booking: b, result }: { booking: Booking; result: CancelRe
               <Button variant="secondary" size="lg" onClick={() => go({ name: 'moje' })}>
                 Moje termíny
               </Button>
-              {!client.blocked && (
+              {canBook && (
                 <Button variant="primary" size="lg" onClick={() => go({ name: 'rezervace', serviceId: b.serviceId })}>
                   Nový termín
                 </Button>

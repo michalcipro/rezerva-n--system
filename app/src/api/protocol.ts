@@ -1,4 +1,4 @@
-import type { ActorRole, BrandingSettings, ClinicState, TermsSettings } from '../domain/types';
+import type { ActorRole, BrandingSettings, BusinessProfile, ClinicState, TermsSettings } from '../domain/types';
 import type { LicensePlan, LicenseState, LicenseStatus, LicenseView } from './license';
 
 /** Datové tvary API mezi aplikací v prohlížeči a serverem (sdílené oběma stranami). */
@@ -69,6 +69,12 @@ export interface AddMemberRequest {
   therapistId?: string | null;
   displayName: string;
 }
+
+/**
+ * Údaje podnikatele z ARES (GET /api/ares?ico=…) – doplní formulář fakturačních údajů, uloží je až majitel.
+ * Údaj o zápisu je prázdný, když ho ARES neuvádí.
+ */
+export type AresCompany = Pick<BusinessProfile, 'ico' | 'legalName' | 'legalForm' | 'dic' | 'vatPayer' | 'registeredAddress' | 'registryNote'>;
 
 export interface ApiError {
   error: string;

@@ -5,3 +5,4 @@ export * from './render';
 export * from './console';
 export * from './brevo';
 export * from './fio';
+export * from './ares';
