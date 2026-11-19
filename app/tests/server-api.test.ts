@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { ApiError, AresCompany, CommandResponse, PlatformTenant, PublicTenant, SessionInfo, StatePayload } from '../src/api/protocol';
+import type { ApiError, AresCompany, CommandResponse, CreateTenantResponse, InviteResponse, MemberView, PlatformTenant, PublicTenant, SessionInfo, StatePayload } from '../src/api/protocol';
 import type { ClinicState } from '../src/domain/types';
 import { availableSlots } from '../src/engine/availability';
 import { devAuth } from '../server/auth';
@@ -8,7 +8,10 @@ import { createApi, type LicenseDigestItem } from '../server/api';
 import { licenseDigestText } from '../server/digest';
 import { chunksToState } from '../server/core/state';
 import { decryptSecret } from '../server/core/secrets';
+import { createEdgeHandler } from '../server/edge';
+import { tenantAppUrl, tenantInviteEmail } from '../server/invite';
 import { createAresClient } from '../server/providers/ares';
+import type { Messenger, OutgoingEmail } from '../server/providers/types';
 import { MIGRATIONS } from '../server/store/migrations';
 import { SUPABASE_ROLES_SQL, createSqlStore } from '../server/store/sql';
 import aresNotFound from './fixtures/ares-not-found.json';
@@ -29,17 +32,35 @@ const tokens: Record<string, string> = {};
 let n = 0;
 let tenantA: PlatformTenant;
 const digests: LicenseDigestItem[][] = [];
+let store: ReturnType<typeof createSqlStore>;
+const logs: { message: string; detail?: Record<string, unknown> }[] = [];
+
+/** Adresa aplikace v podadresáři (provizorní hosting na GitHub Pages) – odkazy v pozvánkách. */
+const APP_URL = 'https://michalcipro.github.io/rezerva-n--system/app';
+/** Falešný messenger: e-maily jen zapíše; `mailMode` určí, zda odeslání projde, selže, nebo spadne. */
+const mails: OutgoingEmail[] = [];
+let mailMode: 'ok' | 'fail' | 'throw' = 'ok';
+const messenger: Messenger = {
+  async sendEmail(m) {
+    mails.push(m);
+    if (mailMode === 'throw') throw new TypeError(`fetch failed (${m.to})`);
+    return mailMode === 'ok' ? { ok: true, providerId: `m${mails.length}` } : { ok: false, permanent: true, error: `Brevo e-mail odmítlo: neplatná adresa ${m.to} (HTTP 400).`, httpStatus: 400 };
+  },
+  async sendSms() {
+    return { ok: false, error: 'SMS se neposílají.' };
+  },
+};
 
 async function call<T = unknown>(
   method: string,
   path: string,
-  opts: { as?: string; body?: unknown; headers?: Record<string, string>; tenant?: string | null } = {},
+  opts: { as?: string; body?: unknown; headers?: Record<string, string>; tenant?: string | null; handler?: (req: Request) => Promise<Response> } = {},
 ): Promise<{ status: number; body: T }> {
   const headers: Record<string, string> = { 'content-type': 'application/json', ...opts.headers };
   const tenant = opts.tenant === undefined ? A : opts.tenant;
   if (tenant) headers['x-tenant'] = tenant;
   if (opts.as) headers.authorization = `Bearer ${tokens[opts.as]}`;
-  const res = await handle(new Request(`http://localhost/api${path}`, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) }));
+  const res = await (opts.handler ?? handle)(new Request(`http://localhost/api${path}`, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) }));
   return { status: res.status, body: (await res.json()) as T };
 }
 
@@ -81,7 +102,7 @@ beforeAll(async () => {
   db = new PGlite();
   await db.exec(SUPABASE_ROLES_SQL);
   for (const m of MIGRATIONS) await db.exec(m);
-  const store = createSqlStore((sql, params) => db.query(sql, params));
+  store = createSqlStore((sql, params) => db.query(sql, params));
   auth = devAuth('vyvojovy-klic-pro-testy-0001');
   handle = createApi({
     store,
@@ -96,7 +117,13 @@ beforeAll(async () => {
       digests.push(items);
     },
     ares: createAresClient({ fetchImpl: aresFetch }),
-    log: () => undefined,
+    messenger,
+    publicAppUrl: APP_URL,
+    supportEmail: 'podpora@example.cz',
+    platformName: 'Testovací platforma',
+    log: (message, detail) => {
+      logs.push({ message, detail });
+    },
   });
   await login('platforma', 'platforma@example.cz');
   await login('owner', 'majitelka@example.cz');
@@ -462,6 +489,17 @@ describe('API platformy', () => {
     expect(other.headers.get('access-control-allow-origin')).toBeNull();
   });
 
+  it('CORS pro aplikaci v podadresáři (GitHub Pages): v ALLOWED_ORIGINS se počítá jen původ', async () => {
+    const env = { SUPABASE_URL: 'https://projekt.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'service' };
+    const preflight = (origin: string) => new Request('https://projekt.supabase.co/functions/v1/api/command', { method: 'OPTIONS', headers: { origin } });
+    for (const allowed of ['https://michalcipro.github.io', 'https://michalcipro.github.io/rezerva-n--system/app/']) {
+      const edge = createEdgeHandler({ ...env, ALLOWED_ORIGINS: `${allowed}, https://rezervace.example.cz` });
+      expect((await edge(preflight('https://michalcipro.github.io'))).headers.get('access-control-allow-origin')).toBe('https://michalcipro.github.io');
+      expect((await edge(preflight('https://rezervace.example.cz'))).headers.get('access-control-allow-origin')).toBe('https://rezervace.example.cz');
+      expect((await edge(preflight('https://jiny.github.io'))).headers.get('access-control-allow-origin')).toBeNull();
+    }
+  });
+
   it('anonymizace klienta (jen majitel) zruší i propojení jeho přihlášení', async () => {
     const { state } = await staffState('owner');
     const petr = state.clients.find((c) => c.email === 'petr@example.cz')!;
@@ -477,5 +515,124 @@ describe('API platformy', () => {
   it('cesta funguje i s předponou Supabase Edge Function', async () => {
     const res = await handle(new Request('http://localhost/functions/v1/api/health'));
     expect(res.status).toBe(200);
+  });
+});
+
+describe('Pozvánka majitele nové provozovny', () => {
+  const tenantBody = (slug: string, ownerEmail: string) => ({ name: `Studio ${slug}`, slug, preset: 'masaze', ownerName: 'Olga Pozvaná', ownerEmail, plan: 'trial', validUntil: '2026-12-17' });
+  const tenantId = async (slug: string): Promise<string> =>
+    (await call<PlatformTenant[]>('GET', '/platform/tenants', { as: 'platforma', tenant: null })).body.find((t) => t.slug === slug)!.id;
+
+  it('založení pošle majiteli pozvánku: zakladatel, adresa s podadresářem, přihlášení kódem, první kroky', async () => {
+    const before = mails.length;
+    const r = await call<CreateTenantResponse>('POST', '/platform/tenants', {
+      as: 'platforma',
+      tenant: null,
+      body: { name: 'Masáže U Lípy & spol.', slug: 'masaze-u-lipy', preset: 'masaze', ownerName: 'Olga Lípová', ownerEmail: 'Olga@Example.cz', plan: 'trial', validUntil: '2026-12-17' },
+    });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ slug: 'masaze-u-lipy', name: 'Masáže U Lípy & spol.', invite: 'sent', owners: [{ email: 'olga@example.cz' }] });
+    expect(mails.length).toBe(before + 1);
+    const m = mails.at(-1)!;
+    expect(m).toMatchObject({ to: 'olga@example.cz', toName: 'Olga Lípová', fromName: 'Testovací platforma', replyTo: 'podpora@example.cz' });
+    expect(m.subject).toBe('Pozvánka do rezervačního systému: Masáže U Lípy & spol.');
+    const url = `${APP_URL}/masaze-u-lipy`;
+    for (const part of ['„Masáže U Lípy & spol.“', 'Testovací platforma', url, 'olga@example.cz', 'jednorázový kód', 'Žádné heslo', 'podpora@example.cz'])
+      expect(m.text).toContain(part);
+    // co nastavit nejdřív – v tomto pořadí, spuštění rezervací nakonec
+    const steps = ['Fakturační údaje', 'Služby a ceník', 'Tým a pracovní doby', 'Platby', 'Právní texty', '„Spustit online rezervace“'].map((x) => m.text.indexOf(x));
+    expect(steps.every((i) => i > 0)).toBe(true);
+    expect(steps).toEqual([...steps].sort((a, b) => a - b));
+    // jednoduché HTML jako ostatní e-maily: klikací adresa, escapovaný text
+    expect(m.html).toContain(`<a href="${url}"`);
+    expect(m.html).toContain('Masáže U Lípy &amp; spol.');
+    expect(m.html).not.toContain('Lípy & spol.');
+    // majitel se na adrese přihlásí e-mailem z pozvánky
+    await login('olga', 'olga@example.cz');
+    expect((await call<SessionInfo>('GET', '/session', { as: 'olga', tenant: 'masaze-u-lipy' })).body).toMatchObject({ role: 'owner', tenant: { slug: 'masaze-u-lipy' } });
+  });
+
+  it('text pozvánky: adresa i z PUBLIC_APP_URL s lomítkem, bez podpory žádný kontakt ani odpověď', () => {
+    expect(tenantAppUrl(`${APP_URL}/`, 'pohyb')).toBe(`${APP_URL}/pohyb`);
+    expect(tenantAppUrl('https://app.example.cz', 'pohyb')).toBe('https://app.example.cz/pohyb');
+    const m = tenantInviteEmail({ tenantName: 'Pohyb', slug: 'pohyb', owner: { name: '', email: 'a@example.cz' }, appUrl: 'https://app.example.cz/', platformName: 'Platforma' });
+    expect(m.text).toContain('https://app.example.cz/pohyb');
+    expect(m.text).not.toContain('pomůžeme');
+    expect(m.replyTo).toBeUndefined();
+    expect(m.toName).toBeUndefined();
+  });
+
+  it('nepovedené odeslání založení neshodí – odpověď řekne „failed“, v logu nejsou e-mailové adresy', async () => {
+    const logged = logs.length;
+    mailMode = 'fail';
+    const failed = await call<CreateTenantResponse>('POST', '/platform/tenants', { as: 'platforma', tenant: null, body: tenantBody('studio-chyba', 'chyba@example.cz') });
+    mailMode = 'throw';
+    const thrown = await call<CreateTenantResponse>('POST', '/platform/tenants', { as: 'platforma', tenant: null, body: tenantBody('studio-vypadek', 'vypadek@example.cz') });
+    mailMode = 'ok';
+    expect([failed.status, failed.body.invite]).toEqual([200, 'failed']);
+    expect([thrown.status, thrown.body.invite]).toEqual([200, 'failed']);
+    // provozovny existují a majitel se přihlásí
+    const slugs = (await call<PlatformTenant[]>('GET', '/platform/tenants', { as: 'platforma', tenant: null })).body.map((t) => t.slug);
+    expect(slugs).toEqual(expect.arrayContaining(['studio-chyba', 'studio-vypadek']));
+    await login('chyba', 'chyba@example.cz');
+    expect((await call<SessionInfo>('GET', '/session', { as: 'chyba', tenant: 'studio-chyba' })).body.role).toBe('owner');
+    const problems = logs.slice(logged).filter((l) => l.message.startsWith('Pozvánku majitele'));
+    expect(problems.map((l) => l.detail?.slug)).toEqual(['studio-chyba', 'studio-vypadek']);
+    expect(JSON.stringify(problems)).not.toContain('@');
+  });
+
+  it('pozvánku znovu pošle jen vlastník platformy, a to všem majitelům provozovny', async () => {
+    const path = `/platform/tenants/${await tenantId('studio-chyba')}/invite`;
+    expect((await call('POST', path, { tenant: null })).status).toBe(401);
+    expect((await call('POST', path, { as: 'chyba', tenant: null })).status).toBe(403);
+    expect((await call('POST', path, { as: 'cizi', tenant: null })).status).toBe(403);
+    expect((await call('POST', path, { as: 'chyba', tenant: 'studio-chyba' })).status).toBe(403);
+    // druhý majitel
+    await call('POST', '/members', { as: 'chyba', tenant: 'studio-chyba', body: { email: 'spolumajitel@example.cz', role: 'owner', displayName: 'Spolu Majitel' } });
+    const before = mails.length;
+    const r = await call<InviteResponse>('POST', path, { as: 'platforma', tenant: null });
+    expect(r.status).toBe(200);
+    expect(r.body.invite).toBe('sent');
+    expect([...r.body.to].sort()).toEqual(['chyba@example.cz', 'spolumajitel@example.cz']);
+    expect(mails.slice(before).map((m) => m.to).sort()).toEqual(['chyba@example.cz', 'spolumajitel@example.cz']);
+    expect(mails.at(-1)!.text).toContain(`${APP_URL}/studio-chyba`);
+    // selhání u opakovaného odeslání
+    mailMode = 'fail';
+    expect((await call<InviteResponse>('POST', path, { as: 'platforma', tenant: null })).body.invite).toBe('failed');
+    mailMode = 'ok';
+    // neexistující provozovna, jiná metoda
+    expect((await call('POST', '/platform/tenants/00000000-0000-4000-8000-000000000000/invite', { as: 'platforma', tenant: null })).status).toBe(404);
+    expect((await call('GET', path, { as: 'platforma', tenant: null })).status).toBe(405);
+  });
+
+  it('provozovna bez majitele: pozvánku není komu poslat', async () => {
+    const path = `/platform/tenants/${await tenantId('studio-vypadek')}/invite`;
+    // podpora platformy odebere jediného majitele
+    const members = await call<MemberView[]>('GET', '/members', { as: 'platforma', tenant: 'studio-vypadek' });
+    const owner = members.body.find((x) => x.email === 'vypadek@example.cz')!;
+    expect((await call('DELETE', `/members?userId=${owner.userId}`, { as: 'platforma', tenant: 'studio-vypadek' })).status).toBe(200);
+    const r = await call<ApiError>('POST', path, { as: 'platforma', tenant: null });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toContain('nemá majitele');
+  });
+
+  it('bez odesílání e-mailů nebo adresy aplikace se pozvánka neposílá („not_configured“), založení projde', async () => {
+    const base = { store, auth, devAuth: auth, clock: () => CLOCK, platformAdmins: ['platforma@example.cz'], log: () => undefined };
+    const withoutMail = createApi({ ...base, publicAppUrl: APP_URL });
+    const withoutUrl = createApi({ ...base, messenger });
+    const badUrl = createApi({ ...base, messenger, publicAppUrl: 'michalcipro.github.io/rezerva-n--system/app' });
+    const before = mails.length;
+    const r = await call<CreateTenantResponse>('POST', '/platform/tenants', { handler: withoutMail, as: 'platforma', tenant: null, body: tenantBody('studio-bez-posty', 'bez-posty@example.cz') });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ slug: 'studio-bez-posty', invite: 'not_configured' });
+    const path = `/platform/tenants/${r.body.id}/invite`;
+    for (const handler of [withoutMail, withoutUrl, badUrl])
+      expect((await call<InviteResponse>('POST', path, { handler, as: 'platforma', tenant: null })).body).toEqual({ invite: 'not_configured', to: ['bez-posty@example.cz'] });
+    // oprávnění platí i bez nastavení e-mailů
+    expect((await call('POST', path, { handler: withoutMail, as: 'owner', tenant: null })).status).toBe(403);
+    expect(mails.length).toBe(before);
+    // s úplným nastavením odejde
+    expect((await call<InviteResponse>('POST', path, { as: 'platforma', tenant: null })).body.invite).toBe('sent');
+    expect(mails.length).toBe(before + 1);
   });
 });

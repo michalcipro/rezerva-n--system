@@ -9,6 +9,8 @@
  * Přihlášení: majitelka@pohyb.local, recepce@pohyb.local, terapeut@pohyb.local, martin.dvorak@example.com
  * (klient z ukázkových dat), libovolný jiný e-mail = nový klient.
  * DEV_DB=memory spustí databázi jen v paměti (každé spuštění čistá data).
+ * Pozvánka majitele nové provozovny se jen vypíše do konzole; odkaz v ní míří na PUBLIC_APP_URL
+ * (výchozí http://localhost:5173, s podadresářem např. http://localhost:4173/rezerva-n--system/app).
  */
 import { PGlite } from '@electric-sql/pglite';
 import { mkdirSync } from 'node:fs';
@@ -72,6 +74,7 @@ async function main(): Promise<void> {
     await store.upsertMember(clinicId, await auth.ensureUser('terapeut@pohyb.local'), 'therapist', 't_kos', 'Marek Kos', 'terapeut@pohyb.local');
   }
 
+  const messenger = createConsoleMessenger((line) => console.log(line));
   const handle = createApi({
     store,
     auth,
@@ -81,7 +84,9 @@ async function main(): Promise<void> {
     platformAdmins: ['platforma@pohyb.local'],
     secretsKey: 'dev-secrets-key-only-for-localhost-0001',
     unsubscribeSecret: 'dev-unsubscribe-secret',
-    cronJobs: [deliveryJob({ messenger: createConsoleMessenger((line) => console.log(line)), publicApiUrl: `http://localhost:${PORT}/api`, unsubscribeSecret: 'dev-unsubscribe-secret' })],
+    cronJobs: [deliveryJob({ messenger, publicApiUrl: `http://localhost:${PORT}/api`, unsubscribeSecret: 'dev-unsubscribe-secret' })],
+    messenger,
+    publicAppUrl: process.env.PUBLIC_APP_URL || 'http://localhost:5173',
     log: (message, detail) => console.log(message, detail ?? ''),
   });
 

@@ -69,12 +69,14 @@ Odhad času: 2–3 hodiny (bez čekání na DNS).
    | `PLATFORM_ADMIN_EMAILS` | váš e-mail (vlastník platformy), případně více oddělených čárkou |
    | `SECRETS_KEY` | náhodný řetězec (aspoň 32 znaků) – šifruje tokeny bank zákazníků; **neměňte ho** (staré tokeny by nešly přečíst) |
    | `CRON_SECRET` | náhodný řetězec (aspoň 32 znaků) |
-   | `ALLOWED_ORIGINS` | adresa aplikace a vlastní domény zákazníků, např. `https://app.vase-platforma.cz,https://rezervace.klinika.cz` |
+   | `ALLOWED_ORIGINS` | adresa aplikace a vlastní domény zákazníků, např. `https://app.vase-platforma.cz,https://rezervace.klinika.cz` (počítá se jen původ – schéma a doména, bez cesty) |
    | `PUBLIC_API_URL` | `https://<ref>.supabase.co/functions/v1/api` |
-   | `PUBLIC_APP_URL` | adresa aplikace, např. `https://app.vase-platforma.cz` (odkaz v denním přehledu licencí) |
-   | `BREVO_API_KEY` | API klíč z Brevo (`xkeysib-…`) – bez něj se zprávy jen řadí do fronty |
+   | `PUBLIC_APP_URL` | adresa aplikace i s případným podadresářem, např. `https://app.vase-platforma.cz` – odkaz v pozvánce majitele nové provozovny (`…/<slug>`) a v denním přehledu licencí (`…/platforma`); bez ní se pozvánky neposílají |
+   | `BREVO_API_KEY` | API klíč z Brevo (`xkeysib-…`) – bez něj se zprávy jen řadí do fronty a pozvánky se neposílají |
    | `MAIL_FROM` | odesílací adresa na ověřené doméně, např. `rezervace@klinika.cz` |
    | `MAIL_FROM_NAME` | jméno odesílatele (jinak se bere název kliniky z nastavení) |
+   | `PLATFORM_NAME` | nepovinné – název platformy v pozvánce majitele (kdo provozovnu založil, odesílatel), výchozí „Rezervační platforma“ |
+   | `SUPPORT_EMAIL` | nepovinné – kontakt na podporu v pozvánce; odpovědi na pozvánku jdou sem |
    | `SMS_SENDER` | **nepoužívá se** – s klienty se komunikuje jen e-mailem, SMS jsou vypnuté (`SMS_ENABLED` v `src/engine/channels.ts`); nezadávejte |
 
    Náhodný řetězec vytvoříte např. příkazem `openssl rand -hex 32`. Pokud projekt používá nové klíče
@@ -91,7 +93,8 @@ Odhad času: 2–3 hodiny (bez čekání na DNS).
 
 Otevřete `https://<adresa aplikace>/platforma` a přihlaste se e-mailem z `PLATFORM_ADMIN_EMAILS`.
 V konzoli **Nová provozovna** založíte zákazníka: název, adresa (`/<slug>`), obor (šablona služeb,
-názvosloví a modulů), majitel (e-mail, kterým se přihlásí) a licence. Postup pro každého dalšího
+názvosloví a modulů), majitel (e-mail, kterým se přihlásí) a licence. Majitel dostane pozvánku e-mailem
+(potřebuje `BREVO_API_KEY`, `MAIL_FROM` a `PUBLIC_APP_URL`). Postup pro každého dalšího
 zákazníka je v [PLATFORM.md](PLATFORM.md) a [business/onboarding-zakaznika.md](business/onboarding-zakaznika.md).
 
 ## 5. Automatika každých 5 minut (plánovač v databázi)
@@ -160,6 +163,9 @@ Přeplatky se potvrdí na částku výzvy; rozdíl je třeba vyřešit ručně (
 5. Bezpečnostní hlavičky jsou v [`public-prod/_headers`](../public-prod/_headers); pro užší pravidlo
    nahraďte v `connect-src` `https://*.supabase.co` konkrétní adresou projektu.
 
+Dokud doména a Cloudflare Pages nejsou, může web dočasně běžet na GitHub Pages – viz
+[krok 12](#12-provizorní-hosting-na-github-pages).
+
 ## 9. Právní texty
 
 Návrhy jsou v [`docs/legal/`](legal/README.md) – **před zveřejněním je musí zkontrolovat advokát**.
@@ -199,3 +205,65 @@ Brevo a Cloudflare (DPA jsou součástí podmínek – stáhnout a uložit). Se 
   sám po pushi do produkční větve. Nová migrace = nový soubor v `supabase/migrations/`.
 - **Lokální vývoj:** `npm run dev:server` (API s ukázkovou provozovnou na :8787) a `npm run dev:live`
   (aplikace na :5173 – provozovna na `/pohyb`, správa platformy na `/platforma`, přihlášení bez e-mailu).
+
+## 12. Provizorní hosting na GitHub Pages
+
+Než bude doména a Cloudflare Pages (krok 8), může ostrá aplikace dočasně běžet na GitHub Pages projektu –
+v podadresáři `app/` větve `gh-pages`, vedle testovací verze:
+
+| Adresa | Co tam je |
+|---|---|
+| `https://michalcipro.github.io/rezerva-n--system/` | testovací verze (data v prohlížeči) – zůstává beze změny |
+| `https://michalcipro.github.io/rezerva-n--system/app/<slug>` | provozovna |
+| `https://michalcipro.github.io/rezerva-n--system/app/platforma` | správa platformy |
+
+**Podadresář – `VITE_BASE`.** Ostrá verze (`npm run build:prod`, i `npm run dev:live`) bere podadresář webu
+z `VITE_BASE` (výchozí `/`, tj. kořen domény). Od něj se počítají assety a písma, právní stránky
+i adresy v aplikaci (`<base><slug>`, `<base>platforma`; v kódu `import.meta.env.BASE_URL`). Adresa mimo
+podadresář ukáže „Provozovna nenalezena“. Testovací verze (`npm run build`, jeden soubor) běží vždy z kořene.
+
+**Nasazení – `scripts/deploy-pages.mjs`** (v `app/`, potřebuje Node 22 a git s právem pushovat do repozitáře):
+1. Do `app/.env.prod.local` (není v gitu) nebo do prostředí doplňte `VITE_API_URL`, `VITE_SUPABASE_URL`
+   a `VITE_SUPABASE_ANON_KEY` (stejné hodnoty jako v kroku 8.3).
+2. `node scripts/deploy-pages.mjs` – sestaví ostrou verzi s `VITE_BASE=/rezerva-n--system/app/`, stáhne větev
+   `gh-pages` z `origin` do dočasné pracovní kopie (`git worktree`), nahradí v ní adresář `app/` (bez `_headers`),
+   do kořene zapíše `404.html` = `app/index.html` a připraví commit se zdrojovou větví a commitem. Kořenový
+   `index.html` (testovací verze) nechá. Vypíše, co by nahrál, a **nic nenahraje**.
+3. `node scripts/deploy-pages.mjs --push` – totéž a nahraje na `origin gh-pages` (s necommitnutými změnami
+   v `app/` odmítne). GitHub Pages stránku obnoví zhruba do minuty. Jiný podadresář: `--base /rezerva-n--system/beta/`.
+4. GitHub → Settings → Pages: *Deploy from a branch*, větev `gh-pages`, složka `/ (root)` – už nastavené kvůli
+   testovací verzi.
+
+GitHub Pages neumí přesměrování pro jednostránkové aplikace: pro každou neexistující cestu vrací `404.html`
+z kořene webu. Proto je `404.html` kopií `app/index.html` (odkazy na assety jsou absolutní i s podadresářem).
+
+**Server** (Supabase → Edge Functions → Secrets):
+
+| Název | Hodnota |
+|---|---|
+| `PUBLIC_APP_URL` | `https://michalcipro.github.io/rezerva-n--system/app` – i s podadresářem; pozvánka majitele pak odkazuje na `…/app/<slug>`, přehled licencí na `…/app/platforma` |
+| `ALLOWED_ORIGINS` | `https://michalcipro.github.io` – jen původ, bez cesty (hlavička `Origin` cestu nemá); případné další adresy oddělte čárkou |
+
+Authentication → URL Configuration → *Site URL*: `https://michalcipro.github.io/rezerva-n--system/app/`
+(přihlašuje se kódem, odkaz z e-mailu se nepoužívá – jde jen o výchozí adresu v šablonách Supabase).
+
+**Omezení**
+- **Hluboké odkazy vracejí stav 404.** `…/app/<slug>` a `…/app/platforma` (i po F5) obsluhuje `404.html`:
+  stránka v prohlížeči funguje normálně, ale monitoring dostupnosti nebo náhledy odkazů v chatu ji mohou brát
+  jako chybu. Monitorujte `…/app/` (stav 200) a `/api/health`.
+- **Bez vlastních HTTP hlaviček.** `public-prod/_headers` (CSP, HSTS, `X-Frame-Options`, dlouhá cache assetů)
+  GitHub Pages nepodporuje, skript ho proto nenahrává; stránku lze např. vložit do rámu cizího webu.
+- **Sdílený původ `michalcipro.github.io`.** Testovací verze, ostrá aplikace a všechny ostatní stránky GitHub Pages
+  téhož účtu sdílejí úložiště prohlížeče (včetně přihlášení). Na účtu nezveřejňujte cizí ani nedůvěryhodný kód.
+- Jeden `404.html` na celý web projektu: i překlep mimo `app/` ukáže ostrou aplikaci s hláškou „Provozovna nenalezena“.
+- Vlastní domény provozoven tu nejdou – provozovny běží jen na `…/app/<slug>`.
+
+**Přechod na vlastní doménu**
+1. Web podle kroku 8 (Cloudflare Pages) bez `VITE_BASE` – aplikace běží z kořene domény a platí `_headers`.
+2. Secrets: `PUBLIC_APP_URL=https://app.vase-platforma.cz`; do `ALLOWED_ORIGINS` přidejte novou doménu
+   (`https://michalcipro.github.io` odeberte, až starou adresu nikdo nepoužívá). V Supabase změňte *Site URL*.
+3. Majitelům pošlete novou adresu – konzole → Upravit → **Poslat pozvánku znovu** už odkazuje na novou doménu.
+   Přihlášení se nepřenáší (jiný původ), každý se jednou přihlásí kódem znovu.
+4. Na GitHub Pages nahraďte `app/index.html` a `404.html` stránkou, která přesměruje na novou adresu se stejným
+   slugem (GitHub Pages přesměrování na serveru neumí, stačí skript
+   `location.replace('https://app.vase-platforma.cz' + location.pathname.replace(/^\/rezerva-n--system\/app/, ''))`).

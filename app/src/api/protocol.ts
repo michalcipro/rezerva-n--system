@@ -140,6 +140,24 @@ export interface CreateTenantRequest {
   validUntil: string | null;
 }
 
+/**
+ * Pozvánka majitele e-mailem (adresa provozovny, přihlášení kódem, první kroky):
+ * odeslaná / server nemá nastavené odesílání e-mailů nebo adresu aplikace / odeslání selhalo.
+ */
+export type InviteStatus = 'sent' | 'not_configured' | 'failed';
+
+/** Odpověď na POST /platform/tenants – založení neshodí ani nepovedená pozvánka. */
+export interface CreateTenantResponse extends PlatformTenant {
+  invite: InviteStatus;
+}
+
+/** Odpověď na POST /platform/tenants/:id/invite (pozvánka znovu všem majitelům provozovny). */
+export interface InviteResponse {
+  invite: InviteStatus;
+  /** E-maily majitelů, kterým pozvánka patří. */
+  to: string[];
+}
+
 export interface UpdateTenantRequest {
   name?: string;
   slug?: string;
