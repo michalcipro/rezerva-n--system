@@ -16,6 +16,11 @@ interface ImportMetaEnv {
   readonly VITE_TERMS_URL?: string;
   /** Název platformy (správa platformy). */
   readonly VITE_PLATFORM_NAME?: string;
+  /**
+   * Podadresář webu (jen ostrý provoz a live), např. /rezerva-n--system/app/ – nastavuje Vite `base`.
+   * V kódu se nečte přímo: adresy se počítají z import.meta.env.BASE_URL (BASE_PATH v api/config.ts).
+   */
+  readonly VITE_BASE?: string;
 }
 
 interface ImportMeta {

@@ -12,7 +12,7 @@ Nic se pro zákazníka neprogramuje – přizpůsobení je nastavení v konzoli 
 
 | Co | Kde se nastavuje | Kdo |
 |---|---|---|
-| Založení provozovny, obor (šablona), majitel | konzole `/platforma` → Nová provozovna | vlastník platformy |
+| Založení provozovny, obor (šablona), majitel; pozvánka majiteli e-mailem | konzole `/platforma` → Nová provozovna; znovu Upravit → Poslat pozvánku znovu | vlastník platformy |
 | Licence: druh, platnost, pozastavení, poznámka (smlouva, faktura) | konzole → Upravit | vlastník platformy |
 | Adresa `/<slug>` a vlastní domény | konzole → Upravit | vlastník platformy |
 | Napojení na banku (token Fio) | konzole → Upravit → Banka | vlastník platformy (token dodá zákazník) |
@@ -35,6 +35,8 @@ a přihlásit se svým e-mailem). Jeho změny jsou v historii označené „podp
 - `https://rezervace.<domena-zakaznika>.cz` – volitelně vlastní doména: u zákazníka CNAME na web platformy,
   v Cloudflare Pages přidat doménu, v konzoli u provozovny doplnit doménu a doménu přidat do `ALLOWED_ORIGINS`.
 - `https://<adresa platformy>/platforma` – konzole vlastníka platformy.
+- Provizorně na GitHub Pages: `https://michalcipro.github.io/rezerva-n--system/app/<slug>` a `…/app/platforma`
+  (aplikace v podadresáři, `VITE_BASE`) – viz [DEPLOY.md, krok 12](DEPLOY.md#12-provizorní-hosting-na-github-pages).
 
 ### Šablony oborů
 | Šablona | Názvosloví | Moduly | Katalog |
@@ -75,7 +77,13 @@ nebo už skončila – podklad pro fakturu a prodloužení (adresu konzole v e-m
 
 ## Založení nového zákazníka (technicky)
 1. Konzole → **Nová provozovna**: název, adresa, obor, jméno a e-mail majitele, licence a platnost.
-2. Majiteli pošlete adresu `https://<platforma>/<slug>` – přihlásí se svým e-mailem (kód z e-mailu).
+2. Server majiteli pošle **pozvánku** e-mailem (`POST /api/platform/tenants`): název provozovny a kdo ji založil
+   (platforma, `PLATFORM_NAME`), adresa `PUBLIC_APP_URL/<slug>`, přihlášení (svůj e-mail, jednorázový kód z e-mailu,
+   žádné heslo), co nastavit nejdřív (fakturační údaje, služby a ceník, tým a pracovní doby, platby, právní texty,
+   pak „Spustit online rezervace“) a kontakt na podporu (`SUPPORT_EMAIL`, nepovinný; odpovědi na pozvánku jdou tam).
+   Toast v konzoli řekne, zda pozvánka odešla. Neodešla-li (chybí `BREVO_API_KEY`/`MAIL_FROM` nebo `PUBLIC_APP_URL`,
+   případně selhalo odeslání – provozovna je založená i tak), pošlete adresu sami, nebo použijte Upravit →
+   **Poslat pozvánku znovu** (`POST /api/platform/tenants/:id/invite`, všem majitelům provozovny, jen vlastník platformy).
 3. S majitelem (nebo za něj přes podporu): Nastavení → Fakturační údaje (IČO → Načíst z ARES), Vzhled, Názvosloví,
    Moduly, Platby (číslo účtu), Služby a ceník, Tým a směny (+ přístupy pro recepci a tým), Storno podmínky,
    Šablony zpráv, Právní texty. Nakonec Přehled → Spuštění online rezervací: nová provozovna začíná nespuštěná
@@ -100,7 +108,8 @@ Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](busine
   v rejstříku), jakmile jsou úplné; klientský portál ukazuje kontakt (adresa, telefon, e-mail, web).
 - **E-maily** odcházejí z jedné ověřené adresy platformy (`MAIL_FROM`) se jménem provozovny jako odesílatele
   a s odpovědí na e-mail provozovny (Nastavení → Provozovna). Přihlašovací kódy posílá Supabase Auth se
-  společnou šablonou platformy.
+  společnou šablonou platformy. Pozvánku majitele posílá server hned při založení (mimo frontu zpráv provozovny)
+  se jménem platformy jako odesílatele; nepovedené odeslání jen zapíše do logu (bez e-mailových adres).
 - **SMS se nepoužívají** – s klienty se komunikuje jen e-mailem. Kód pro SMS zůstává vypnutý přepínačem
   `SMS_ENABLED` v `src/engine/channels.ts` (platí pro celou platformu, není to nastavení provozovny).
 - **Instalace jen pro jednoho zákazníka** (např. doživotní licence s vlastním hostingem) je stejný kód:
@@ -108,5 +117,7 @@ Celý obchodní a právní postup je v [business/onboarding-zakaznika.md](busine
 
 ## Proměnné prostředí
 Server: viz [DEPLOY.md](DEPLOY.md) krok 3 (`PLATFORM_ADMIN_EMAILS`, `SECRETS_KEY`, `CRON_SECRET`, `ALLOWED_ORIGINS`,
-`PUBLIC_API_URL`, `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`; `SMS_SENDER` se nepoužívá – SMS platforma neposílá). Web: `VITE_API_URL`,
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, volitelně `VITE_PLATFORM_NAME` (název platformy v konzoli).
+`PUBLIC_API_URL`, `PUBLIC_APP_URL` (i s podadresářem – odkaz v pozvánce), `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`,
+nepovinně `PLATFORM_NAME` a `SUPPORT_EMAIL` (pozvánka majitele); `SMS_SENDER` se nepoužívá – SMS platforma neposílá).
+Web: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, volitelně `VITE_PLATFORM_NAME` (název platformy
+v konzoli) a `VITE_BASE` (podadresář webu, např. `/rezerva-n--system/app/` na GitHub Pages).

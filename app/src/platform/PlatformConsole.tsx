@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { PLATFORM_NAME } from '../api/config';
 import { LICENSE_PLAN_LABEL, type LicensePlan, type LicenseState, type LicenseStatus } from '../api/license';
-import type { CreateTenantRequest, PlatformTenant, UpdateTenantRequest } from '../api/protocol';
+import type { CreateTenantRequest, CreateTenantResponse, InviteResponse, InviteStatus, PlatformTenant, UpdateTenantRequest } from '../api/protocol';
 import { tenantUrl } from '../api/tenant';
 import { countLabel, formatDate } from '../engine/format';
 import { PRESETS } from '../engine/presets';
@@ -31,6 +31,12 @@ const PLANS = Object.keys(LICENSE_PLAN_LABEL) as LicensePlan[];
 function message(e: unknown): string {
   return e instanceof ApiError ? e.message : 'Něco se nepovedlo. Zkuste to prosím znovu.';
 }
+
+/** Proč pozvánka majitele neodešla. */
+const INVITE_PROBLEM: Record<Exclude<InviteStatus, 'sent'>, string> = {
+  not_configured: 'Server nemá nastavené odesílání e-mailů (BREVO_API_KEY, MAIL_FROM) nebo adresu aplikace (PUBLIC_APP_URL).',
+  failed: 'Odeslání e-mailu se nepodařilo – podrobnosti jsou v logu serveru.',
+};
 
 /** Adresa z názvu: bez diakritiky, malá písmena, pomlčky. */
 export function slugify(name: string): string {
@@ -277,8 +283,15 @@ function CreateTenantDialog({ onClose, onCreated }: { onClose: () => void; onCre
         plan,
         validUntil: validUntil || null,
       };
-      const t = await api<PlatformTenant>('POST', '/platform/tenants', body);
-      toast('Provozovna založená', { tone: 'success', description: `Majitel se přihlásí e-mailem ${body.ownerEmail} na ${tenantUrl(t.slug)}` });
+      const { invite, ...t } = await api<CreateTenantResponse>('POST', '/platform/tenants', body);
+      const url = tenantUrl(t.slug);
+      if (invite === 'sent') toast('Provozovna založená', { tone: 'success', description: `Pozvánka odešla na ${body.ownerEmail}. Majitel se přihlásí na ${url}.` });
+      else
+        toast('Provozovna založená, pozvánka neodešla', {
+          tone: 'warning',
+          duration: 12_000,
+          description: `${INVITE_PROBLEM[invite]} Pošlete majiteli adresu ${url} sami (přihlásí se e-mailem ${body.ownerEmail}), nebo to zkuste znovu v Upravit → Poslat pozvánku znovu.`,
+        });
       onCreated(t);
     } catch (e) {
       setError(message(e));
@@ -363,6 +376,8 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
   const [fioSet, setFioSet] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
 
   useEffect(() => {
     void api<{ key: string }[]>('GET', `/platform/tenants/${tenant.id}/secrets`)
@@ -411,6 +426,19 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
       toast('Napojení na Fio odebráno', { tone: 'success' });
     } catch (e) {
       setError(message(e));
+    }
+  };
+
+  const resendInvite = async (): Promise<void> => {
+    setInviting(true);
+    setInviteResult(null);
+    try {
+      const r = await api<InviteResponse>('POST', `/platform/tenants/${tenant.id}/invite`);
+      setInviteResult(r.invite === 'sent' ? { tone: 'success', text: `Pozvánka odešla na ${r.to.join(', ')}.` } : { tone: 'warning', text: `Pozvánka neodešla. ${INVITE_PROBLEM[r.invite]}` });
+    } catch (e) {
+      setInviteResult({ tone: 'danger', text: message(e) });
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -487,6 +515,24 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: PlatformTenant
         <Field label="Vlastní domény" optional hint="Každou na samostatný řádek, např. rezervace.klinika.cz. U domény nastavte CNAME na web aplikace a přidejte ji v Cloudflare Pages.">
           <Textarea rows={2} value={domains} onValueChange={setDomains} />
         </Field>
+
+        <h3 className="plt__section">Pozvánka majitele</h3>
+        <p className="plt__muted">
+          {tenant.owners.length ? `Majitel: ${tenant.owners.map((o) => `${o.name} <${o.email}>`).join(', ')}. ` : 'Provozovna nemá majitele s přístupem. '}
+          Pozvánka obsahuje adresu provozovny, přihlášení kódem z e-mailu a co nastavit nejdřív.
+        </p>
+        <div className="plt__invite">
+          <Button size="sm" variant="secondary" icon="send" onClick={() => void resendInvite()} loading={inviting} disabled={!tenant.owners.length}>
+            Poslat pozvánku znovu
+          </Button>
+          <div role="status" aria-live="polite">
+            {inviteResult && (
+              <Callout tone={inviteResult.tone} icon={inviteResult.tone === 'success' ? 'checkCircle' : 'alertCircle'}>
+                {inviteResult.text}
+              </Callout>
+            )}
+          </div>
+        </div>
 
         <h3 className="plt__section">Banka (Fio)</h3>
         <p className="plt__muted">

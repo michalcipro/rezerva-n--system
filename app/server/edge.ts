@@ -14,11 +14,15 @@ import { createRestStore } from './store/rest';
  *   PLATFORM_ADMIN_EMAILS  e-maily vlastníků platformy (správa provozoven a licencí), oddělené čárkou
  *   SECRETS_KEY            klíč pro šifrování tajných údajů provozoven (aspoň 32 znaků)
  *   CRON_SECRET            tajemství pro /api/cron (volá ho plánovač v databázi)
- *   ALLOWED_ORIGINS        adresy aplikace a vlastní domény provozoven, oddělené čárkou
+ *   ALLOWED_ORIGINS        adresy aplikace a vlastní domény provozoven, oddělené čárkou (počítá se jen původ:
+ *                          https://michalcipro.github.io i pro aplikaci v podadresáři)
  *   PUBLIC_API_URL         veřejná adresa API (odkazy pro odhlášení z novinek)
- *   PUBLIC_APP_URL         adresa aplikace (odkaz na konzoli v denním přehledu licencí)
+ *   PUBLIC_APP_URL         adresa aplikace i s podadresářem, např. https://…github.io/rezerva-n--system/app
+ *                          (odkaz na konzoli v denním přehledu licencí, adresa provozovny v pozvánce majitele)
  *   UNSUBSCRIBE_SECRET     podpis odkazů pro odhlášení (jinak se použije CRON_SECRET)
  *   BREVO_API_KEY, MAIL_FROM, MAIL_FROM_NAME   odesílání e-mailů
+ *   PLATFORM_NAME          název platformy v pozvánce majitele nové provozovny (nepovinné)
+ *   SUPPORT_EMAIL          kontakt na podporu v pozvánce, odpovědi na pozvánku jdou sem (nepovinné)
  *   SMS_SENDER             nepoužívá se – platforma SMS neposílá (SMS_ENABLED v src/engine/channels.ts);
  *                          zůstává jen pro případné pozdější zapnutí SMS
  *   APP_ANON_KEY, APP_SERVICE_KEY  nové klíče Supabase (sb_publishable_…, sb_secret_…), pokud se nepoužívají starší
@@ -41,6 +45,15 @@ const list = (v: string | undefined): string[] =>
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+
+/** Původ (schéma, doména, port) – hlavička Origin cestu nemá, např. https://…github.io/rezerva-n--system/app → https://…github.io. */
+function originOf(v: string): string {
+  try {
+    return new URL(v).origin;
+  } catch {
+    return v.replace(/\/$/, '');
+  }
+}
 
 export function createEdgeHandler(env: Env): (req: Request) => Promise<Response> {
   const url = env.SUPABASE_URL;
@@ -82,13 +95,18 @@ export function createEdgeHandler(env: Env): (req: Request) => Promise<Response>
     store,
     auth,
     cronSecret: env.CRON_SECRET,
-    allowedOrigins: list(env.ALLOWED_ORIGINS).map((o) => o.replace(/\/$/, '')),
+    allowedOrigins: list(env.ALLOWED_ORIGINS).map(originOf),
     defaultClinicId: env.CLINIC_ID || undefined,
     platformAdmins: admins,
     secretsKey,
     unsubscribeSecret,
     cronJobs,
     licenseDigest,
+    // pozvánka majitele při založení provozovny (bez Brevo nebo PUBLIC_APP_URL se neposílá)
+    messenger: messenger ?? undefined,
+    publicAppUrl: env.PUBLIC_APP_URL || undefined,
+    supportEmail: env.SUPPORT_EMAIL || undefined,
+    platformName: env.PLATFORM_NAME || undefined,
     log,
   });
 }

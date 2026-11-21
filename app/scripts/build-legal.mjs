@@ -1,5 +1,6 @@
 // Vytvoří stránky s právními dokumenty pro ostrý provoz (dist-prod/*.html) ze schválených textů
 // v docs/legal/zverejnit/. Koncepty (s [doplněním] nebo „PRACOVNÍ NÁVRH“) zveřejnit nedovolí.
+// Stránky leží vedle index.html, odkaz zpět je proto relativní – funguje i v podadresáři (VITE_BASE).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +32,7 @@ blockquote{margin:1em 0;padding:.5em 1em;border-left:3px solid var(--border);col
 .back{display:inline-block;margin-bottom:16px}
 </style>
 </head>
-<body><main><a class="back" href="/">← Zpět na rezervace</a>
+<body><main><a class="back" href="./">← Zpět na rezervace</a>
 ${body}
 </main></body>
 </html>

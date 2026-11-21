@@ -6,6 +6,9 @@ import type {
   CommandRequest,
   CommandResponse,
   CreateTenantRequest,
+  CreateTenantResponse,
+  InviteResponse,
+  InviteStatus,
   LegalDocument,
   MemberView,
   PlatformTenant,
@@ -33,7 +36,9 @@ import { stateToChunkJson } from './core/state';
 import { pragueNow } from './core/time';
 import { verifyUnsubscribe } from './core/unsubscribe';
 import { validateInput } from './core/validate';
+import { tenantInviteEmail } from './invite';
 import { createAresClient, type AresClient } from './providers/ares';
+import type { Messenger } from './providers/types';
 import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateStore } from './store/types';
 
 /**
@@ -50,7 +55,8 @@ import type { ClinicInfo, LicensePlan, LicenseStatus, PlatformClinicRow, StateSt
  *   GET  /api/state, /api/changes        stav provozovny (personál po částech, klient svůj pohled)
  *   POST /api/command                    příkaz enginu (role, tvar vstupu, licence)
  *   GET|POST|DELETE /api/members         přístupy personálu (majitel)
- *   /api/platform/tenants…               správa provozoven a licencí (vlastník platformy)
+ *   /api/platform/tenants…               správa provozoven a licencí (vlastník platformy); založení
+ *                                        i POST …/tenants/:id/invite pošle majiteli pozvánku e-mailem
  *   POST /api/cron                       automatika (hlavička x-cron-secret)
  *   GET|POST /api/unsubscribe            odhlášení z novinek (podepsaný odkaz)
  *   POST /api/dev/login                  přihlášení bez e-mailu – jen lokální vývoj
@@ -104,6 +110,14 @@ export interface ApiDeps {
   licenseDigest?: (items: LicenseDigestItem[]) => Promise<void>;
   /** Dotazy do ARES (testy podstrčí vlastní fetch přes createAresClient). */
   ares?: AresClient;
+  /** Odesílání e-mailů mimo frontu provozovny – pozvánka majitele nové provozovny (bez něj se neposílá). */
+  messenger?: Messenger;
+  /** Veřejná adresa aplikace i s podadresářem (PUBLIC_APP_URL), např. https://…github.io/rezerva-n--system/app. */
+  publicAppUrl?: string;
+  /** Kontakt na podporu platformy v pozvánce (SUPPORT_EMAIL); nepovinný. */
+  supportEmail?: string;
+  /** Název platformy – kdo provozovnu založil (odesílatel a podpis pozvánky). */
+  platformName?: string;
   log?: (message: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -724,9 +738,37 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
     if (RESERVED_SLUGS.has(slug)) throw new HttpError(400, 'Tato adresa je vyhrazená pro aplikaci – zvolte jinou.');
   }
 
+  /**
+   * Pozvánka majitelům provozovny e-mailem (adresa = PUBLIC_APP_URL/<slug>). Bez odesílání e-mailů nebo adresy
+   * aplikace se neposílá; chyba odeslání se jen zapíše do logu (bez e-mailových adres) – nic neshodí.
+   */
+  async function sendInvite(t: { name: string; slug: string }, owners: { name: string; email: string }[]): Promise<InviteStatus> {
+    const appUrl = (deps.publicAppUrl ?? '').trim();
+    if (!deps.messenger || !/^https?:\/\/[^/\s]+/i.test(appUrl)) {
+      log('Pozvánka majitele se neposlala – na serveru chybí odesílání e-mailů nebo PUBLIC_APP_URL', { slug: t.slug });
+      return 'not_configured';
+    }
+    const noAddresses = (text: string): string => text.replace(/[^\s@<>"']+@[^\s@<>"']+/g, '[e-mail]');
+    let status: InviteStatus = 'sent';
+    for (const owner of owners) {
+      const email = tenantInviteEmail({ tenantName: t.name, slug: t.slug, owner, appUrl, platformName: deps.platformName || 'Rezervační platforma', supportEmail: deps.supportEmail });
+      let error: string;
+      try {
+        const r = await deps.messenger.sendEmail(email);
+        if (r.ok) continue;
+        error = r.error ?? 'bez podrobností';
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+      }
+      log('Pozvánku majitele se nepodařilo odeslat', { slug: t.slug, error: noAddresses(error) });
+      status = 'failed';
+    }
+    return status;
+  }
+
   async function platformTenants(req: Request, path: string): Promise<Response> {
     await platformUser(req);
-    const m = /^\/platform\/tenants(?:\/([0-9a-f-]{36})(?:\/(domains|secrets))?)?$/.exec(path);
+    const m = /^\/platform\/tenants(?:\/([0-9a-f-]{36})(?:\/(domains|secrets|invite))?)?$/.exec(path);
     if (!m) throw new HttpError(404, 'Nenalezeno.', 'not_found');
     const [, id, sub] = m;
 
@@ -759,7 +801,17 @@ export function createApi(deps: ApiDeps): (req: Request) => Promise<Response> {
       // majitel = první člen týmu (jeho kalendář)
       await store.upsertMember(clinicId, ownerId, 'owner', OWNER_STAFF_ID, ownerName, ownerEmail);
       forgetTenants();
-      return json(req, 200, (await tenantRow(clinicId)) as unknown as Json);
+      const created = await tenantRow(clinicId);
+      // provozovna už je založená – nepovedená pozvánka se jen ohlásí (konzole ji umí poslat znovu)
+      const invite = await sendInvite(created, [{ name: ownerName, email: ownerEmail }]);
+      return json(req, 200, { ...created, invite } satisfies CreateTenantResponse as unknown as Json);
+    }
+
+    if (id && sub === 'invite' && req.method === 'POST') {
+      const t = await tenantRow(id);
+      if (!t.owners.length) throw new HttpError(409, 'Provozovna nemá majitele s přístupem – pozvánku není komu poslat.', 'conflict');
+      const invite = await sendInvite(t, t.owners);
+      return json(req, 200, { invite, to: t.owners.map((o) => o.email) } satisfies InviteResponse);
     }
 
     if (id && !sub && req.method === 'PATCH') {
